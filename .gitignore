@@ -228,6 +228,9 @@ cdk.out/
 # cdk.context.json is intentionally NOT ignored — it must be committed.
 # CDK writes cached AZ/AMI/SSM lookups there; missing it means the next
 # synth may pick different values and produce a surprise diff in CI.
+# Optional output files written by `cdk deploy --outputs-file` (CfnOutput
+# values for the deployed stacks). Local-only by convention.
+cdk-outputs*.json
 
 # End of https://www.gitignore.io/api/osx,linux,python,windows,pycharm,visualstudiocode
 

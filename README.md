@@ -267,6 +267,42 @@ cdk deploy --all
 
 The `cdk synth` and `cdk deploy` commands use your chosen container runtime to build an image that installs the Lambda dependencies from `lambda/requirements.txt` into the deployment package. The first run will be slower as it pulls the AWS Lambda Python build image (distributed via the SAM project, hence the "SAM build image" label you may see in logs).
 
+### Recommended order for ongoing deploys
+
+The first-time flow above is enough to get the stacks up. For *every deploy after that* — and for the first one too if you want a safety net — run the validation gates first. Each step catches a different class of failure cheaply, before AWS sees anything:
+
+```bash
+# 1. Synthesize all stacks. Runs cdk-nag against the four-pack policy
+#    (AwsSolutions, NIST 800-53 R5, HIPAA Security, PCI DSS 3.2.1) and
+#    fails on any unsuppressed finding. Catches IAM / encryption /
+#    logging regressions before they reach CloudFormation.
+make cdk-synth
+
+# 2. Run the CDK assertion tests against the synthesized templates.
+#    Catches structural drift in resource counts, properties, and
+#    suppression coverage. ~120s timeout in the Makefile.
+make test-cdk
+
+# 3. Bootstrap CDK in the target region — only required the first
+#    time per account+region pair. Idempotent if already bootstrapped.
+#    WAF always lives in us-east-1, so us-east-1 is always required;
+#    add the target region too if it differs.
+cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
+
+# 4. Deploy all three stacks in the Stage. --require-approval never
+#    suppresses interactive IAM-change prompts since cdk-nag already
+#    gated the change at step 1; drop the flag for a manual review of
+#    every IAM diff.
+cdk deploy --all --require-approval never
+
+# 5. CfnOutputs print at the end of step 4 — capture CloudFrontDomainName
+#    (the frontend URL), HelloWorldApiOutput (the API endpoint),
+#    RumAppMonitorId (for browser RUM), and CloudWatchDashboardUrl
+#    (the monitoring dashboard).
+```
+
+Skip a step only when you specifically don't need that gate: skip step 1 if you've just synthesized in another shell, skip step 2 if you're iterating on a single resource and the assertion tests don't cover it, skip step 3 once both regions are bootstrapped. Steps 4 and 5 are not optional.
+
 After deployment, CloudFormation outputs useful values directly in the terminal. Each stack exposes the following:
 
 **`HelloWorldWaf-{region}`:**
@@ -1024,7 +1060,9 @@ X-Ray traces flow end-to-end: the browser RUM client emits a client-side segment
 
 **CloudWatch RUM.** The frontend stack provisions an `AWS::RUM::AppMonitor` with `EnableXRay=true`. The app monitor ID, identity pool ID, and region are injected into `frontend/config.json` at deploy time; the HTML loads the RUM snippet from `<head>`, initializes `cwr` with `enableXRay: true`, and the single X-Ray trace shows browser → CloudFront → API Gateway → Lambda in one timeline. API Gateway CORS is configured to allow the `X-Amzn-Trace-Id` request header so the browser's trace ID propagates through the preflight.
 
-The `telemetries` list (set identically on the AppMonitor and in the client snippet) enables four plugins: `errors` (uncaught JS exceptions and unhandled promise rejections via `window.onerror`), `performance` (page load timings, Core Web Vitals), `http` (`fetch`/`XHR` latency and status), and `interaction` (user click events). The `errors` telemetry only catches *uncaught* exceptions — caught errors are invisible to RUM unless explicitly recorded, so the API-call handler in [frontend/index.html](frontend/index.html) calls `window.cwr("recordError", err)` from its `catch` block to surface API failures that the page swallows into an inline message.
+The browser loads four plugins: `errors` (uncaught JS exceptions and unhandled promise rejections via `window.onerror`), `performance` (page load timings, Core Web Vitals), `http` (`fetch`/`XHR` latency and status), and `interaction` (user click events). The `errors` telemetry only catches *uncaught* exceptions — caught errors are invisible to RUM unless explicitly recorded, so the API-call handler in [frontend/index.html](frontend/index.html) calls `window.cwr("recordError", err)` from its `catch` block to surface API failures that the page swallows into an inline message.
+
+The plugin set is *not* the same list in both places. The CloudFormation schema for `AWS::RUM::AppMonitor.AppMonitorConfiguration.Telemetries` accepts only `["errors", "performance", "http"]` and rejects `"interaction"` as an invalid enum value, even though `interaction` is a real, supported plugin. That server-side list is documentation for the AWS-generated snippet, not the live loader; the actual plugin set is controlled by the client-side `telemetries` array in `frontend/index.html`. So the AppMonitor lists three telemetries and the client lists four. Keep them divergent on purpose.
 
 The `http` telemetry is written as a `[name, config]` tuple — `["http", { addXRayTraceIdHeader: true }]` — rather than the bare-string form. `enableXRay: true` defaults `addXRayTraceIdHeader` to true today, but stating it explicitly guards against future client-version regressions of that default and matches the AWS reference snippet pattern.
 
@@ -1034,10 +1072,19 @@ The `http` telemetry is written as a `[name, config]` tuple — `["http", { addX
 
 **Extended metrics.** By default, RUM publishes scalar CloudWatch metrics (`JsErrorCount`, `Http4xxCount`, `PageViewCount`, `PerformanceNavigationDuration`, etc.) with only the `application_name` dimension — useful for top-line counts but blind to *which* browser, device, country, or page is producing them. Extended metrics add user-agent / geo / page dimensions to those scalars so dashboards can slice the same metric multiple ways. The frontend stack registers a CloudWatch destination on the AppMonitor and creates seven extended metric definitions covering JS errors (by browser / device / country), HTTP errors (by browser), and per-page navigation timing and view counts.
 
-There is no native CloudFormation resource for RUM metric destinations or definitions — both are managed via the RUM API only — so the stack uses two `AwsCustomResource` constructs to call `PutRumMetricsDestination` and `BatchCreateRumMetricDefinitions` at deploy time. Two operational notes:
+There is no native CloudFormation resource for RUM metric destinations or definitions — both are managed via the RUM API only — so the stack uses two `AwsCustomResource` constructs to call `PutRumMetricsDestination` and `BatchCreateRumMetricDefinitions` at deploy time. Several operational notes worth knowing if you change this code:
 
-- **Updates require destroy + redeploy.** `BatchCreateRumMetricDefinitions` creates new definitions and is not idempotent on re-call; if you change the metric list in the stack code, the existing AppMonitor must be destroyed (which cascade-deletes its metric configuration) before a new deploy registers the new set. Otherwise the old and new definitions accumulate.
+- **Each definition needs an `EventPattern`.** The AWS docs imply you can register a vended metric (`JsErrorCount`, `Http4xxCount`, etc.) with just `Name` and `DimensionKeys` and let RUM supply the `ValueKey` internally. This isn't true: the API requires an `EventPattern` that filters to the right RUM event type AND existence-checks every dimension key. Without one, the API returns `200 OK` with an `Errors[]` body — which `AwsCustomResource` treats as success — so the definitions silently never get created. The patterns in [hello_world/hello_world_frontend_stack.py](hello_world/hello_world_frontend_stack.py) match `event_type` (`com.amazon.rum.js_error_event`, `com.amazon.rum.http_event`, `com.amazon.rum.page_view_event`) plus `{"exists":true}` checks on each dimension key.
+- **Http5xxCount has a vended-metric quirk.** Adding an explicit numeric range filter on `event_details.response.status` works for `Http4xxCount` but is rejected for `Http5xxCount` ("Value … for metric field event detail is not valid"). RUM applies the 5xx filter internally for that metric, so the EventPattern must omit the status range; for Http4xx the range is required. The two patterns are deliberately not symmetric.
+- **`PerformanceNavigationDuration` is left out.** With our dimension shape RUM rejected it as "Value `event_details.duration` for metric field value key is not valid". A working configuration is possible but requires a different vended-metric or custom-metric form than the others; not worth the complexity for the reference architecture.
+- **`on_create` and `on_update` reference the same call.** `AwsCustomResource` no-ops on CloudFormation UPDATE events when `on_update` is omitted. Without it, edits to the metric-definitions list never propagate to AWS — the deploy succeeds, the AppMonitor is unchanged, no error is reported.
+- **Updates accumulate.** `BatchCreateRumMetricDefinitions` is not idempotent: re-running it with the same definitions creates duplicates rather than reconciling. If you change the metric list and want a clean replacement (rather than the old set plus the new set side-by-side), destroy and redeploy the frontend stack so the AppMonitor cascade-deletes its configuration before the new set is registered.
 - **No alarms are wired.** Recording the metrics with dimensions is enough to enable ad-hoc CloudWatch metric queries and dashboard widgets sliced by the new dimensions; binding specific thresholds to alarms is a separate decision left to the operator.
+
+There are also two CDK ordering concerns worth understanding:
+
+- **IAM propagation.** The `RumMetricsDestination` policy bundles all three `rum:*` actions (`PutRumMetricsDestination`, `DeleteRumMetricsDestination`, `BatchCreateRumMetricDefinitions`) on the *first* AwsCustomResource so they ride a single policy attachment. By the time `RumExtendedMetrics` fires, the policy has been on the singleton role through one full `PutRumMetricsDestination` round-trip — enough lead time for IAM to propagate. Splitting the actions across each construct's own policy lost the race consistently with `AccessDenied`.
+- **`BucketDeployment` depends on `RumExtendedMetrics`.** This is intentional: if `RumExtendedMetrics` fails, `BucketDeployment` never runs, which avoids the [known CDK bug](https://github.com/aws/aws-cdk/issues/15891) where the BucketDeployment provider's CloudFront invalidation can't complete during a rollback that's deleting the same distribution. Without this dependency, a metrics-side failure produces an unrecoverable `ROLLBACK_FAILED` stack with orphaned CloudFront, S3, and OAC resources that have to be cleaned up manually.
 
 **Why Cognito.** Browsers are anonymous — they have no prior identity and nowhere to safely store long-lived AWS credentials — but the RUM data plane still needs authenticated SigV4 calls to `rum:PutRumEvents`. A Cognito Identity Pool with `AllowUnauthenticatedIdentities=true` is the AWS-standard bridge: it issues short-lived STS credentials to every anonymous browser session, which the RUM client then uses to sign telemetry uploads. This is what makes client-side telemetry possible without shipping an access key to the browser. The trust chain is:
 

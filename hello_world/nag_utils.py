@@ -79,4 +79,19 @@ CDK_LAMBDA_SUPPRESSIONS = [
     {"id": "HIPAA.Security-LambdaInsideVPC", "reason": "CDK-managed singleton Lambda — VPC is not configurable"},
     {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": "CDK-generated inline policy on singleton service role"},
     {"id": "PCI.DSS.321-LambdaInsideVPC", "reason": "CDK-managed singleton Lambda — VPC is not configurable"},
+    # Some CDK-managed singletons (notably AwsCustomResource) auto-create a CloudWatch log group
+    # without exposing an encryption-key knob. Only framework invocation/error logs land here — no
+    # application data — so the encryption rule cannot be satisfied without forking the singleton.
+    {
+        "id": "NIST.800.53.R5-CloudWatchLogGroupEncrypted",
+        "reason": "Auto-created log group on CDK-managed singleton Lambda — encryption key is not configurable",
+    },
+    {
+        "id": "HIPAA.Security-CloudWatchLogGroupEncrypted",
+        "reason": "Auto-created log group on CDK-managed singleton Lambda — encryption key is not configurable",
+    },
+    {
+        "id": "PCI.DSS.321-CloudWatchLogGroupEncrypted",
+        "reason": "Auto-created log group on CDK-managed singleton Lambda — encryption key is not configurable",
+    },
 ]

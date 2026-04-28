@@ -272,103 +272,29 @@ class HelloWorldFrontendStack(Stack):
                 allow_cookies=True,
                 enable_x_ray=True,
                 session_sample_rate=1.0,
-                telemetries=["errors", "performance", "http", "interaction"],
+                # CloudFormation's schema only accepts ["errors", "performance", "http"] here —
+                # "interaction" is rejected as an invalid enum value despite being a real RUM
+                # plugin. This server-side list is metadata used by the AWS-generated snippet,
+                # not the live plugin loader. The actual plugin set is controlled by the
+                # client-side `telemetries` array in frontend/index.html, which DOES include
+                # "interaction" alongside the http tuple form. Keep these two lists divergent
+                # on purpose; do not "sync" them.
+                telemetries=["errors", "performance", "http"],
                 identity_pool_id=rum_identity_pool.ref,
                 guest_role_arn=rum_unauth_role.role_arn,
             ),
         )
 
-        # ── RUM extended metrics ─────────────────────────────────────────────
-        # By default RUM publishes scalar CloudWatch metrics (JsErrorCount,
-        # Http4xxCount, etc.) with only the application_name dimension. Extended
-        # metrics add user-agent / geo / page dimensions so dashboards can slice
-        # by browser, device, country, or page. There is no native CloudFormation
-        # resource for RUM metrics destinations or definitions — both are managed
-        # via API only — so we wire them in with AwsCustomResource. When the
-        # AppMonitor is destroyed, RUM cascade-deletes its metric configuration,
-        # so on_delete is wired only for the destination (to support switching
-        # destinations on a live monitor without an orphan).
-        #
-        # NOTE: BatchCreateRumMetricDefinitions creates new definitions; it is
-        # not idempotent on re-call. Changing the metric list below requires a
-        # destroy + redeploy of the stack so the AppMonitor cascade-cleanup runs
-        # before the new set is created.
-        rum_metrics_destination = cr.AwsCustomResource(
-            self,
-            "RumMetricsDestination",
-            on_create=cr.AwsSdkCall(
-                service="rum",
-                action="putRumMetricsDestination",
-                parameters={
-                    "AppMonitor": rum_monitor_name,
-                    "Destination": "CloudWatch",
-                },
-                physical_resource_id=cr.PhysicalResourceId.of(f"{rum_monitor_name}/CloudWatch"),
-            ),
-            on_delete=cr.AwsSdkCall(
-                service="rum",
-                action="deleteRumMetricsDestination",
-                parameters={
-                    "AppMonitor": rum_monitor_name,
-                    "Destination": "CloudWatch",
-                },
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements(
-                [
-                    iam.PolicyStatement(
-                        actions=[
-                            "rum:PutRumMetricsDestination",
-                            "rum:DeleteRumMetricsDestination",
-                        ],
-                        resources=[rum_monitor_arn],
-                    ),
-                ]
-            ),
+        rum_extended_metrics = self._wire_rum_metrics_extras(
+            rum_app_monitor, rum_monitor_name, rum_monitor_arn
         )
-        rum_metrics_destination.node.add_dependency(rum_app_monitor)
-
-        extended_metric_definitions: list[dict[str, Any]] = [
-            # JS error breakdown — slice errors by who's hitting them
-            {"Name": "JsErrorCount", "DimensionKeys": {"metadata.browserName": "BrowserName"}},
-            {"Name": "JsErrorCount", "DimensionKeys": {"metadata.deviceType": "DeviceType"}},
-            {"Name": "JsErrorCount", "DimensionKeys": {"metadata.countryCode": "CountryCode"}},
-            # HTTP error breakdown by browser
-            {"Name": "Http4xxCount", "DimensionKeys": {"metadata.browserName": "BrowserName"}},
-            {"Name": "Http5xxCount", "DimensionKeys": {"metadata.browserName": "BrowserName"}},
-            # Per-page navigation timing and view counts
-            {"Name": "PerformanceNavigationDuration", "DimensionKeys": {"metadata.pageId": "PageId"}},
-            {"Name": "PageViewCount", "DimensionKeys": {"metadata.pageId": "PageId"}},
-        ]
-        rum_extended_metrics = cr.AwsCustomResource(
-            self,
-            "RumExtendedMetrics",
-            on_create=cr.AwsSdkCall(
-                service="rum",
-                action="batchCreateRumMetricDefinitions",
-                parameters={
-                    "AppMonitorName": rum_monitor_name,
-                    "Destination": "CloudWatch",
-                    "MetricDefinitions": extended_metric_definitions,
-                },
-                physical_resource_id=cr.PhysicalResourceId.of(f"{rum_monitor_name}/extended-metrics"),
-            ),
-            policy=cr.AwsCustomResourcePolicy.from_statements(
-                [
-                    iam.PolicyStatement(
-                        actions=["rum:BatchCreateRumMetricDefinitions"],
-                        resources=[rum_monitor_arn],
-                    ),
-                ]
-            ),
-        )
-        rum_extended_metrics.node.add_dependency(rum_metrics_destination)
 
         # ── Deploy frontend assets ───────────────────────────────────────────
         # Uploads frontend/ to S3 and generates config.json with the API URL
         # and RUM client config injected at deploy time. Triggers a CloudFront
         # invalidation so new assets are served immediately without waiting
         # for cache expiry.
-        s3deploy.BucketDeployment(
+        bucket_deployment = s3deploy.BucketDeployment(
             self,
             "DeployFrontend",
             sources=[
@@ -398,6 +324,15 @@ class HelloWorldFrontendStack(Stack):
             distribution_paths=["/*"],
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
+        # Defer the slow asset deploy + CloudFront invalidation until after the
+        # RUM custom resources have succeeded. If RumExtendedMetrics fails (it
+        # depends on IAM propagation), the BucketDeployment never starts —
+        # which avoids the known CDK rollback bug where DeleteCustomResource
+        # on the BucketDeployment provider tries to invalidate a CloudFront
+        # distribution that's being deleted in the same rollback. The asset
+        # work is the most expensive single resource, so this also prevents
+        # repeating it on every retry until the cheaper IAM dance settles.
+        bucket_deployment.node.add_dependency(rum_extended_metrics)
 
         CfnOutput(
             self,
@@ -559,6 +494,112 @@ class HelloWorldFrontendStack(Stack):
                 },
             ],
         )
+
+    def _wire_rum_metrics_extras(
+        self,
+        rum_app_monitor: rum.CfnAppMonitor,
+        rum_monitor_name: str,
+        rum_monitor_arn: str,
+    ) -> cr.AwsCustomResource:
+        """Wire CloudWatch metrics destination and dimensioned metric definitions to the AppMonitor.
+
+        Returns the metric-definitions custom resource so callers can wire a dependency on it.
+
+        Implementation notes (these are non-obvious — see README "CloudWatch RUM" section):
+        - Each definition needs an explicit ``EventPattern``; the API rejects vended-metric
+          submissions with just ``Name`` + ``DimensionKeys`` (returns 200 OK with an Errors[]
+          body that AwsCustomResource treats as success).
+        - All three ``rum:*`` actions are bundled on the destination CR's policy so the
+          BatchCreate call benefits from a full putRumMetricsDestination round-trip of IAM
+          propagation lead time. Splitting them per-CR loses the IAM race ~100% of the time.
+        - ``on_update`` mirrors ``on_create``; without it AwsCustomResource no-ops on
+          CloudFormation UPDATE events and changes to the metric list never reach AWS.
+        - Http5xx omits the explicit numeric range filter that Http4xx requires (RUM applies
+          the 5xx filter internally for that vended metric).
+        """
+        rum_metrics_destination = cr.AwsCustomResource(
+            self,
+            "RumMetricsDestination",
+            on_create=cr.AwsSdkCall(
+                service="rum",
+                action="putRumMetricsDestination",
+                parameters={"AppMonitorName": rum_monitor_name, "Destination": "CloudWatch"},
+                physical_resource_id=cr.PhysicalResourceId.of(f"{rum_monitor_name}/CloudWatch"),
+            ),
+            on_delete=cr.AwsSdkCall(
+                service="rum",
+                action="deleteRumMetricsDestination",
+                parameters={"AppMonitorName": rum_monitor_name, "Destination": "CloudWatch"},
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements(
+                [
+                    iam.PolicyStatement(
+                        actions=[
+                            "rum:PutRumMetricsDestination",
+                            "rum:DeleteRumMetricsDestination",
+                            "rum:BatchCreateRumMetricDefinitions",
+                        ],
+                        resources=[rum_monitor_arn],
+                    ),
+                ]
+            ),
+        )
+        rum_metrics_destination.node.add_dependency(rum_app_monitor)
+
+        js_pat = '{{"event_type":["com.amazon.rum.js_error_event"],"metadata":{{"{k}":[{{"exists":true}}]}}}}'
+        http_pat = '{{"event_type":["com.amazon.rum.http_event"],"metadata":{{"browserName":[{{"exists":true}}]}}{s}}}'
+        http4xx_status = ',"event_details":{"response":{"status":[{"numeric":[">=",400,"<",500]}]}}'
+        page_pat = '{"event_type":["com.amazon.rum.page_view_event"],"metadata":{"pageId":[{"exists":true}]}}'
+        defs: list[dict[str, Any]] = [
+            {"Name": "JsErrorCount", "EventPattern": js_pat.format(k="browserName"),
+             "DimensionKeys": {"metadata.browserName": "BrowserName"}},
+            {"Name": "JsErrorCount", "EventPattern": js_pat.format(k="deviceType"),
+             "DimensionKeys": {"metadata.deviceType": "DeviceType"}},
+            {"Name": "JsErrorCount", "EventPattern": js_pat.format(k="countryCode"),
+             "DimensionKeys": {"metadata.countryCode": "CountryCode"}},
+            {"Name": "Http4xxCount", "EventPattern": http_pat.format(s=http4xx_status),
+             "DimensionKeys": {"metadata.browserName": "BrowserName"}},
+            {"Name": "Http5xxCount", "EventPattern": http_pat.format(s=""),
+             "DimensionKeys": {"metadata.browserName": "BrowserName"}},
+            {"Name": "PageViewCount", "EventPattern": page_pat,
+             "DimensionKeys": {"metadata.pageId": "PageId"}},
+        ]
+        batch_create = cr.AwsSdkCall(
+            service="rum",
+            action="batchCreateRumMetricDefinitions",
+            parameters={
+                "AppMonitorName": rum_monitor_name,
+                "Destination": "CloudWatch",
+                "MetricDefinitions": defs,
+            },
+            physical_resource_id=cr.PhysicalResourceId.of(f"{rum_monitor_name}/extended-metrics"),
+        )
+        rum_extended_metrics = cr.AwsCustomResource(
+            self,
+            "RumExtendedMetrics",
+            on_create=batch_create,
+            on_update=batch_create,
+            policy=cr.AwsCustomResourcePolicy.from_sdk_calls(resources=[rum_monitor_arn]),
+        )
+        rum_extended_metrics.node.add_dependency(rum_metrics_destination)
+
+        # Same single-purpose, monitor-scoped justification as the RumUnauthenticatedRole
+        # inline policy. Cdk-nag flags both per-construct CustomResourcePolicy resources.
+        reason = (
+            "Single least-privilege inline policy attached to the CDK AwsCustomResource handler — "
+            "scoped to specific rum:* actions on one monitor ARN; managed-policy reuse adds nothing"
+        )
+        for construct in (rum_metrics_destination, rum_extended_metrics):
+            NagSuppressions.add_resource_suppressions(
+                construct,
+                [
+                    {"id": "NIST.800.53.R5-IAMNoInlinePolicy", "reason": reason},
+                    {"id": "HIPAA.Security-IAMNoInlinePolicy", "reason": reason},
+                    {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": reason},
+                ],
+                apply_to_children=True,
+            )
+        return rum_extended_metrics
 
     def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket) -> None:
         """Create Glue catalog tables and Athena workgroup for CloudFront/S3 access log analytics."""
