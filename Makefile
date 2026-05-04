@@ -54,13 +54,17 @@ test-integration: ## Run integration tests against a deployed stack (uses .venv-
 # =============================================================================
 
 cdk-synth: ## Synthesize all CDK stacks and validate cdk-nag rules (requires CDK CLI: npm install -g aws-cdk)
-	cdk synth
+	# The '**' glob descends into Stage-nested stacks. Without it, `cdk synth`
+	# stops at the Stage manifest, the three nested stacks never synthesize,
+	# and cdk-nag rules silently don't fire on them — so a "passing" synth
+	# can mask findings that surface later in `cdk deploy`.
+	cdk synth '**'
 
 cdk-notices: ## Show AWS-published CDK notices (CVEs, deprecated CDK versions, upcoming breaking changes)
 	cdk notices
 
 cdk-deprecations: ## List every deprecated CDK API used by any stack (synth output filtered for "deprecated")
-	cdk synth 2>&1 | grep -i deprecat || echo "No deprecated CDK APIs in use"
+	cdk synth '**' 2>&1 | grep -i deprecat || echo "No deprecated CDK APIs in use"
 
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files
