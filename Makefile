@@ -108,7 +108,12 @@ typecheck: ## Run mypy type checking (CDK side in .venv, Lambda runtime + script
 
 security: ## Run bandit security scan and pip-audit vulnerability check
 	uv run bandit -r lambda/ hello_world/
-	uv run pip-audit
+	# pip-audit goes through the pre-commit hook so the --ignore-vuln list
+	# (currently CVE-2026-3219 — pip 26.0.1, no upstream fix) is sourced
+	# from .pre-commit-config.yaml. Invoking pip-audit directly here would
+	# duplicate the suppression list and silently drift when the upstream
+	# fix lands.
+	uv run pre-commit run pip-audit --all-files
 
 # =============================================================================
 # Documentation
