@@ -111,7 +111,7 @@ class TestWafStack:
                 "Rules": Match.array_with(
                     [
                         Match.object_like({"Name": "AWSManagedRulesAmazonIpReputationList"}),
-                        Match.object_like({"Name": "AWSManagedRulesAmazonIpDDoSList"}),
+                        Match.object_like({"Name": "AWSManagedRulesAntiDDoSRuleSet"}),
                         Match.object_like({"Name": "AWSManagedRulesCommonRuleSet"}),
                         Match.object_like({"Name": "AWSManagedRulesKnownBadInputsRuleSet"}),
                     ]

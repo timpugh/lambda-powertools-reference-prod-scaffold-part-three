@@ -89,7 +89,7 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 
 | Resource | Purpose |
 |---|---|
-| WAF WebACL | CloudFront-scoped WebACL with 4 managed rule groups (IP reputation, DDoS list, common rule set, known bad inputs) + per-IP rate limit |
+| WAF WebACL | CloudFront-scoped WebACL with 4 managed rule groups (IP reputation, anti-DDoS, common rule set, known bad inputs) + per-IP rate limit |
 | KMS Key | Encrypts the WAF log group |
 | CloudWatch Log Group (`aws-waf-logs-*`) | Receives WAF access logs |
 
@@ -1134,19 +1134,19 @@ The trail writes to a separate dedicated bucket (`CloudTrailLogsBucket`) so the 
 
 The WebACL sits in front of CloudFront and inspects every request before it reaches S3. Five rules are active, evaluated in priority order:
 
-| Priority | Rule | What it blocks |
+| Priority | Rule | What it does |
 |----------|------|---------------|
-| 0 | `AWSManagedRulesAmazonIpReputationList` | Known malicious IPs — botnets, scanners, TOR exits |
-| 1 | `AWSManagedRulesAmazonIpDDoSList` | IPs AWS observes participating in active L7 (HTTP-flood) DDoS attacks |
-| 2 | `AWSManagedRulesCommonRuleSet` | OWASP Top 10 web exploits |
-| 3 | `AWSManagedRulesKnownBadInputsRuleSet` | Requests containing SQLi, XSS, and exploit payloads |
+| 0 | `AWSManagedRulesAmazonIpReputationList` | Blocks known malicious IPs — botnets, scanners, TOR exits |
+| 1 | `AWSManagedRulesAntiDDoSRuleSet` | Application-layer DDoS protection — silent JS challenge for borderline classifications, outright block for high-confidence DDoS traffic |
+| 2 | `AWSManagedRulesCommonRuleSet` | Blocks OWASP Top 10 web exploits |
+| 3 | `AWSManagedRulesKnownBadInputsRuleSet` | Blocks requests containing SQLi, XSS, and exploit payloads |
 | 4 | `RateLimitPerIP` (custom) | Blocks any single IP exceeding 1,000 requests per 5 minutes |
 
-The two IP-list rule groups (priority 0 and 1) are intentionally placed first because they are the cheapest to evaluate (a hash lookup against a curated list) and they short-circuit the rest of the chain — there is no value in running CRS regex against a known DDoS source. They cover *different* attacker populations: IP Reputation is broader and slower-moving (general bad-rep IPs over time), DDoS list is narrower and fresher (currently-attacking sources). Both are AWS-curated and updated automatically.
+The IP Reputation list (priority 0) is intentionally placed first because it's the cheapest to evaluate (hash lookup against a curated list) and short-circuits the rest of the chain — there is no value in running CRS regex against a known-malicious IP. The Anti-DDoS rule group (priority 1) sits next so that DDoS classification happens before the more expensive regex-based rules.
 
-The DDoS list ships from AWS in COUNT mode (visibility-only, no enforcement). The CDK rule overrides its single inner rule (`AWSManagedIPDDoSList`) to BLOCK via `rule_action_overrides` so matched requests are dropped at the edge rather than just counted. If false positives become an issue (e.g. a CGNAT IP gets listed and blocks legitimate traffic), revert to COUNT and pair the rule's emitted label with a stricter rate-based rule for differentiated treatment.
+The Anti-DDoS rule group contains three inner rules with mixed default actions: `ChallengeAllDuringEvent` and `ChallengeDDoSRequests` use the **Challenge** action (a silent JS challenge — real browsers pass through invisibly, bots that can't solve it are filtered), and `DDoSRequests` uses **Block** for high-confidence DDoS traffic. The CDK code keeps the AWS-supplied defaults rather than overriding everything to Block, because Challenge is the right fit for a CloudFront-fronted SPA where every legitimate caller is a browser — false-positive cost is much lower than a hard Block, and CGNAT/mobile-carrier shared IPs that occasionally trigger the rule still get a chance to prove they're a real client.
 
-*Cost/value note:* 25 WCU (well below the 1500 WCU pricing cliff), AWS curates the underlying list automatically, and the rule's hit population is a different attacker cohort than the IP Reputation list above. Unambiguously low cost, real value — one of the cleanest additions you can make to a CloudFront-fronted WebACL.
+*Cost/value note:* 50 WCU capacity (still well under the 1500 WCU pricing cliff), AWS curates the rule group automatically, and the Challenge action gives nuanced enforcement that an IP-deny-list approach can't. The realistic limitation: this rule group's effectiveness depends on AWS having global visibility of an active DDoS event — for a small-traffic site that is itself the target of a custom attack, the rate-limit rule below does more work. As one layer in a defense-in-depth WebACL, it earns its 50 WCU.
 
 All rules emit CloudWatch metrics and sampled requests, so WAF activity is visible in the console without additional configuration.
 

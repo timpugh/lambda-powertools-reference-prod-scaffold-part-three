@@ -106,31 +106,29 @@ class HelloWorldWafStack(Stack):
                         sampled_requests_enabled=True,
                     ),
                 ),
-                # Curated list of IPs AWS observes participating in active L7 (HTTP-flood)
-                # DDoS attacks. Distinct from the IP Reputation list above: this list is
-                # narrower and fresher, tracking currently-attacking sources rather than
-                # general bad-rep IPs. The rule group ships in COUNT mode by default;
-                # rule_action_overrides flips its single inner rule (AWSManagedIPDDoSList)
-                # to BLOCK so matched traffic is dropped at the edge.
+                # AWS-managed application-layer (L7) anti-DDoS rule group. Three inner
+                # rules with mixed default actions: ChallengeAllDuringEvent and
+                # ChallengeDDoSRequests fire a silent JS challenge for borderline
+                # classifications (real browsers pass through invisibly, bots that
+                # can't solve it are filtered), and DDoSRequests outright Blocks
+                # high-confidence DDoS traffic. We keep the AWS-supplied defaults
+                # — no rule_action_overrides — because Challenge is the correct
+                # fit for a CloudFront-fronted SPA: every legitimate caller is a
+                # browser, and false-positive cost is much lower than a hard Block.
+                # Capacity: 50 WCU.
                 wafv2.CfnWebACL.RuleProperty(
-                    name="AWSManagedRulesAmazonIpDDoSList",
+                    name="AWSManagedRulesAntiDDoSRuleSet",
                     priority=1,
                     statement=wafv2.CfnWebACL.StatementProperty(
                         managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
                             vendor_name="AWS",
-                            name="AWSManagedRulesAmazonIpDDoSList",
-                            rule_action_overrides=[
-                                wafv2.CfnWebACL.RuleActionOverrideProperty(
-                                    name="AWSManagedIPDDoSList",
-                                    action_to_use=wafv2.CfnWebACL.RuleActionProperty(block={}),
-                                ),
-                            ],
+                            name="AWSManagedRulesAntiDDoSRuleSet",
                         )
                     ),
                     override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
                     visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
                         cloud_watch_metrics_enabled=True,
-                        metric_name=f"{self.stack_name}-IpDDoSList",
+                        metric_name=f"{self.stack_name}-AntiDDoSRuleSet",
                         sampled_requests_enabled=True,
                     ),
                 ),
