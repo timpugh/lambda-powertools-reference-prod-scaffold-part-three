@@ -89,7 +89,7 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 
 | Resource | Purpose |
 |---|---|
-| WAF WebACL | CloudFront-scoped WebACL with 4 managed rules + rate limiting |
+| WAF WebACL | CloudFront-scoped WebACL with 4 managed rule groups (IP reputation, DDoS list, common rule set, known bad inputs) + per-IP rate limit |
 | KMS Key | Encrypts the WAF log group |
 | CloudWatch Log Group (`aws-waf-logs-*`) | Receives WAF access logs |
 
@@ -98,12 +98,12 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 | Resource | Purpose |
 |---|---|
 | KMS Key | Encrypts all log groups and DynamoDB |
-| Lambda Function | Runs the hello-world handler (256 MB, X-Ray tracing, JSON logging) |
+| Lambda Function | Runs the hello-world handler (256 MB, arm64/Graviton, X-Ray tracing, JSON logging) |
 | CloudWatch Log Group | Lambda log group with 1-week retention, KMS-encrypted |
 | API Gateway REST API | Exposes `GET /hello` with X-Ray tracing, 0.5 GB encrypted cache |
 | CloudWatch Log Group (access) | API Gateway access logs (16-field JSON), KMS-encrypted |
 | CloudWatch Log Group (execution) | API Gateway execution logs, KMS-encrypted |
-| DynamoDB Table | Idempotency records (TTL, PAY_PER_REQUEST, PITR, KMS-encrypted) |
+| DynamoDB Table | Idempotency records (TTL, PAY_PER_REQUEST, PITR, KMS-encrypted, Contributor Insights enabled) |
 | SSM Parameter | Greeting message (CDK-generated name, read via the `GREETING_PARAM_NAME` env var) |
 | AppConfig Application | Feature flag configuration |
 | AppConfig Environment | `{stack}-env` environment for feature flags |
@@ -118,7 +118,10 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 |---|---|
 | KMS Key | Encrypts the frontend S3 bucket and auto-delete Lambda log group |
 | S3 Bucket (frontend) | Private static assets, KMS-encrypted, server access logging enabled |
-| S3 Bucket (access logs) | Receives S3 server access logs (`s3-access-logs/`), CloudFront standard access logs (`cloudfront/`), and Athena query results (`athena-results/`). SSE-S3 — log delivery requires it |
+| S3 Bucket (access logs) | Receives S3 server access logs (`s3-access-logs/`), CloudFront standard access logs (`cloudfront/`), and Athena query results (`athena-results/`). SSE-S3 — log delivery requires it. 7-day expiration lifecycle rule applied to all prefixes |
+| S3 Bucket (CloudTrail logs) | Stores CloudTrail data-event records, separate from the audited buckets to avoid feedback loops |
+| CloudTrail Trail | Records every Get/Put/Delete object-level call against the frontend and access-log buckets, KMS-encrypted, file-validation enabled, with CloudWatch Logs integration |
+| Glue Data Catalog encryption settings | Account/region-wide SSE-KMS for table metadata and connection password storage |
 | CloudFront Distribution | HTTPS-only, TLS 1.2+, WAF-protected, SECURITY_HEADERS policy, access logging to S3 |
 | CloudWatch Log Group (auto-delete) | Auto-delete Lambda log group, KMS-encrypted |
 | Glue Database | Catalog database for CloudFront and S3 access log analytics |
@@ -1105,6 +1108,14 @@ The bucket is fully private — no public access of any kind. CloudFront reaches
 
 The access log bucket uses SSE-S3 rather than SSE-KMS — neither the S3 log delivery service nor CloudFront standard logging support writing to KMS-encrypted target buckets. The bucket is organized by prefix: `cloudfront/` for CloudFront standard logs, `s3-access-logs/` for S3 server access logs, and `athena-results/` for Athena query output. Glue catalog tables point at the log prefixes so Athena can query them directly with SQL.
 
+A **7-day expiration lifecycle rule** is applied uniformly to every prefix in the access log bucket — appropriate for a sample app where the value of an individual log entry decays quickly. The duration is intentionally short to keep storage cost bounded; tune it for your workload by editing the `lifecycle_rules` block in [hello_world_frontend_stack.py](hello_world/hello_world_frontend_stack.py). Common alternatives: extend the expiration to 30/90/365 days, or replace the flat expiration with a tiered transition — Standard → S3 Standard-IA at 30 days → Glacier Instant Retrieval at 90 days → Glacier Deep Archive at 180 days → expire at 7 years. Per-prefix rules are also supported if logs and Athena results need different retention.
+
+### CloudTrail object-level data events
+
+A dedicated [CloudTrail Trail](https://docs.aws.amazon.com/awscloudtrail/latest/userguide/logging-data-events-with-cloudtrail.html) records every object-level S3 API call (`GetObject`, `PutObject`, `DeleteObject`, etc.) against the frontend bucket and the access-log bucket. This is distinct from CloudTrail management events (which the AWS account already records by default) and from S3 server access logs (which only cover successful reads/writes through the S3 interface, not authorization failures or `DeleteObject` calls).
+
+The trail writes to a separate dedicated bucket (`CloudTrailLogsBucket`) so the audit destination isn't itself among the audited resources — placing trail logs inside one of the buckets being audited would create a feedback loop where every audit write generates another audit event. The trail is also wired to a CloudWatch Log Group and is KMS-encrypted with the frontend stack's customer-managed key. File integrity validation is enabled, so CloudTrail publishes signed digest files that let you detect after-the-fact tampering with log entries.
+
 ### CloudFront distribution
 
 | Setting | Value | Why |
@@ -1120,14 +1131,19 @@ The access log bucket uses SSE-S3 rather than SSE-KMS — neither the S3 log del
 
 ### WAF rules
 
-The WebACL sits in front of CloudFront and inspects every request before it reaches S3. Four rules are active, evaluated in priority order:
+The WebACL sits in front of CloudFront and inspects every request before it reaches S3. Five rules are active, evaluated in priority order:
 
 | Priority | Rule | What it blocks |
 |----------|------|---------------|
 | 0 | `AWSManagedRulesAmazonIpReputationList` | Known malicious IPs — botnets, scanners, TOR exits |
-| 1 | `AWSManagedRulesCommonRuleSet` | OWASP Top 10 web exploits |
-| 2 | `AWSManagedRulesKnownBadInputsRuleSet` | Requests containing SQLi, XSS, and exploit payloads |
-| 3 | `RateLimitPerIP` (custom) | Blocks any single IP exceeding 1,000 requests per 5 minutes |
+| 1 | `AWSManagedRulesAmazonIpDDoSList` | IPs AWS observes participating in active L7 (HTTP-flood) DDoS attacks |
+| 2 | `AWSManagedRulesCommonRuleSet` | OWASP Top 10 web exploits |
+| 3 | `AWSManagedRulesKnownBadInputsRuleSet` | Requests containing SQLi, XSS, and exploit payloads |
+| 4 | `RateLimitPerIP` (custom) | Blocks any single IP exceeding 1,000 requests per 5 minutes |
+
+The two IP-list rule groups (priority 0 and 1) are intentionally placed first because they are the cheapest to evaluate (a hash lookup against a curated list) and they short-circuit the rest of the chain — there is no value in running CRS regex against a known DDoS source. They cover *different* attacker populations: IP Reputation is broader and slower-moving (general bad-rep IPs over time), DDoS list is narrower and fresher (currently-attacking sources). Both are AWS-curated and updated automatically.
+
+The DDoS list ships from AWS in COUNT mode (visibility-only, no enforcement). The CDK rule overrides its single inner rule (`AWSManagedIPDDoSList`) to BLOCK via `rule_action_overrides` so matched requests are dropped at the edge rather than just counted. If false positives become an issue (e.g. a CGNAT IP gets listed and blocks legitimate traffic), revert to COUNT and pair the rule's emitted label with a stricter rate-based rule for differentiated treatment.
 
 All rules emit CloudWatch metrics and sampled requests, so WAF activity is visible in the console without additional configuration.
 
@@ -1191,6 +1207,8 @@ In short: the pool exists because the browser has no identity of its own, and th
 ### Access log analytics (Athena + Glue)
 
 CloudFront and S3 access logs are stored in S3, not CloudWatch, so they cannot be queried with CloudWatch Logs Insights. Instead, the frontend stack provisions a Glue Data Catalog and Athena workgroup for SQL-based analytics.
+
+**Glue Data Catalog encryption.** The stack configures `AWS::Glue::DataCatalogEncryptionSettings` with SSE-KMS for catalog metadata at rest (table definitions, column types, partition values) and KMS-backed encryption for stored connection passwords. The customer-managed `frontend_encryption_key` is reused for both, and the Glue service principal (`glue.amazonaws.com`) is added to the KMS key's resource policy so Glue can encrypt and decrypt catalog data on the stack's behalf. *Scope note:* this resource configures the **account/region-wide** Glue Data Catalog, not just this stack's database — there is one catalog per account per region. Deploying this stack alongside another stack that sets a *different* policy will conflict; deploying alongside stacks that don't touch encryption is safe.
 
 **Glue catalog structure:**
 
@@ -1401,6 +1419,14 @@ Every resource in this stack is declared explicitly in CDK with `removal_policy=
 > # Delete the old one
 > aws cloudwatch delete-dashboard --dashboard-names "ApplicationInsights-<old-resource-group-name>"
 > ```
+
+**DynamoDB Contributor Insights is enabled** — `contributor_insights_enabled=True` is set on the `IdempotencyTable`. Contributor Insights is a free CloudWatch feature that surfaces the *most active partition keys* and the *most throttled requests* over rolling time windows. For an idempotency table where the partition key is the API Gateway request ID (effectively unique per call), this means you can see in the AWS Console which request IDs are hitting the table hardest, when retries are concentrating on the same key, and whether any partition is approaching the per-partition write throughput ceiling that triggers throttling on a PAY_PER_REQUEST table. Cost: zero — only enabled-and-active tables incur charges, which kicks in only if the table actually receives write traffic.
+
+**Lambda runs on arm64 (Graviton)** — the function is configured with `_lambda.Architecture.ARM_64`. Graviton-based Lambda is roughly 20% cheaper per GB-second than x86_64 and tends to deliver ~19% better performance for typical Python workloads. The PythonFunction bundler builds wheels matching the function architecture, so all dependencies (including any C-extension wheels like `pydantic-core` and `cryptography`) install correctly. Switch back to `Architecture.X86_64` only if you add a layer or dependency that's published for x86 only.
+
+**AppConfig IAM is least-privilege where the API supports it** — the Lambda has two AppConfig statements rather than one wildcard grant. `appconfig:StartConfigurationSession` is pinned to the specific `application/{app_id}/environment/{env_id}/configuration/{profile_id}` ARN built dynamically from the Stack partition/region/account and the AppConfig CFN refs, so it scales across regions and across stage copies without code changes. `appconfig:GetLatestConfiguration` keeps `Resource: "*"` because the action is checked against a `configurationsession` ARN whose token is generated by `StartConfigurationSession` at call time and isn't knowable to IAM at policy-creation time — splitting the two keeps the broader of the two grants narrowed to a read-only data fetch. The X-Ray segment publish action has the same dynamic-ARN limitation and is documented in the same nag suppression.
+
+**Lambda recursive-loop detection is set explicitly to `Terminate`** — the L2 `PythonFunction` construct doesn't expose this property, so it's set on the underlying `CfnFunction` via a property override. `Terminate` is the AWS default and is the correct posture: if the function ever invokes itself or sets up a self-triggering chain (Lambda → SNS → Lambda, etc.), Lambda will detect the loop and terminate after a small number of iterations. Setting it in code rather than relying on the runtime default makes the choice visible in review.
 
 ## Scaling beyond a reference architecture
 

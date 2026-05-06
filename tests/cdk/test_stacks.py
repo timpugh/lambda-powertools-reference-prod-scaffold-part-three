@@ -111,6 +111,7 @@ class TestWafStack:
                 "Rules": Match.array_with(
                     [
                         Match.object_like({"Name": "AWSManagedRulesAmazonIpReputationList"}),
+                        Match.object_like({"Name": "AWSManagedRulesAmazonIpDDoSList"}),
                         Match.object_like({"Name": "AWSManagedRulesCommonRuleSet"}),
                         Match.object_like({"Name": "AWSManagedRulesKnownBadInputsRuleSet"}),
                     ]
@@ -214,9 +215,9 @@ class TestFrontendStack:
             {"DistributionConfig": {"DefaultCacheBehavior": {"ViewerProtocolPolicy": "redirect-to-https"}}},
         )
 
-    def test_two_s3_buckets_exist(self, frontend_template: Template) -> None:
-        # FrontendBucket + FrontendAccessLogBucket
-        frontend_template.resource_count_is("AWS::S3::Bucket", 2)
+    def test_three_s3_buckets_exist(self, frontend_template: Template) -> None:
+        # FrontendBucket + FrontendAccessLogBucket + CloudTrailLogsBucket
+        frontend_template.resource_count_is("AWS::S3::Bucket", 3)
 
     def test_stack_outputs_exist(self, frontend_template: Template) -> None:
         frontend_template.has_output("CloudFrontDomainName", {})

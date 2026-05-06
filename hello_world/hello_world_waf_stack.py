@@ -106,10 +106,38 @@ class HelloWorldWafStack(Stack):
                         sampled_requests_enabled=True,
                     ),
                 ),
+                # Curated list of IPs AWS observes participating in active L7 (HTTP-flood)
+                # DDoS attacks. Distinct from the IP Reputation list above: this list is
+                # narrower and fresher, tracking currently-attacking sources rather than
+                # general bad-rep IPs. The rule group ships in COUNT mode by default;
+                # rule_action_overrides flips its single inner rule (AWSManagedIPDDoSList)
+                # to BLOCK so matched traffic is dropped at the edge.
+                wafv2.CfnWebACL.RuleProperty(
+                    name="AWSManagedRulesAmazonIpDDoSList",
+                    priority=1,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                            vendor_name="AWS",
+                            name="AWSManagedRulesAmazonIpDDoSList",
+                            rule_action_overrides=[
+                                wafv2.CfnWebACL.RuleActionOverrideProperty(
+                                    name="AWSManagedIPDDoSList",
+                                    action_to_use=wafv2.CfnWebACL.RuleActionProperty(block={}),
+                                ),
+                            ],
+                        )
+                    ),
+                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name=f"{self.stack_name}-IpDDoSList",
+                        sampled_requests_enabled=True,
+                    ),
+                ),
                 # Core rule set — protects against OWASP Top 10 web exploits
                 wafv2.CfnWebACL.RuleProperty(
                     name="AWSManagedRulesCommonRuleSet",
-                    priority=1,
+                    priority=2,
                     statement=wafv2.CfnWebACL.StatementProperty(
                         managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
                             vendor_name="AWS",
@@ -126,7 +154,7 @@ class HelloWorldWafStack(Stack):
                 # Blocks requests containing known malicious inputs (SQLi, XSS patterns)
                 wafv2.CfnWebACL.RuleProperty(
                     name="AWSManagedRulesKnownBadInputsRuleSet",
-                    priority=2,
+                    priority=3,
                     statement=wafv2.CfnWebACL.StatementProperty(
                         managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
                             vendor_name="AWS",
@@ -144,7 +172,7 @@ class HelloWorldWafStack(Stack):
                 # Prevents scraping, credential stuffing, and unintentional runaway clients.
                 wafv2.CfnWebACL.RuleProperty(
                     name="RateLimitPerIP",
-                    priority=3,
+                    priority=4,
                     action=wafv2.CfnWebACL.RuleActionProperty(block={}),
                     statement=wafv2.CfnWebACL.StatementProperty(
                         rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(

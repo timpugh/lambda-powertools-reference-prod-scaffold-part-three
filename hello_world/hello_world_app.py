@@ -102,6 +102,7 @@ class HelloWorldApp(Construct):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             encryption=dynamodb.TableEncryption.CUSTOMER_MANAGED,
             encryption_key=self.encryption_key,
+            contributor_insights_enabled=True,
             removal_policy=RemovalPolicy.DESTROY,
             point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=True,
@@ -125,7 +126,7 @@ class HelloWorldApp(Construct):
             name=f"{stack.stack_name}-features",
         )
 
-        app_config_env = appconfig.CfnEnvironment(  # noqa: F841
+        app_config_env = appconfig.CfnEnvironment(
             self,
             "FeatureFlagsEnv",
             application_id=self.app_config_app.ref,
@@ -174,7 +175,7 @@ class HelloWorldApp(Construct):
             entry="lambda",
             index="app.py",
             handler="lambda_handler",
-            architecture=_lambda.Architecture.X86_64,
+            architecture=_lambda.Architecture.ARM_64,
             memory_size=256,
             timeout=Duration.seconds(10),
             tracing=_lambda.Tracing.ACTIVE,
@@ -193,15 +194,39 @@ class HelloWorldApp(Construct):
             },
         )
 
+        # Recursive-loop detection. Default is Terminate, but the L2 PythonFunction
+        # construct doesn't surface this property — set it explicitly on the
+        # underlying CfnFunction so the posture is visible in code rather than
+        # implicit in the runtime default.
+        cast(_lambda.CfnFunction, self.function.node.default_child).recursive_loop = "Terminate"
+
         # Grant permissions
         self.idempotency_table.grant_read_write_data(self.function)
         self.greeting_param.grant_read(self.function)
+
+        # AppConfig least-privilege:
+        # StartConfigurationSession supports resource-level scoping to a specific
+        # application/environment/profile, so it's pinned to this stack's profile
+        # ARN. GetLatestConfiguration uses a configurationsession ARN whose token
+        # is generated dynamically by StartConfigurationSession at call time, so
+        # IAM cannot scope it ahead of time and must keep Resource: "*". Splitting
+        # into two statements limits the broader (read-only) grant to data fetch
+        # while pinning the session-creation call to this stack's resources.
+        appconfig_profile_arn = (
+            f"arn:{stack.partition}:appconfig:{stack.region}:{stack.account}:"
+            f"application/{self.app_config_app.ref}/"
+            f"environment/{app_config_env.ref}/"
+            f"configuration/{app_config_profile.ref}"
+        )
         self.function.add_to_role_policy(
             statement=iam.PolicyStatement(
-                actions=[
-                    "appconfig:GetLatestConfiguration",
-                    "appconfig:StartConfigurationSession",
-                ],
+                actions=["appconfig:StartConfigurationSession"],
+                resources=[appconfig_profile_arn],
+            )
+        )
+        self.function.add_to_role_policy(
+            statement=iam.PolicyStatement(
+                actions=["appconfig:GetLatestConfiguration"],
                 resources=["*"],
             )
         )
@@ -413,8 +438,12 @@ class HelloWorldApp(Construct):
                         "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
                     ],
                 },
-                # Default policy has KMS wildcard actions (required for CMK use) and
-                # Resource::* for X-Ray and AppConfig (no resource-level ARNs available)
+                # Default policy has KMS wildcard actions (required for CMK use).
+                # X-Ray and appconfig:GetLatestConfiguration require Resource::*
+                # because their target ARNs (segment, configurationsession token)
+                # are dynamically generated at call time and not known to IAM
+                # at policy-creation time. appconfig:StartConfigurationSession
+                # IS resource-scoped — see the AppConfig grant in this construct.
                 {
                     "id": "AwsSolutions-IAM5",
                     "reason": "kms:GenerateDataKey* and kms:ReEncrypt* require wildcard action suffix — standard KMS usage pattern",
@@ -422,7 +451,7 @@ class HelloWorldApp(Construct):
                 },
                 {
                     "id": "AwsSolutions-IAM5",
-                    "reason": "X-Ray and AppConfig do not support resource-level ARNs in IAM — wildcard is required",
+                    "reason": "X-Ray segments and appconfig:GetLatestConfiguration session tokens have no resource-level ARNs — wildcard is required for those calls only",
                     "applies_to": ["Resource::*"],
                 },
                 {

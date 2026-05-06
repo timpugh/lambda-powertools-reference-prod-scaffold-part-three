@@ -3,6 +3,7 @@ from typing import Any, cast
 from aws_cdk import (
     CfnOutput,
     CustomResourceProvider,
+    Duration,
     Fn,
     RemovalPolicy,
     Stack,
@@ -15,6 +16,9 @@ from aws_cdk import (
 )
 from aws_cdk import (
     aws_cloudfront_origins as origins,
+)
+from aws_cdk import (
+    aws_cloudtrail as cloudtrail,
 )
 from aws_cdk import (
     aws_cognito as cognito,
@@ -111,57 +115,60 @@ class HelloWorldFrontendStack(Stack):
             # Object Ownership set so ACLs remain usable for CloudFront log delivery.
             object_ownership=s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
             versioned=False,
+            # 7-day expiration cap on every prefix in this bucket (S3 access logs,
+            # CloudFront standard logs, Athena query results). Tunable: extend
+            # the duration, swap to a tiered transition (Standard-IA at 30d,
+            # Glacier Instant Retrieval at 90d, Glacier Deep Archive at 180d),
+            # or layer per-prefix rules if logs and Athena results need
+            # different retention.
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    id="ExpireAfter7Days",
+                    enabled=True,
+                    expiration=Duration.days(7),
+                    abort_incomplete_multipart_upload_after=Duration.days(1),
+                ),
+            ],
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
+        access_log_bucket_suppressions = [
+            ("AwsSolutions-S1", "This IS the access log bucket — logging to itself would be circular"),
+            (
+                "NIST.800.53.R5-S3BucketLoggingEnabled",
+                "This IS the access log bucket — logging to itself would be circular",
+            ),
+            (
+                "NIST.800.53.R5-S3DefaultEncryptionKMS",
+                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
+            ),
+            (
+                "HIPAA.Security-S3DefaultEncryptionKMS",
+                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
+            ),
+            (
+                "PCI.DSS.321-S3DefaultEncryptionKMS",
+                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
+            ),
+            (
+                "NIST.800.53.R5-S3BucketVersioningEnabled",
+                "Versioning not needed for log bucket — logs are append-only and transient",
+            ),
+            (
+                "HIPAA.Security-S3BucketVersioningEnabled",
+                "Versioning not needed for log bucket — logs are append-only and transient",
+            ),
+            (
+                "PCI.DSS.321-S3BucketVersioningEnabled",
+                "Versioning not needed for log bucket — logs are append-only and transient",
+            ),
+            ("NIST.800.53.R5-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
+            ("HIPAA.Security-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
+            ("PCI.DSS.321-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
+        ]
         NagSuppressions.add_resource_suppressions(
             access_log_bucket,
-            [
-                {
-                    "id": "AwsSolutions-S1",
-                    "reason": "This IS the access log bucket — logging to itself would be circular",
-                },
-                {
-                    "id": "NIST.800.53.R5-S3BucketLoggingEnabled",
-                    "reason": "This IS the access log bucket — logging to itself would be circular",
-                },
-                {
-                    "id": "NIST.800.53.R5-S3DefaultEncryptionKMS",
-                    "reason": "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-                },
-                {
-                    "id": "HIPAA.Security-S3DefaultEncryptionKMS",
-                    "reason": "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-                },
-                {
-                    "id": "PCI.DSS.321-S3DefaultEncryptionKMS",
-                    "reason": "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-                },
-                {
-                    "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-                    "reason": "Versioning not needed for log bucket — logs are append-only and transient",
-                },
-                {
-                    "id": "HIPAA.Security-S3BucketVersioningEnabled",
-                    "reason": "Versioning not needed for log bucket — logs are append-only and transient",
-                },
-                {
-                    "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-                    "reason": "Versioning not needed for log bucket — logs are append-only and transient",
-                },
-                {
-                    "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
-                    "reason": "Replication not needed for log bucket in sample app",
-                },
-                {
-                    "id": "HIPAA.Security-S3BucketReplicationEnabled",
-                    "reason": "Replication not needed for log bucket in sample app",
-                },
-                {
-                    "id": "PCI.DSS.321-S3BucketReplicationEnabled",
-                    "reason": "Replication not needed for log bucket in sample app",
-                },
-            ],
+            [{"id": rule, "reason": reason} for rule, reason in access_log_bucket_suppressions],
         )
 
         # ── S3 bucket ────────────────────────────────────────────────────────
@@ -180,6 +187,8 @@ class HelloWorldFrontendStack(Stack):
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
+
+        self._create_s3_audit_trail(audited_buckets=[bucket, access_log_bucket], encryption_key=frontend_encryption_key)
 
         # ── CloudFront distribution ──────────────────────────────────────────
         distribution = cloudfront.Distribution(
@@ -416,7 +425,7 @@ class HelloWorldFrontendStack(Stack):
                 removal_policy=RemovalPolicy.DESTROY,
             )
 
-        self._create_athena_glue_resources(access_log_bucket)
+        self._create_athena_glue_resources(access_log_bucket, frontend_encryption_key)
 
         # ── Per-resource cdk-nag suppressions ──────────────────────────────────
         # All Lambdas in this stack are CDK-managed singletons. Their construct
@@ -454,43 +463,132 @@ class HelloWorldFrontendStack(Stack):
             )
 
         # ── Stack-level cdk-nag suppressions (genuinely stack-wide) ─────────────
+        replication_reason = "S3 replication not needed for sample app — static assets are redeployable"
+        versioning_reason = "S3 versioning not needed for sample app — static assets are redeployable via cdk deploy"
+        stack_suppressions = [
+            ("AwsSolutions-CFR1", "Geo restriction not required for sample app"),
+            ("AwsSolutions-CFR4", "Using default CloudFront certificate — no custom domain for sample app"),
+            ("NIST.800.53.R5-S3BucketReplicationEnabled", replication_reason),
+            ("NIST.800.53.R5-S3BucketVersioningEnabled", versioning_reason),
+            ("HIPAA.Security-S3BucketReplicationEnabled", replication_reason),
+            ("HIPAA.Security-S3BucketVersioningEnabled", versioning_reason),
+            ("PCI.DSS.321-S3BucketReplicationEnabled", replication_reason),
+            ("PCI.DSS.321-S3BucketVersioningEnabled", versioning_reason),
+        ]
         NagSuppressions.add_stack_suppressions(
             self,
+            [{"id": rule, "reason": reason} for rule, reason in stack_suppressions],
+        )
+
+    def _create_s3_audit_trail(self, audited_buckets: list[s3.Bucket], encryption_key: kms.Key) -> None:
+        """Create a CloudTrail Trail recording S3 object-level data events on the given buckets.
+
+        Captures every Get/Put/Delete API call against the audited buckets. Object-level
+        events aren't recorded by the default management-events trail and aren't
+        reconstructible from S3 server access logs (those only cover successful reads/writes
+        through the bucket interface, not failed authorization or DeleteObject calls).
+        Trail logs are stored in a dedicated bucket so the audit destination isn't itself
+        among the audited resources.
+        """
+        cloudtrail_log_bucket = s3.Bucket(
+            self,
+            "CloudTrailLogsBucket",
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            enforce_ssl=True,
+            versioned=False,
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+        )
+        # CloudTrail can't write to a bucket that has access logging or KMS-CMK
+        # encryption enabled (delivery service limitations) — same constraints
+        # that apply to access_log_bucket. Suppress the corresponding nag rules.
+        bucket_suppressions = [
+            ("AwsSolutions-S1", "CloudTrail log bucket — server access logging would create circular audit trails"),
+            (
+                "NIST.800.53.R5-S3BucketLoggingEnabled",
+                "CloudTrail log bucket — server access logging would create circular audit trails",
+            ),
+            (
+                "HIPAA.Security-S3BucketLoggingEnabled",
+                "CloudTrail log bucket — server access logging would create circular audit trails",
+            ),
+            (
+                "PCI.DSS.321-S3BucketLoggingEnabled",
+                "CloudTrail log bucket — server access logging would create circular audit trails",
+            ),
+            (
+                "NIST.800.53.R5-S3DefaultEncryptionKMS",
+                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
+            ),
+            (
+                "HIPAA.Security-S3DefaultEncryptionKMS",
+                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
+            ),
+            (
+                "PCI.DSS.321-S3DefaultEncryptionKMS",
+                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
+            ),
+            (
+                "NIST.800.53.R5-S3BucketVersioningEnabled",
+                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
+            ),
+            (
+                "HIPAA.Security-S3BucketVersioningEnabled",
+                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
+            ),
+            (
+                "PCI.DSS.321-S3BucketVersioningEnabled",
+                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
+            ),
+            (
+                "NIST.800.53.R5-S3BucketReplicationEnabled",
+                "Replication not needed for CloudTrail log bucket in sample app",
+            ),
+            (
+                "HIPAA.Security-S3BucketReplicationEnabled",
+                "Replication not needed for CloudTrail log bucket in sample app",
+            ),
+            (
+                "PCI.DSS.321-S3BucketReplicationEnabled",
+                "Replication not needed for CloudTrail log bucket in sample app",
+            ),
+        ]
+        NagSuppressions.add_resource_suppressions(
+            cloudtrail_log_bucket,
+            [{"id": rule, "reason": reason} for rule, reason in bucket_suppressions],
+        )
+        cloudtrail_log_group = logs.LogGroup(
+            self,
+            "S3DataEventsTrailLogs",
+            encryption_key=encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        s3_data_events_trail = cloudtrail.Trail(
+            self,
+            "S3DataEventsTrail",
+            bucket=cloudtrail_log_bucket,
+            send_to_cloud_watch_logs=True,
+            cloud_watch_log_group=cloudtrail_log_group,
+            encryption_key=encryption_key,
+            enable_file_validation=True,
+            include_global_service_events=False,
+            is_multi_region_trail=False,
+        )
+        s3_data_events_trail.add_s3_event_selector([cloudtrail.S3EventSelector(bucket=b) for b in audited_buckets])
+        # CDK creates the trail's CloudWatch Logs delivery role with an inline
+        # default policy — same pattern as the Lambda service role; not
+        # directly configurable.
+        inline_policy_reason = "CDK generates the trail's LogsRole default policy inline — not directly configurable"
+        NagSuppressions.add_resource_suppressions(
+            s3_data_events_trail,
             [
-                # ── AWS Solutions ────────────────────────────────────────────────
-                {"id": "AwsSolutions-CFR1", "reason": "Geo restriction not required for sample app"},
-                {
-                    "id": "AwsSolutions-CFR4",
-                    "reason": "Using default CloudFront certificate — no custom domain for sample app",
-                },
-                # ── NIST 800-53 R5 ──────────────────────────────────────────────
-                {
-                    "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
-                    "reason": "S3 replication not needed for sample app — static assets are redeployable",
-                },
-                {
-                    "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-                    "reason": "S3 versioning not needed for sample app — static assets are redeployable via cdk deploy",
-                },
-                # ── HIPAA Security ───────────────────────────────────────────────
-                {
-                    "id": "HIPAA.Security-S3BucketReplicationEnabled",
-                    "reason": "S3 replication not needed for sample app — static assets are redeployable",
-                },
-                {
-                    "id": "HIPAA.Security-S3BucketVersioningEnabled",
-                    "reason": "S3 versioning not needed for sample app — static assets are redeployable via cdk deploy",
-                },
-                # ── PCI DSS 3.2.1 ────────────────────────────────────────────────
-                {
-                    "id": "PCI.DSS.321-S3BucketReplicationEnabled",
-                    "reason": "S3 replication not needed for sample app — static assets are redeployable",
-                },
-                {
-                    "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-                    "reason": "S3 versioning not needed for sample app — static assets are redeployable via cdk deploy",
-                },
+                {"id": "NIST.800.53.R5-IAMNoInlinePolicy", "reason": inline_policy_reason},
+                {"id": "HIPAA.Security-IAMNoInlinePolicy", "reason": inline_policy_reason},
+                {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": inline_policy_reason},
             ],
+            apply_to_children=True,
         )
 
     def _wire_rum_metrics_extras(
@@ -613,8 +711,39 @@ class HelloWorldFrontendStack(Stack):
             )
         return rum_extended_metrics
 
-    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket) -> None:
+    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket, encryption_key: kms.Key) -> None:
         """Create Glue catalog tables and Athena workgroup for CloudFront/S3 access log analytics."""
+        # ── Glue Data Catalog encryption ─────────────────────────────────
+        # SSE-KMS for catalog metadata at rest (table definitions, column
+        # types, partition values) and KMS for connection password storage.
+        # Scope note: this resource configures the *account/region-wide*
+        # Glue Data Catalog, not just this stack's database — there is one
+        # catalog per account per region. Deploying alongside another stack
+        # that sets a different policy will conflict; deploying alongside
+        # stacks that don't touch encryption is fine.
+        encryption_key.add_to_resource_policy(
+            iam.PolicyStatement(
+                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
+                principals=[iam.ServicePrincipal("glue.amazonaws.com")],
+                resources=["*"],
+            )
+        )
+        glue.CfnDataCatalogEncryptionSettings(
+            self,
+            "GlueCatalogEncryption",
+            catalog_id=self.account,
+            data_catalog_encryption_settings=glue.CfnDataCatalogEncryptionSettings.DataCatalogEncryptionSettingsProperty(
+                encryption_at_rest=glue.CfnDataCatalogEncryptionSettings.EncryptionAtRestProperty(
+                    catalog_encryption_mode="SSE-KMS",
+                    sse_aws_kms_key_id=encryption_key.key_arn,
+                ),
+                connection_password_encryption=glue.CfnDataCatalogEncryptionSettings.ConnectionPasswordEncryptionProperty(
+                    return_connection_password_encrypted=True,
+                    kms_key_id=encryption_key.key_arn,
+                ),
+            ),
+        )
+
         # ── Glue Database ────────────────────────────────────────────────
         # Glue database names: lowercase, alphanumeric + underscores only.
         db_name = self.node.id.lower().replace("-", "_") + "_access_logs"

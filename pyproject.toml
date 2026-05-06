@@ -175,6 +175,7 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120  # must match [tool.ruff] line-length above
+max-module-lines = 1200  # CDK frontend stack legitimately exceeds default 1000 — many resources, each with its own nag suppressions
 
 # Structural complexity thresholds — pylint fails if any function or class exceeds these.
 # Complexity is also enforced via the xenon pre-commit hook.
