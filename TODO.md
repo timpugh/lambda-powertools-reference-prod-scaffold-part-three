@@ -84,7 +84,8 @@ Per-service hardening items grouped by AWS service so each block can be tackled 
 ### Glue
 
 - [ ] **Partition projection on tables** — same item as Athena above; same deferral reasoning. Glue table parameters (`projection.enabled`, `projection.<col>.type`, `storage.location.template`) would carry the projection definitions, but the projection only helps if the underlying S3 layout is partitioned, which it isn't yet.
-- [ ] **Glue Security Configuration** — encryption-at-rest for Glue job bookmarks, S3-side encryption pushdown for crawlers, and CloudWatch encryption settings. N/A until Glue jobs or crawlers are added; the current stack only uses the catalog (database + tables), which is now encrypted.
+- [ ] **Glue Security Configuration** — encryption-at-rest for Glue job bookmarks, S3-side encryption pushdown for crawlers, and CloudWatch encryption settings. N/A until Glue jobs or crawlers are added; the current stack only uses the catalog (database + tables).
+- [~] **Glue Data Catalog encryption** — *implemented and deliberately reverted.* Two reasons: (1) `AWS::Glue::DataCatalogEncryptionSettings` is account/region-scoped — there is one Glue catalog per account per region, so deploying this reference architecture into an account with other Glue users would silently override their encryption settings or conflict outright; (2) the catalog metadata in *this* stack (column names from public CloudFront/S3 access-log schemas) carries no confidentiality requirement, and the stack has no Glue connections, so encrypting connection passwords protects nothing. If you fork this and your catalog will hold genuinely sensitive table metadata, put `glue.CfnDataCatalogEncryptionSettings` into a separate, intentionally account-scoped stack so the deploy boundary reflects the resource's account-wide nature. See "Considered and rejected" in the README for the longer write-up.
 
 ### Cognito
 

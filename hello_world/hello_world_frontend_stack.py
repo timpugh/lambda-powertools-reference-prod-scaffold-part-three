@@ -425,7 +425,7 @@ class HelloWorldFrontendStack(Stack):
                 removal_policy=RemovalPolicy.DESTROY,
             )
 
-        self._create_athena_glue_resources(access_log_bucket, frontend_encryption_key)
+        self._create_athena_glue_resources(access_log_bucket)
 
         # ── Per-resource cdk-nag suppressions ──────────────────────────────────
         # All Lambdas in this stack are CDK-managed singletons. Their construct
@@ -711,39 +711,8 @@ class HelloWorldFrontendStack(Stack):
             )
         return rum_extended_metrics
 
-    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket, encryption_key: kms.Key) -> None:
+    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket) -> None:
         """Create Glue catalog tables and Athena workgroup for CloudFront/S3 access log analytics."""
-        # ── Glue Data Catalog encryption ─────────────────────────────────
-        # SSE-KMS for catalog metadata at rest (table definitions, column
-        # types, partition values) and KMS for connection password storage.
-        # Scope note: this resource configures the *account/region-wide*
-        # Glue Data Catalog, not just this stack's database — there is one
-        # catalog per account per region. Deploying alongside another stack
-        # that sets a different policy will conflict; deploying alongside
-        # stacks that don't touch encryption is fine.
-        encryption_key.add_to_resource_policy(
-            iam.PolicyStatement(
-                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
-                principals=[iam.ServicePrincipal("glue.amazonaws.com")],
-                resources=["*"],
-            )
-        )
-        glue.CfnDataCatalogEncryptionSettings(
-            self,
-            "GlueCatalogEncryption",
-            catalog_id=self.account,
-            data_catalog_encryption_settings=glue.CfnDataCatalogEncryptionSettings.DataCatalogEncryptionSettingsProperty(
-                encryption_at_rest=glue.CfnDataCatalogEncryptionSettings.EncryptionAtRestProperty(
-                    catalog_encryption_mode="SSE-KMS",
-                    sse_aws_kms_key_id=encryption_key.key_arn,
-                ),
-                connection_password_encryption=glue.CfnDataCatalogEncryptionSettings.ConnectionPasswordEncryptionProperty(
-                    return_connection_password_encrypted=True,
-                    kms_key_id=encryption_key.key_arn,
-                ),
-            ),
-        )
-
         # ── Glue Database ────────────────────────────────────────────────
         # Glue database names: lowercase, alphanumeric + underscores only.
         db_name = self.node.id.lower().replace("-", "_") + "_access_logs"
