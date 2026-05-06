@@ -490,6 +490,19 @@ class HelloWorldFrontendStack(Stack):
         Trail logs are stored in a dedicated bucket so the audit destination isn't itself
         among the audited resources.
         """
+        # CloudTrail needs explicit KMS grants on the encryption key to write
+        # encrypted log files. CDK's auto-grants from passing encryption_key=
+        # don't always extend to the cloudtrail service principal when the key
+        # is shared with other services (CloudWatch Logs, CloudFront, etc.),
+        # so add the principal explicitly here. Mirrors the existing logs/
+        # CloudFront grants on the same key.
+        encryption_key.add_to_resource_policy(
+            iam.PolicyStatement(
+                actions=["kms:GenerateDataKey*", "kms:DescribeKey"],
+                principals=[iam.ServicePrincipal("cloudtrail.amazonaws.com")],
+                resources=["*"],
+            )
+        )
         cloudtrail_log_bucket = s3.Bucket(
             self,
             "CloudTrailLogsBucket",
