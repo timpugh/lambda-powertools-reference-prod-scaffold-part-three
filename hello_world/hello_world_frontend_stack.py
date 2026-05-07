@@ -298,9 +298,11 @@ class HelloWorldFrontendStack(Stack):
 
         # ── Deploy frontend assets ───────────────────────────────────────────
         # Uploads frontend/ to S3 and generates config.json with the API URL
-        # and RUM client config injected at deploy time. Triggers a CloudFront
-        # invalidation so new assets are served immediately without waiting
-        # for cache expiry.
+        # and RUM client config injected at deploy time. Cache invalidation is
+        # handled by a separate AwsCustomResource below — the BucketDeployment's
+        # built-in `distribution=` parameter is intentionally not used because
+        # its delete-time invalidation races with CloudFront's own deletion on
+        # `cdk destroy` (aws/aws-cdk#15891).
         bucket_deployment = s3deploy.BucketDeployment(
             self,
             "DeployFrontend",
@@ -327,19 +329,75 @@ class HelloWorldFrontendStack(Stack):
                 ),
             ],
             destination_bucket=bucket,
-            distribution=distribution,
-            distribution_paths=["/*"],
             log_retention=logs.RetentionDays.ONE_WEEK,
         )
-        # Defer the slow asset deploy + CloudFront invalidation until after the
-        # RUM custom resources have succeeded. If RumExtendedMetrics fails (it
-        # depends on IAM propagation), the BucketDeployment never starts —
-        # which avoids the known CDK rollback bug where DeleteCustomResource
-        # on the BucketDeployment provider tries to invalidate a CloudFront
-        # distribution that's being deleted in the same rollback. The asset
-        # work is the most expensive single resource, so this also prevents
-        # repeating it on every retry until the cheaper IAM dance settles.
+        # Defer the slow asset deploy until after the RUM custom resources
+        # have succeeded. If RumExtendedMetrics fails (it depends on IAM
+        # propagation), the BucketDeployment never starts — saving the most
+        # expensive single resource from being repeated on every retry until
+        # the cheaper IAM dance settles.
         bucket_deployment.node.add_dependency(rum_extended_metrics)
+
+        # CloudFront cache invalidation, decoupled from BucketDeployment.
+        # Defines on_create and on_update only — no on_delete — so CFN simply
+        # removes this resource from stack state during teardown without any
+        # CloudFront API call to race with the distribution's own deletion.
+        # This is the permanent fix for aws/aws-cdk#15891, replacing the
+        # BucketDeployment's built-in invalidation hook.
+        #
+        # CallerReference is gated on the BucketDeployment's content-hashed S3
+        # object key. Same assets → same key → CFN sees no change → no
+        # invalidation fires (correct: nothing to invalidate). Different assets
+        # → different key → CFN fires on_update → invalidation runs. Prevents
+        # backend-only deploys from burning the 1000/month free invalidation
+        # quota. See README "Design decisions" for the longer write-up.
+        cf_invalidation_call = cr.AwsSdkCall(
+            service="CloudFront",
+            action="createInvalidation",
+            parameters={
+                "DistributionId": distribution.distribution_id,
+                "InvalidationBatch": {
+                    "Paths": {"Quantity": 1, "Items": ["/*"]},
+                    # object_keys is a CDK list-token, not a Python list — use Fn.select.
+                    "CallerReference": Fn.select(0, bucket_deployment.object_keys),
+                },
+            },
+            physical_resource_id=cr.PhysicalResourceId.of(f"{self.stack_name}-cf-invalidation"),
+        )
+        invalidate_cf_cache = cr.AwsCustomResource(
+            self,
+            "InvalidateCloudFrontCache",
+            on_create=cf_invalidation_call,
+            on_update=cf_invalidation_call,
+            policy=cr.AwsCustomResourcePolicy.from_statements(
+                [
+                    iam.PolicyStatement(
+                        actions=["cloudfront:CreateInvalidation"],
+                        resources=[
+                            f"arn:{Stack.of(self).partition}:cloudfront::{Stack.of(self).account}:distribution/{distribution.distribution_id}"
+                        ],
+                    ),
+                ]
+            ),
+        )
+        invalidate_cf_cache.node.add_dependency(bucket_deployment)
+        # CDK generates an inline default policy on the AwsCustomResource's
+        # auto-created role. Same constraint as the RUM custom resources;
+        # apply the same IAMNoInlinePolicy suppressions.
+        cf_invalidation_inline_reason = (
+            "AwsCustomResource policy is a single least-privilege inline statement scoped to "
+            "cloudfront:CreateInvalidation on this stack's distribution ARN — managed-policy "
+            "reuse adds nothing"
+        )
+        NagSuppressions.add_resource_suppressions(
+            invalidate_cf_cache,
+            [
+                {"id": "NIST.800.53.R5-IAMNoInlinePolicy", "reason": cf_invalidation_inline_reason},
+                {"id": "HIPAA.Security-IAMNoInlinePolicy", "reason": cf_invalidation_inline_reason},
+                {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": cf_invalidation_inline_reason},
+            ],
+            apply_to_children=True,
+        )
 
         CfnOutput(
             self,
