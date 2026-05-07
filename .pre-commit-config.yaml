@@ -6,15 +6,24 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.20.0
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [boto3-stubs==1.42.88, aws-cdk-lib==2.248.0]
+        name: mypy type checks
+        # Runs from the project venv (managed by uv from pyproject.toml) so
+        # mypy + boto3-stubs + aws-cdk-lib stay in lockstep with the rest of
+        # the project. Previous configuration used mirrors-mypy with an
+        # additional_dependencies block — Dependabot's pre-commit ecosystem
+        # only bumps `rev:` lines, not additional_dependencies, so those pins
+        # drifted silently from pyproject.toml. Sourcing them from the venv
+        # eliminates the drift surface entirely.
+        entry: mypy
+        language: system
+        types: [python]
         args: [--ignore-missing-imports]
         # scripts/generate_openapi.py imports from lambda/app.py (Powertools),
-        # which conflicts with aws-cdk-lib on `attrs`. The pre-commit mypy env
-        # holds the CDK side, so scripts/ is checked via `make typecheck`
+        # which conflicts with aws-cdk-lib on `attrs`. Pre-commit hooks run
+        # in .venv (CDK side); scripts/ is checked via `make typecheck`
         # inside .venv-lambda instead.
         exclude: ^(app\.py|tests/|docs/|scripts/)
 

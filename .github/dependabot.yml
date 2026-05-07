@@ -78,3 +78,24 @@ updates:
       patches:
         update-types:
           - "patch"
+
+  # pre-commit hooks — tracks the `rev:` field in .pre-commit-config.yaml
+  # for each remote hook (ruff-pre-commit, bandit, pre-commit-hooks).
+  # The mypy hook is intentionally configured as a local language:system
+  # hook in .pre-commit-config.yaml so its dependencies (boto3-stubs,
+  # aws-cdk-lib) come from the venv pyproject.toml manages — Dependabot's
+  # pre-commit ecosystem only updates `rev:` lines, not the
+  # `additional_dependencies` list, so any pinned dep there would drift
+  # silently from the canonical pyproject.toml pins.
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
