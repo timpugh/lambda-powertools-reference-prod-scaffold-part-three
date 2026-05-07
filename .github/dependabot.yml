@@ -79,14 +79,16 @@ updates:
         update-types:
           - "patch"
 
-  # pre-commit hooks — tracks the `rev:` field in .pre-commit-config.yaml
-  # for each remote hook (ruff-pre-commit, bandit, pre-commit-hooks).
-  # The mypy hook is intentionally configured as a local language:system
-  # hook in .pre-commit-config.yaml so its dependencies (boto3-stubs,
-  # aws-cdk-lib) come from the venv pyproject.toml manages — Dependabot's
-  # pre-commit ecosystem only updates `rev:` lines, not the
-  # `additional_dependencies` list, so any pinned dep there would drift
-  # silently from the canonical pyproject.toml pins.
+  # pre-commit hooks — tracks the `rev:` field in .pre-commit-config.yaml.
+  # Every tool that's also pinned in pyproject.toml (ruff, mypy, bandit,
+  # pylint, xenon, pip-audit) is intentionally configured as a local
+  # `language: system` hook so its version comes from the venv uv manages
+  # from pyproject.toml. Single source of truth.
+  #
+  # That leaves only the `pre-commit/pre-commit-hooks` utility bundle
+  # (trailing-whitespace, end-of-file-fixer, check-yaml, check-json) for
+  # Dependabot to track here — those have no equivalent in pyproject.toml,
+  # so the upstream rev: pin is the only place to bump them.
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:
