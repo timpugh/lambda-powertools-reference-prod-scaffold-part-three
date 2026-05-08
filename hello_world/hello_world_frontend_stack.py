@@ -294,7 +294,33 @@ class HelloWorldFrontendStack(Stack):
             ),
         )
 
-        rum_extended_metrics = self._wire_rum_metrics_extras(rum_app_monitor, rum_monitor_name, rum_monitor_arn)
+        # CMK-encrypted log group for the BucketDeployment provider Lambda.
+        # Passing log_group= here (instead of log_retention=) avoids the legacy
+        # LogRetention singleton path and keeps every log group encrypted with
+        # this stack's CMK.
+        bucket_deployment_log_group = logs.LogGroup(
+            self,
+            "BucketDeploymentLogGroup",
+            encryption_key=frontend_encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        # Shared CMK-encrypted log group for all AwsCustomResource singletons in
+        # this stack (RumMetricsDestination, RumExtendedMetrics, InvalidateCloudFrontCache).
+        # CDK reuses one provider Lambda across every AwsCustomResource in a stack,
+        # so a single log group serves all three.
+        custom_resource_log_group = logs.LogGroup(
+            self,
+            "AwsCustomResourceLogGroup",
+            encryption_key=frontend_encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
+        rum_extended_metrics = self._wire_rum_metrics_extras(
+            rum_app_monitor, rum_monitor_name, rum_monitor_arn, custom_resource_log_group
+        )
 
         # ── Deploy frontend assets ───────────────────────────────────────────
         # Uploads frontend/ to S3 and generates config.json with the API URL
@@ -329,7 +355,7 @@ class HelloWorldFrontendStack(Stack):
                 ),
             ],
             destination_bucket=bucket,
-            log_retention=logs.RetentionDays.ONE_WEEK,
+            log_group=bucket_deployment_log_group,
         )
         # Defer the slow asset deploy until after the RUM custom resources
         # have succeeded. If RumExtendedMetrics fails (it depends on IAM
@@ -379,6 +405,7 @@ class HelloWorldFrontendStack(Stack):
                     ),
                 ]
             ),
+            log_group=custom_resource_log_group,
         )
         invalidate_cf_cache.node.add_dependency(bucket_deployment)
         # CDK generates an inline default policy on the AwsCustomResource's
@@ -483,7 +510,7 @@ class HelloWorldFrontendStack(Stack):
                 removal_policy=RemovalPolicy.DESTROY,
             )
 
-        self._create_athena_glue_resources(access_log_bucket)
+        self._create_athena_glue_resources(access_log_bucket, frontend_encryption_key)
 
         # ── Per-resource cdk-nag suppressions ──────────────────────────────────
         # All Lambdas in this stack are CDK-managed singletons. Their construct
@@ -496,14 +523,12 @@ class HelloWorldFrontendStack(Stack):
         # Stable singleton IDs:
         #   Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C — BucketDeployment provider
         #   Custom::S3AutoDeleteObjectsCustomResourceProvider — auto-delete provider
-        #   LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a — log retention singleton
         #   AWS679f53fac002430cb0da5b7982bd2287 — AwsCustomResource provider Lambda
-        #     (used by RumMetricsDestination + RumExtendedMetrics)
+        #     (used by RumMetricsDestination, RumExtendedMetrics, InvalidateCloudFrontCache)
         suppress_cdk_singletons(
             self,
             (
                 "Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C",
-                "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a",
                 "AWS679f53fac002430cb0da5b7982bd2287",
             ),
         )
@@ -667,6 +692,7 @@ class HelloWorldFrontendStack(Stack):
         rum_app_monitor: rum.CfnAppMonitor,
         rum_monitor_name: str,
         rum_monitor_arn: str,
+        custom_resource_log_group: logs.LogGroup,
     ) -> cr.AwsCustomResource:
         """Wire CloudWatch metrics destination and dimensioned metric definitions to the AppMonitor.
 
@@ -710,6 +736,7 @@ class HelloWorldFrontendStack(Stack):
                     ),
                 ]
             ),
+            log_group=custom_resource_log_group,
         )
         rum_metrics_destination.node.add_dependency(rum_app_monitor)
 
@@ -761,6 +788,7 @@ class HelloWorldFrontendStack(Stack):
             on_create=batch_create,
             on_update=batch_create,
             policy=cr.AwsCustomResourcePolicy.from_sdk_calls(resources=[rum_monitor_arn]),
+            log_group=custom_resource_log_group,
         )
         rum_extended_metrics.node.add_dependency(rum_metrics_destination)
 
@@ -782,7 +810,7 @@ class HelloWorldFrontendStack(Stack):
             )
         return rum_extended_metrics
 
-    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket) -> None:
+    def _create_athena_glue_resources(self, access_log_bucket: s3.Bucket, encryption_key: kms.Key) -> None:
         """Create Glue catalog tables and Athena workgroup for CloudFront/S3 access log analytics."""
         # ── Glue Database ────────────────────────────────────────────────
         # Glue database names: lowercase, alphanumeric + underscores only.
@@ -920,9 +948,11 @@ class HelloWorldFrontendStack(Stack):
         s3_table.add_dependency(glue_db)
 
         # ── Athena WorkGroup ─────────────────────────────────────────────
-        # Query results stored in the access log bucket under athena-results/.
-        # SSE-S3 encryption matches the bucket default (SSE-KMS not supported
-        # by S3/CloudFront log delivery to this bucket).
+        # Query results stored in the access log bucket under athena-results/
+        # encrypted with this stack's CMK. The bucket itself uses SSE-S3
+        # because S3/CloudFront log delivery cannot write to a KMS-encrypted
+        # bucket, but Athena PutObject calls can override the bucket default
+        # on a per-object basis to use SSE-KMS for the query results.
         workgroup_name = f"{self.node.id}-access-logs"
         workgroup = athena.CfnWorkGroup(
             self,
@@ -933,7 +963,8 @@ class HelloWorldFrontendStack(Stack):
                 result_configuration=athena.CfnWorkGroup.ResultConfigurationProperty(
                     output_location=f"s3://{access_log_bucket.bucket_name}/athena-results/",
                     encryption_configuration=athena.CfnWorkGroup.EncryptionConfigurationProperty(
-                        encryption_option="SSE_S3",
+                        encryption_option="SSE_KMS",
+                        kms_key=encryption_key.key_arn,
                     ),
                 ),
                 enforce_work_group_configuration=True,

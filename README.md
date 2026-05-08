@@ -156,7 +156,7 @@ This combination is the standard professional workflow for serverless Python: lo
 The Lambda function in `lambda/app.py` uses the following Powertools utilities:
 
 #### Logger
-Structured JSON logging with `@logger.inject_lambda_context`. Automatically includes Lambda context fields (function name, request ID, cold start) in every log entry. Configured via `POWERTOOLS_SERVICE_NAME` and `POWERTOOLS_LOG_LEVEL` environment variables.
+Structured JSON logging with `@logger.inject_lambda_context`. Automatically includes Lambda context fields (function name, request ID, cold start) in every log entry. Configured via `POWERTOOLS_SERVICE_NAME` and `POWERTOOLS_LOG_LEVEL` environment variables. The legacy `LOG_LEVEL` fallback is intentionally not set — running both side-by-side hides which knob actually wins.
 
 #### Tracer
 X-Ray tracing with `@tracer.capture_lambda_handler` on the entry point and `@tracer.capture_method` on route handlers. Creates subsegments for each traced method.
@@ -207,7 +207,7 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 
 | Resource | Purpose |
 |---|---|
-| WAF WebACL | CloudFront-scoped WebACL with 3 managed rule groups (IP reputation, common rule set, known bad inputs) + per-IP rate limit |
+| WAF WebACL | CloudFront-scoped WebACL with 4 managed rule groups (IP reputation, common rule set, known bad inputs, anonymous IPs) + forwarded-IP rate limit |
 | KMS Key | Encrypts the WAF log group |
 | CloudWatch Log Group (`aws-waf-logs-*`) | Receives WAF access logs |
 
@@ -216,9 +216,9 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 | Resource | Purpose |
 |---|---|
 | KMS Key | Encrypts all log groups and DynamoDB |
-| Lambda Function | Runs the hello-world handler (256 MB, arm64/Graviton, X-Ray tracing, JSON logging) |
+| Lambda Function | Runs the hello-world handler (256 MB, arm64/Graviton, X-Ray tracing, JSON logging, env vars CMK-encrypted) |
 | CloudWatch Log Group | Lambda log group with 1-week retention, KMS-encrypted |
-| API Gateway REST API | Exposes `GET /hello` with X-Ray tracing, 0.5 GB encrypted cache |
+| API Gateway REST API | Exposes `GET /hello` with X-Ray tracing |
 | CloudWatch Log Group (access) | API Gateway access logs (16-field JSON), KMS-encrypted |
 | CloudWatch Log Group (execution) | API Gateway execution logs, KMS-encrypted |
 | DynamoDB Table | Idempotency records (TTL, PAY_PER_REQUEST, PITR, KMS-encrypted, Contributor Insights enabled) |
@@ -244,7 +244,7 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 | Glue Database | Catalog database for CloudFront and S3 access log analytics |
 | Glue Table (`cloudfront_logs`) | 33-field tab-delimited schema for CloudFront standard access logs |
 | Glue Table (`s3_access_logs`) | 26-field regex-parsed schema for S3 server access logs |
-| Athena WorkGroup | Query execution config with SSE-S3 encrypted results, CloudWatch metrics enabled |
+| Athena WorkGroup | Query execution config with SSE-KMS encrypted results (per-object override on the SSE-S3 bucket), CloudWatch metrics enabled |
 | Athena Named Queries (5 CloudFront + 6 S3) | Pre-built SQL queries: top URIs, errors, top IPs, bandwidth by edge, cache hit ratio, top operations, error requests, top requesters, slow requests, access denied (403), object read audit |
 | CloudWatch RUM AppMonitor | Real User Monitoring for the browser — page loads, JS errors, Core Web Vitals, fetch timings, user interactions, with X-Ray correlation |
 | Cognito Identity Pool | Unauthenticated identity pool issuing guest credentials to the browser RUM client |
@@ -333,7 +333,7 @@ The static assets themselves live in the `frontend/` directory at the project ro
 
 The bucket is fully private — no public access of any kind. CloudFront reaches it exclusively via [Origin Access Control (OAC)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html), the current AWS-recommended successor to OAI. The bucket is encrypted with SSE-KMS (customer-managed key with annual rotation), has SSL enforced, server access logging enabled to a dedicated log bucket, versioning disabled (git is the source of truth), and `auto_delete_objects=True` so `cdk destroy` empties and deletes it cleanly.
 
-The access log bucket uses SSE-S3 rather than SSE-KMS — neither the S3 log delivery service nor CloudFront standard logging support writing to KMS-encrypted target buckets. The bucket is organized by prefix: `cloudfront/` for CloudFront standard logs, `s3-access-logs/` for S3 server access logs, and `athena-results/` for Athena query output. Glue catalog tables point at the log prefixes so Athena can query them directly with SQL.
+The access log bucket itself uses SSE-S3 rather than SSE-KMS — neither the S3 log delivery service nor CloudFront standard logging support writing to KMS-encrypted target buckets. The bucket is organized by prefix: `cloudfront/` for CloudFront standard logs, `s3-access-logs/` for S3 server access logs, and `athena-results/` for Athena query output. Glue catalog tables point at the log prefixes so Athena can query them directly with SQL. Athena's `PutObject` calls override the bucket-level SSE-S3 default on a per-object basis to write query results under `athena-results/` with SSE-KMS using the frontend CMK; the bucket-default constraint only applies to objects S3 chooses the encryption for, not to objects whose caller specifies it.
 
 A **7-day expiration lifecycle rule** is applied uniformly to every prefix in the access log bucket — appropriate for a sample app where the value of an individual log entry decays quickly. The duration is intentionally short to keep storage cost bounded; tune it for your workload by editing the `lifecycle_rules` block in [hello_world_frontend_stack.py](hello_world/hello_world_frontend_stack.py). Common alternatives: extend the expiration to 30/90/365 days, or replace the flat expiration with a tiered transition — Standard → S3 Standard-IA at 30 days → Glacier Instant Retrieval at 90 days → Glacier Deep Archive at 180 days → expire at 7 years. Per-prefix rules are also supported if logs and Athena results need different retention.
 
@@ -360,16 +360,19 @@ The trail writes to a separate dedicated bucket (`CloudTrailLogsBucket`) so the 
 
 #### WAF rules
 
-The WebACL sits in front of CloudFront and inspects every request before it reaches S3. Four rules are active, evaluated in priority order:
+The WebACL sits in front of CloudFront and inspects every request before it reaches S3. Five rules are active, evaluated in priority order:
 
 | Priority | Rule | What it blocks |
 |----------|------|---------------|
 | 0 | `AWSManagedRulesAmazonIpReputationList` | Known malicious IPs — botnets, scanners, TOR exits |
 | 1 | `AWSManagedRulesCommonRuleSet` | OWASP Top 10 web exploits |
 | 2 | `AWSManagedRulesKnownBadInputsRuleSet` | Requests containing SQLi, XSS, and exploit payloads |
-| 3 | `RateLimitPerIP` (custom) | Blocks any single IP exceeding 1,000 requests per 5 minutes |
+| 3 | `AWSManagedRulesAnonymousIpList` | Requests from VPNs, Tor exits, hosting providers, and other anonymizing services |
+| 4 | `RateLimitPerIP` (custom) | Blocks any single client exceeding 200 requests per 5 minutes, keyed on `X-Forwarded-For` |
 
-All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $9/month, plus $0.60 per million inspected requests. Adding any of the four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layers a $10–20/month entity fee on top — see "Considered and rejected" in [Design decisions](#design-decisions-and-known-limitations) for why the AntiDDoS rule group was tried and removed.
+The rate-limit rule uses `aggregate_key_type="FORWARDED_IP"` with `header_name="X-Forwarded-For"` and `fallback_behavior="MATCH"`. All traffic enters through CloudFront, so the source IP at WAF is CloudFront's edge — without `FORWARDED_IP`, every viewer would be aggregated under whichever edge they happened to land on. `MATCH` makes a missing or malformed XFF trip the rule rather than skip it, so a determined caller can't bypass by stripping the header.
+
+All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $10/month, plus $0.60 per million inspected requests. Adding any of the four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layers a $10–20/month entity fee on top — see "Considered and rejected" in [Design decisions](#design-decisions-and-known-limitations) for why the AntiDDoS rule group was tried and removed.
 
 All rules emit CloudWatch metrics and sampled requests, so WAF activity is visible in the console without additional configuration.
 
@@ -449,7 +452,7 @@ CloudFront and S3 access logs are stored in S3, not CloudWatch, so they cannot b
 s3://<access-log-bucket>/
 ├── cloudfront/       ← CloudFront standard access logs
 ├── s3-access-logs/   ← S3 server access logs
-└── athena-results/   ← Athena query results (SSE-S3 encrypted)
+└── athena-results/   ← Athena query results (SSE-KMS encrypted with the frontend CMK)
 ```
 
 **Athena named queries (pre-built, ready to run):**
@@ -1008,10 +1011,12 @@ For a serverless reference architecture already invested in the cdk-nag suppress
 
 Not every rule is appropriate for a sample application. Where a rule has been intentionally suppressed, the suppression lives in the stack file in either `NagSuppressions.add_stack_suppressions` (stack-wide) or `NagSuppressions.add_resource_suppressions`/`add_resource_suppressions_by_path` (targeted to a specific resource). Each entry includes a `reason` field explaining why it was suppressed rather than fixed.
 
-Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g., no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius of each suppression as small as possible. CDK-managed singleton Lambdas (BucketDeployment provider, LogRetention, S3AutoDeleteObjects, AwsCustomResource) share a common suppression list defined in `hello_world/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`) and are targeted by their stable CDK construct IDs using `add_resource_suppressions_by_path`. `AwsSolutions-IAM5` suppressions on `HelloWorldFunction` use the `applies_to` parameter to scope them to specific wildcard actions and resources rather than suppressing all IAM5 findings on the role.
+Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g., no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius of each suppression as small as possible. CDK-managed singleton Lambdas (BucketDeployment provider, S3AutoDeleteObjects, AwsCustomResource) share a common suppression list defined in `hello_world/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`) and are targeted by their stable CDK construct IDs using `add_resource_suppressions_by_path`. `AwsSolutions-IAM5` suppressions on `HelloWorldFunction` use the `applies_to` parameter to scope them to specific wildcard actions and resources rather than suppressing all IAM5 findings on the role.
+
+Every CloudWatch log group in the stack — including those for the BucketDeployment, AwsCustomResource, and S3 auto-delete provider Lambdas — is pre-created in CDK and passed to the consumer via `log_group=` (rather than the legacy `log_retention=` path that creates an unencrypted log group through the LogRetention singleton). This closes the `*-CloudWatchLogGroupEncrypted` finding for the singleton Lambdas without an Aspect-level suppression.
 
 **What is encrypted with CMK:**
-All CloudWatch log groups (Lambda, API Gateway access, API Gateway execution, WAF, auto-delete Lambda), DynamoDB, and the S3 frontend bucket use AWS KMS customer-managed keys with annual key rotation enabled. The S3 access logging bucket uses SSE-S3 because the S3 log delivery service does not support KMS-encrypted target buckets. SSM parameters cannot use CMK (CloudFormation limitation — SecureString is not supported). AppConfig hosted configurations use AWS-managed keys (no CMK option in CDK).
+All CloudWatch log groups (Lambda, API Gateway access, API Gateway execution, WAF, auto-delete Lambda, BucketDeployment provider, AwsCustomResource provider) use AWS KMS customer-managed keys with annual key rotation enabled. The Lambda function's environment variables are also CMK-encrypted via `environment_encryption=` so the security boundary stays inside one key rather than splitting across the AWS-managed default and the project key. DynamoDB and the S3 frontend bucket use the same CMK pattern. Athena query results are written under `athena-results/` with SSE-KMS — Athena's PutObject calls override the bucket's SSE-S3 default on a per-object basis. The S3 access logging bucket itself uses SSE-S3 because the S3 log delivery service does not support KMS-encrypted target buckets. SSM parameters cannot use CMK (CloudFormation limitation — SecureString is not supported). AppConfig hosted configurations use AWS-managed keys (no CMK option in CDK).
 
 Current suppressions across all stacks:
 
@@ -1040,6 +1045,7 @@ Current suppressions across all stacks:
 | `NIST.800.53.R5-IAMNoInlinePolicy` | Backend, Frontend, WAF | Per-resource | CDK-generated inline policies on singleton service roles — not directly configurable; also suppressed on `RumUnauthenticatedRole` where the single least-privilege `rum:PutRumEvents` policy is tightly bound to the role's one purpose |
 | `NIST.800.53.R5-APIGWAssociatedWithWAF` | Backend | Stack | WAF applied at CloudFront, not directly on API Gateway |
 | `NIST.800.53.R5-APIGWSSLEnabled` | Backend | Stack | Client-side SSL certificates not required for sample app |
+| `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` | Backend | Stack | API Gateway cache cluster intentionally disabled — smallest size is ~$14/month for a sample app, and caching `GET /hello` would serve stale values across SSM parameter and AppConfig feature-flag changes |
 | `NIST.800.53.R5-DynamoDBInBackupPlan` | Backend | Stack | AWS Backup plan not configured; PITR is enabled for point-in-time recovery |
 | `NIST.800.53.R5-S3BucketLoggingEnabled` | Frontend | Resource (log bucket) | The access log bucket itself — logging to itself would be circular |
 | `NIST.800.53.R5-S3BucketReplicationEnabled` | Frontend | Stack + Resource | Static assets are redeployable; replication not needed |
@@ -1418,7 +1424,11 @@ make install    # provisions .venv (CDK + test + lint + docs) and .venv-lambda (
 
 **CORS is open (`allow_origin="*"`)** — the Lambda handler configures `APIGatewayRestResolver` with `CORSConfig(allow_origin="*")` for simplicity. In production, restrict this to the specific CloudFront domain (e.g., `allow_origin="https://d1234.cloudfront.net"`) and set `allow_credentials=True` if the API requires cookies or Authorization headers. Leaving CORS open in production allows any origin to call the API from a browser.
 
-**Error handling** — the handler demonstrates the recommended pattern for production Lambda error handling. Critical downstream failures (SSM) return a 500 via `InternalServerError` so the API always responds with a meaningful HTTP status rather than a Lambda runtime error. Non-critical failures (AppConfig feature flags) fall back to a safe default rather than failing the whole request. As you extend this project, apply the same pattern to any new downstream calls: decide whether the failure is critical (raise `InternalServerError`) or non-critical (log a warning, use a default), and add a corresponding unit test for each path.
+**Error handling** — the handler demonstrates the recommended pattern for production Lambda error handling. Critical downstream failures catch the *specific* expected exception type — `aws_lambda_powertools.utilities.parameters.exceptions.GetParameterError` for the SSM call, which is what Powertools raises after wrapping any underlying `botocore` failure — and re-raise as `InternalServerError` so the API responds with a meaningful HTTP status. Truly unexpected exceptions (anything *not* a `GetParameterError`) intentionally propagate to Powertools' default handler so the original type surfaces in CloudWatch metrics and X-Ray rather than being silently flattened to a generic 500. Non-critical failures (AppConfig feature flag evaluation) fall back to a safe default rather than failing the whole request. As you extend this project, apply the same pattern to any new downstream call: decide whether the failure is critical (catch the specific expected type and raise `InternalServerError`) or non-critical (log a warning, use a default), and add a corresponding unit test for each path.
+
+**Required env vars fail loudly at import time** — every required environment variable (`IDEMPOTENCY_TABLE_NAME`, `APPCONFIG_*`, `GREETING_PARAM_NAME`) is read through a small `_require_env()` helper that raises `RuntimeError` immediately if the value is missing or empty. Without this, a misconfigured deploy only surfaces deep inside boto3 as an opaque parameter-validation error from a downstream call — the kind of failure that takes hours to track to its actual cause. Failing at module load means the misconfiguration shows up in CloudWatch on the very first cold start with the offending variable named in the message.
+
+**RUM client URL floats to `1.x`** — [frontend/index.html](frontend/index.html) loads `https://client.rum.us-east-1.amazonaws.com/1.x/cwr.js` rather than pinning a specific patch version. AWS publishes a major-version-floating path so security and bug-fix patches reach the browser without requiring a frontend redeploy. Pinning to a literal `1.21.0` (or similar) means the only way to pick up a CVE fix is to bump the URL and run `cdk deploy`, which is fine if the project is actively maintained but a problem if it isn't. The major-version float trades the (small) risk of a minor regression in the AWS-shipped client for guaranteed access to security patches.
 
 **Explicit resource creation prevents dangling resources** — AWS services sometimes create supporting resources outside of CloudFormation. The most common example is CloudWatch log groups: Lambda creates one automatically on first invocation, and API Gateway creates an execution log group (`API-Gateway-Execution-Logs_{api-id}/{stage}`) whenever execution logging is enabled. Neither is managed by CloudFormation, so neither is deleted when you run `cdk destroy` — they silently persist and accrue storage costs indefinitely.
 
@@ -1440,7 +1450,7 @@ Every resource in this stack is declared explicitly in CDK with `removal_policy=
 
 **Lambda runs on arm64 (Graviton)** — the function is configured with `_lambda.Architecture.ARM_64`. Graviton-based Lambda is roughly 20% cheaper per GB-second than x86_64 and tends to deliver ~19% better performance for typical Python workloads. The PythonFunction bundler builds wheels matching the function architecture, so all dependencies (including any C-extension wheels like `pydantic-core` and `cryptography`) install correctly. Switch back to `Architecture.X86_64` only if you add a layer or dependency that's published for x86 only. *Cost/value note:* at sample-app traffic the absolute savings are pennies per month — the change earns its keep by establishing the right default before traffic arrives. At production traffic the same one-line choice compounds into real money.
 
-**AppConfig IAM is least-privilege where the API supports it** — the Lambda has two AppConfig statements rather than one wildcard grant. `appconfig:StartConfigurationSession` is pinned to the specific `application/{app_id}/environment/{env_id}/configuration/{profile_id}` ARN built dynamically from the Stack partition/region/account and the AppConfig CFN refs, so it scales across regions and across stage copies without code changes. `appconfig:GetLatestConfiguration` keeps `Resource: "*"` because the action is checked against a `configurationsession` ARN whose token is generated by `StartConfigurationSession` at call time and isn't knowable to IAM at policy-creation time — splitting the two keeps the broader of the two grants narrowed to a read-only data fetch. The X-Ray segment publish action has the same dynamic-ARN limitation and is documented in the same nag suppression.
+**AppConfig IAM is fully resource-scoped** — both `appconfig:StartConfigurationSession` and `appconfig:GetLatestConfiguration` are bound to the same `application/{app_id}/environment/{env_id}/configuration/{profile_id}` ARN, built dynamically from the Stack partition/region/account and the AppConfig CFN refs. The session token in `GetLatestConfiguration` request bodies is opaque request data, not the IAM resource — IAM still authorizes the call against the configuration ARN, so a wildcard `Resource: "*"` is unnecessary. The X-Ray segment publish action genuinely has no resource-level ARN and remains the only `Resource: "*"` left in the Lambda's auto-generated policy; that one statement carries the corresponding nag suppression on its own.
 
 **Lambda recursive-loop detection is set explicitly to `Terminate`** — the L2 `PythonFunction` construct doesn't expose this property, so it's set on the underlying `CfnFunction` via a property override. `Terminate` is the AWS default and is the correct posture: if the function ever invokes itself or sets up a self-triggering chain (Lambda → SNS → Lambda, etc.), Lambda will detect the loop and terminate after a small number of iterations. Setting it in code rather than relying on the runtime default makes the choice visible in review.
 
@@ -1459,7 +1469,7 @@ If you fork this and your catalog will hold genuinely sensitive table metadata (
 | Standard rule fee | $1.00 / month | Each managed rule group counts as one of the WebACL's rules |
 | Per-request inspection fee | $0.15 / million requests | On top of the standard $0.60 / million inspection fee |
 
-The other 4 rules in the WebACL (IP Reputation, CRS, Known Bad Inputs, custom rate limit) are all AWS WAF "free-tier" — no entity fee, just $1/month per rule. Only four paid-tier rule groups exist: Bot Control, ATP, ACFP, and AntiDDoSRuleSet. Adding AntiDDoSRuleSet would have raised this stack's fixed WAF cost from $9/month to $30/month — a 70% jump in fixed WAF cost for one rule whose effective enforcement (the `DDoSRequests` Block arm) is gated on AWS observing high-confidence DDoS classification, which is unlikely to fire on a Hello World demo's traffic profile. The existing per-IP rate-limit rule already covers crude L7 DDoS at 1,000 req/5min/IP. Same conclusion as the Glue catalog encryption entry above: high cost, low value at this scale, document and skip.
+The other 5 rules in the WebACL (IP Reputation, CRS, Known Bad Inputs, Anonymous IP List, custom rate limit) are all AWS WAF "free-tier" — no entity fee, just $1/month per rule. Only four paid-tier rule groups exist: Bot Control, ATP, ACFP, and AntiDDoSRuleSet. Adding AntiDDoSRuleSet would have raised this stack's fixed WAF cost from $10/month to $31/month — a similar jump in fixed WAF cost for one rule whose effective enforcement (the `DDoSRequests` Block arm) is gated on AWS observing high-confidence DDoS classification, which is unlikely to fire on a Hello World demo's traffic profile. The existing per-IP rate-limit rule already covers crude L7 DDoS at 200 req/5min/forwarded IP. Same conclusion as the Glue catalog encryption entry above: high cost, low value at this scale, document and skip.
 
 If you fork this for a workload with real traffic and a realistic DDoS threat model, the rule group is genuinely useful — but treat the $20/month entity fee plus the exempt-URI-list requirement as planning items rather than drop-in additions.
 

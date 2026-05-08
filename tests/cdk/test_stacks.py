@@ -113,6 +113,7 @@ class TestWafStack:
                         Match.object_like({"Name": "AWSManagedRulesAmazonIpReputationList"}),
                         Match.object_like({"Name": "AWSManagedRulesCommonRuleSet"}),
                         Match.object_like({"Name": "AWSManagedRulesKnownBadInputsRuleSet"}),
+                        Match.object_like({"Name": "AWSManagedRulesAnonymousIpList"}),
                     ]
                 )
             },
@@ -149,11 +150,13 @@ class TestBackendStack:
             {"TracingConfig": {"Mode": "Active"}, "MemorySize": 256},
         )
 
-    def test_api_gateway_has_cache_cluster(self, backend_template: Template) -> None:
-        backend_template.has_resource_properties(
-            "AWS::ApiGateway::Stage",
-            {"CacheClusterEnabled": True, "CacheClusterSize": "0.5"},
-        )
+    def test_api_gateway_cache_cluster_disabled(self, backend_template: Template) -> None:
+        # Cache cluster is intentionally disabled for cost (~$14/mo for the smallest size)
+        # and to avoid serving stale values across SSM/AppConfig changes — see the
+        # NIST.800.53.R5-APIGWCacheEnabledAndEncrypted suppression in HelloWorldStack.
+        stages = backend_template.find_resources("AWS::ApiGateway::Stage")
+        for stage in stages.values():
+            assert stage["Properties"].get("CacheClusterEnabled") is not True
 
     def test_log_groups_have_kms_encryption(self, backend_template: Template) -> None:
         backend_template.has_resource_properties(

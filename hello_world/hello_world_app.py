@@ -167,7 +167,10 @@ class HelloWorldApp(Construct):
             removal_policy=RemovalPolicy.DESTROY,
         )
 
-        # Lambda function with automatic dependency bundling
+        # Lambda function with automatic dependency bundling.
+        # environment_encryption pins the env-var encryption to our CMK so the
+        # security boundary stays inside one key — without it Lambda falls back
+        # to an AWS-managed key.
         self.function = PythonFunction(
             self,
             "HelloWorldFunction",
@@ -181,11 +184,11 @@ class HelloWorldApp(Construct):
             tracing=_lambda.Tracing.ACTIVE,
             log_group=lambda_log_group,
             logging_format=_lambda.LoggingFormat.JSON,
+            environment_encryption=self.encryption_key,
             environment={
                 "POWERTOOLS_SERVICE_NAME": "hello-world",
                 "POWERTOOLS_METRICS_NAMESPACE": "HelloWorld",
                 "POWERTOOLS_LOG_LEVEL": "INFO",
-                "LOG_LEVEL": "INFO",
                 "IDEMPOTENCY_TABLE_NAME": self.idempotency_table.table_name,
                 "GREETING_PARAM_NAME": self.greeting_param.parameter_name,
                 "APPCONFIG_APP_NAME": f"{stack.stack_name}-features",
@@ -204,14 +207,10 @@ class HelloWorldApp(Construct):
         self.idempotency_table.grant_read_write_data(self.function)
         self.greeting_param.grant_read(self.function)
 
-        # AppConfig least-privilege:
-        # StartConfigurationSession supports resource-level scoping to a specific
-        # application/environment/profile, so it's pinned to this stack's profile
-        # ARN. GetLatestConfiguration uses a configurationsession ARN whose token
-        # is generated dynamically by StartConfigurationSession at call time, so
-        # IAM cannot scope it ahead of time and must keep Resource: "*". Splitting
-        # into two statements limits the broader (read-only) grant to data fetch
-        # while pinning the session-creation call to this stack's resources.
+        # AppConfig least-privilege: both calls authorize against the
+        # application/environment/configuration ARN. The session token in the
+        # GetLatestConfiguration request body is opaque request data, not the
+        # IAM resource — IAM still evaluates the call against this profile ARN.
         appconfig_profile_arn = (
             f"arn:{stack.partition}:appconfig:{stack.region}:{stack.account}:"
             f"application/{self.app_config_app.ref}/"
@@ -220,14 +219,8 @@ class HelloWorldApp(Construct):
         )
         self.function.add_to_role_policy(
             statement=iam.PolicyStatement(
-                actions=["appconfig:StartConfigurationSession"],
+                actions=["appconfig:StartConfigurationSession", "appconfig:GetLatestConfiguration"],
                 resources=[appconfig_profile_arn],
-            )
-        )
-        self.function.add_to_role_policy(
-            statement=iam.PolicyStatement(
-                actions=["appconfig:GetLatestConfiguration"],
-                resources=["*"],
             )
         )
 
@@ -254,16 +247,6 @@ class HelloWorldApp(Construct):
             deploy_options=apigw.StageOptions(
                 stage_name="Prod",
                 tracing_enabled=True,
-                # Cache cluster: 0.5 GB — smallest available size (~$0.02/hr, ~$14/month).
-                # Enables caching per NIST.800.53.R5-APIGWCacheEnabledAndEncrypted.
-                cache_cluster_enabled=True,
-                cache_cluster_size="0.5",
-                method_options={
-                    "/*/*": apigw.MethodDeploymentOptions(
-                        caching_enabled=True,
-                        cache_data_encrypted=True,
-                    )
-                },
                 access_log_destination=apigw.LogGroupLogDestination(api_log_group),
                 access_log_format=apigw.AccessLogFormat.custom(
                     # Built from typed AccessLogField references — json_with_standard_fields
@@ -339,11 +322,26 @@ class HelloWorldApp(Construct):
         )
         app_insights.add_dependency(resource_group)
 
+        # CMK-encrypted log group for the AwsCustomResource provider Lambda.
+        # Passing log_group= here (instead of log_retention=) avoids the legacy
+        # LogRetention singleton path and lets us own every log group with our
+        # CMK — no dangling AWS-managed-key log group left after cdk destroy.
+        custom_resource_log_group = logs.LogGroup(
+            self,
+            "AwsCustomResourceLogGroup",
+            encryption_key=self.encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+
         # Custom resource to delete the Application Insights auto-created CloudWatch
         # dashboard on stack destroy. Application Insights creates a dashboard named
         # after the resource group outside of CloudFormation, so CDK cannot own it
         # directly. This Lambda-backed custom resource calls DeleteDashboards at
         # destroy time so no dashboard is left behind after cdk destroy.
+        # Policy is scoped to the exact dashboard ARN — CloudWatch dashboards have
+        # a known global ARN format and the name is fixed by the resource group.
+        app_insights_dashboard_arn = f"arn:{stack.partition}:cloudwatch::{stack.account}:dashboard/{resource_group.name}"
         app_insights_dashboard_cleanup = cr.AwsCustomResource(
             self,
             "AppInsightsDashboardCleanup",
@@ -354,10 +352,10 @@ class HelloWorldApp(Construct):
                 physical_resource_id=cr.PhysicalResourceId.of(resource_group.name),
             ),
             policy=cr.AwsCustomResourcePolicy.from_sdk_calls(
-                resources=cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+                resources=[app_insights_dashboard_arn],
             ),
             install_latest_aws_sdk=False,
-            log_retention=logs.RetentionDays.ONE_WEEK,
+            log_group=custom_resource_log_group,
         )
         # Must run after Application Insights has had a chance to create the dashboard
         app_insights_dashboard_cleanup.node.add_dependency(app_insights)
@@ -439,11 +437,10 @@ class HelloWorldApp(Construct):
                     ],
                 },
                 # Default policy has KMS wildcard actions (required for CMK use).
-                # X-Ray and appconfig:GetLatestConfiguration require Resource::*
-                # because their target ARNs (segment, configurationsession token)
-                # are dynamically generated at call time and not known to IAM
-                # at policy-creation time. appconfig:StartConfigurationSession
-                # IS resource-scoped — see the AppConfig grant in this construct.
+                # X-Ray segments have no resource-level ARN, so the auto-generated
+                # X-Ray statement uses Resource::*. AppConfig calls are
+                # resource-scoped to this stack's profile ARN — see the
+                # add_to_role_policy grant above.
                 {
                     "id": "AwsSolutions-IAM5",
                     "reason": "kms:GenerateDataKey* and kms:ReEncrypt* require wildcard action suffix — standard KMS usage pattern",
@@ -451,7 +448,7 @@ class HelloWorldApp(Construct):
                 },
                 {
                     "id": "AwsSolutions-IAM5",
-                    "reason": "X-Ray segments and appconfig:GetLatestConfiguration session tokens have no resource-level ARNs — wildcard is required for those calls only",
+                    "reason": "X-Ray segments have no resource-level ARN — wildcard is required for the X-Ray write statement only",
                     "applies_to": ["Resource::*"],
                 },
                 {
@@ -470,14 +467,12 @@ class HelloWorldApp(Construct):
             apply_to_children=True,  # covers service role and default policy
         )
 
-        # AppInsights cleanup custom resource policy (IAM5 / IAMNoInlinePolicy)
+        # AppInsights cleanup custom resource policy: scoped to one dashboard ARN,
+        # so only the inline-policy nag rules need a suppression — IAM5 wildcard
+        # no longer applies since the policy is resource-scoped.
         NagSuppressions.add_resource_suppressions(
             app_insights_dashboard_cleanup,
             [
-                {
-                    "id": "AwsSolutions-IAM5",
-                    "reason": "AwsCustomResource policy uses wildcard — required to call CloudWatch DeleteDashboards",
-                },
                 {
                     "id": "NIST.800.53.R5-IAMNoInlinePolicy",
                     "reason": "AwsCustomResource generates an inline policy — not directly configurable",

@@ -36,14 +36,15 @@ def test_enhanced_greeting_feature_flag(apigw_event, lambda_context, lambda_app_
 def test_ssm_failure_returns_500(apigw_event, lambda_context, lambda_app_module, mocker):
     """Test that an SSM parameter fetch failure returns a 500 response.
 
-    The handler catches downstream SSM failures and raises InternalServerError,
-    which Powertools converts to a 500 API Gateway response rather than
-    propagating to the Lambda runtime as an unhandled exception.
+    The handler catches Powertools' GetParameterError and raises
+    InternalServerError, which becomes a 500 API Gateway response. Truly
+    unexpected exception types intentionally propagate to Powertools' default
+    handler so they surface correctly in metrics and X-Ray.
     """
     mocker.patch.object(
         lambda_app_module,
         "get_parameter",
-        side_effect=Exception("SSM unavailable"),
+        side_effect=lambda_app_module.GetParameterError("SSM unavailable"),
     )
 
     ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)

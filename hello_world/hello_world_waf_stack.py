@@ -140,16 +140,40 @@ class HelloWorldWafStack(Stack):
                         sampled_requests_enabled=True,
                     ),
                 ),
-                # Rate limiting — blocks a single IP exceeding 1000 requests per 5 minutes.
-                # Prevents scraping, credential stuffing, and unintentional runaway clients.
+                # Blocks requests from anonymizing services (VPN, Tor exits, hosting providers)
+                wafv2.CfnWebACL.RuleProperty(
+                    name="AWSManagedRulesAnonymousIpList",
+                    priority=3,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                            vendor_name="AWS",
+                            name="AWSManagedRulesAnonymousIpList",
+                        )
+                    ),
+                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name=f"{self.stack_name}-AnonymousIpList",
+                        sampled_requests_enabled=True,
+                    ),
+                ),
+                # Rate limiting — blocks a single client exceeding 200 requests per 5 minutes.
+                # Aggregates by FORWARDED_IP (X-Forwarded-For) because all traffic enters via
+                # CloudFront, so the source IP at WAF is CloudFront's edge — not the caller's.
+                # fallback_behavior=MATCH means a missing/invalid header trips the rule, which
+                # is the safer default (a determined caller can't bypass by stripping XFF).
                 wafv2.CfnWebACL.RuleProperty(
                     name="RateLimitPerIP",
-                    priority=3,
+                    priority=4,
                     action=wafv2.CfnWebACL.RuleActionProperty(block={}),
                     statement=wafv2.CfnWebACL.StatementProperty(
                         rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(
-                            limit=1000,
-                            aggregate_key_type="IP",
+                            limit=200,
+                            aggregate_key_type="FORWARDED_IP",
+                            forwarded_ip_config=wafv2.CfnWebACL.ForwardedIPConfigurationProperty(
+                                header_name="X-Forwarded-For",
+                                fallback_behavior="MATCH",
+                            ),
                         )
                     ),
                     visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(

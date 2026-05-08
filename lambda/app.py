@@ -24,8 +24,22 @@ from aws_lambda_powertools.utilities.idempotency import (
 )
 from aws_lambda_powertools.utilities.idempotency.config import IdempotencyConfig
 from aws_lambda_powertools.utilities.parameters import get_parameter
+from aws_lambda_powertools.utilities.parameters.exceptions import GetParameterError
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from pydantic import BaseModel
+
+
+def _require_env(name: str) -> str:
+    """Return the env var or raise at import time with a clear message.
+
+    A missing env var (table name, profile name, etc.) only surfaces deep
+    inside boto3 as an opaque parameter-validation error. Failing here makes
+    the misconfiguration obvious in CloudWatch on the very first invocation.
+    """
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Required environment variable {name!r} is not set")
+    return value
 
 logger = Logger()
 tracer = Tracer()
@@ -44,7 +58,7 @@ app = APIGatewayRestResolver(
 
 # Idempotency setup
 persistence_layer = DynamoDBPersistenceLayer(
-    table_name=os.environ.get("IDEMPOTENCY_TABLE_NAME", ""),
+    table_name=_require_env("IDEMPOTENCY_TABLE_NAME"),
 )
 idempotency_config = IdempotencyConfig(
     event_key_jmespath="requestContext.requestId",
@@ -53,11 +67,15 @@ idempotency_config = IdempotencyConfig(
 
 # Feature Flags setup
 app_config_store = AppConfigStore(
-    environment=os.environ.get("APPCONFIG_ENV_NAME", ""),
-    application=os.environ.get("APPCONFIG_APP_NAME", ""),
-    name=os.environ.get("APPCONFIG_PROFILE_NAME", ""),
+    environment=_require_env("APPCONFIG_ENV_NAME"),
+    application=_require_env("APPCONFIG_APP_NAME"),
+    name=_require_env("APPCONFIG_PROFILE_NAME"),
 )
 feature_flags = FeatureFlags(store=app_config_store)
+
+# Greeting parameter name resolved at module load — fail loudly on
+# misconfiguration rather than letting boto3 reject an empty key at runtime.
+GREETING_PARAM_NAME = _require_env("GREETING_PARAM_NAME")
 
 
 class HelloResponse(BaseModel):
@@ -104,12 +122,14 @@ def hello() -> HelloResponse:
         request_id=request_id,
     )
 
-    # Fetch greeting from SSM Parameter Store — required, raise 500 on failure
-    param_name = os.environ.get("GREETING_PARAM_NAME", "/HelloWorld/greeting")
+    # Fetch greeting from SSM Parameter Store. Powertools wraps boto3 errors
+    # (ClientError, BotoCoreError) as GetParameterError; catch only that so
+    # truly unexpected exceptions propagate to Powertools' default handler
+    # and surface with the right type in metrics and X-Ray.
     try:
-        greeting = get_parameter(param_name)
-    except Exception as exc:
-        logger.exception("Failed to fetch greeting from SSM", param_name=param_name)
+        greeting = get_parameter(GREETING_PARAM_NAME)
+    except GetParameterError as exc:
+        logger.exception("Failed to fetch greeting from SSM", param_name=GREETING_PARAM_NAME)
         raise InternalServerError("Failed to fetch greeting") from exc
     logger.info("Greeting fetched from parameter store", greeting=greeting)
 

@@ -13,7 +13,6 @@ from hello_world.nag_utils import apply_compliance_aspects, suppress_cdk_singlet
 # so they do not move when the stack is rescoped under a cdk.Stage.
 _CDK_SINGLETON_IDS = (
     "AWS679f53fac002430cb0da5b7982bd2287",  # AwsCustomResource provider Lambda
-    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a",  # log retention singleton
 )
 
 
@@ -118,6 +117,14 @@ class HelloWorldStack(Stack):
                 {
                     "id": "NIST.800.53.R5-APIGWSSLEnabled",
                     "reason": "Client-side SSL certificates not required for sample app",
+                },
+                {
+                    "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+                    "reason": (
+                        "API Gateway cache cluster intentionally disabled for cost reasons — the smallest "
+                        "0.5 GB cluster is ~$14/month for a sample app. Caching GET /hello would also serve "
+                        "stale values across SSM parameter and AppConfig feature-flag changes."
+                    ),
                 },
                 {
                     "id": "NIST.800.53.R5-DynamoDBInBackupPlan",
