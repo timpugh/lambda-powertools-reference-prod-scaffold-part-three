@@ -92,3 +92,37 @@ def test_unsupported_method_returns_404(apigw_event, lambda_context, lambda_app_
     ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)
 
     assert ret["statusCode"] == 404
+
+
+def test_missing_idempotency_key_returns_400(apigw_event, lambda_context, lambda_app_module, monkeypatch):
+    """A request without an Idempotency-Key header is rejected with 400.
+
+    The header is a hard requirement — without it Powertools' @idempotent
+    layer raises IdempotencyKeyError, which the handler converts to a 400
+    response so callers see a meaningful error instead of an unhandled 500.
+
+    POWERTOOLS_IDEMPOTENCY_DISABLED is normally set in pytest_env so the
+    other tests don't hit DynamoDB; for this assertion specifically we
+    re-enable the layer so the missing-key path actually executes.
+    """
+    monkeypatch.delenv("POWERTOOLS_IDEMPOTENCY_DISABLED", raising=False)
+    del apigw_event["headers"]["Idempotency-Key"]
+
+    ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)
+
+    assert ret["statusCode"] == 400
+    assert "Idempotency-Key" in ret["body"]
+
+
+def test_lowercase_idempotency_key_accepted(apigw_event, lambda_context, lambda_app_module):
+    """The JMESPath also matches a lowercase 'idempotency-key' header.
+
+    HTTP headers are case-insensitive; API Gateway preserves the casing the
+    caller sent. The OR fallback in the JMESPath covers the lowercase form.
+    """
+    del apigw_event["headers"]["Idempotency-Key"]
+    apigw_event["headers"]["idempotency-key"] = "test-idempotency-key-lower"
+
+    ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)
+
+    assert ret["statusCode"] == 200

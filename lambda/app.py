@@ -23,6 +23,7 @@ from aws_lambda_powertools.utilities.idempotency import (
     idempotent,
 )
 from aws_lambda_powertools.utilities.idempotency.config import IdempotencyConfig
+from aws_lambda_powertools.utilities.idempotency.exceptions import IdempotencyKeyError
 from aws_lambda_powertools.utilities.parameters import get_parameter
 from aws_lambda_powertools.utilities.parameters.exceptions import GetParameterError
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -56,12 +57,20 @@ app = APIGatewayRestResolver(
     enable_validation=True,
 )
 
-# Idempotency setup
+# Idempotency setup.
+# Key on the client-supplied "Idempotency-Key" header (case-insensitive lookup
+# matches both "Idempotency-Key" and "idempotency-key"). raise_on_no_idempotency_key
+# turns a missing header into Powertools' IdempotencyKeyError, which the resolver
+# below converts into a 400 BadRequest — making the requirement enforced rather
+# than implicit. Keying on a client-controlled value (instead of the server-
+# generated requestContext.requestId, which changes on every retry) is what
+# actually makes the layer deduplicate.
 persistence_layer = DynamoDBPersistenceLayer(
     table_name=_require_env("IDEMPOTENCY_TABLE_NAME"),
 )
 idempotency_config = IdempotencyConfig(
-    event_key_jmespath="requestContext.requestId",
+    event_key_jmespath='headers."Idempotency-Key" || headers."idempotency-key"',
+    raise_on_no_idempotency_key=True,
     expires_after_seconds=3600,
 )
 
@@ -149,15 +158,27 @@ def hello() -> HelloResponse:
     return HelloResponse(message=message)
 
 
+@idempotent(config=idempotency_config, persistence_store=persistence_layer)
+def _resolve_with_idempotency(event: dict, context: LambdaContext) -> dict:
+    """Inner handler wrapped by @idempotent.
+
+    Split out so the outer handler can catch IdempotencyKeyError (raised by
+    @idempotent before this body runs when the request has no Idempotency-Key
+    header) and return a 400 instead of letting Lambda surface a 500.
+    """
+    return cast(dict, app.resolve(event, context))
+
+
 @logger.inject_lambda_context
 @tracer.capture_lambda_handler
 @metrics.log_metrics(capture_cold_start_metric=True)
-@idempotent(config=idempotency_config, persistence_store=persistence_layer)
 def lambda_handler(event: dict, context: LambdaContext) -> dict:
     """Lambda entry point.
 
     Resolves the API Gateway event through the router and returns the result.
-    Decorated with Powertools Logger, Tracer, Metrics, and Idempotency.
+    Decorated with Powertools Logger, Tracer, Metrics; the inner function
+    handles Idempotency so a missing Idempotency-Key header surfaces as a 400
+    instead of an unhandled 500.
 
     Args:
         event: API Gateway Lambda proxy event.
@@ -166,9 +187,17 @@ def lambda_handler(event: dict, context: LambdaContext) -> dict:
     Returns:
         dict: API Gateway Lambda proxy response.
     """
-    # cast() satisfies both mypy environments. Powertools' app.resolve()
-    # is well-typed in .venv-lambda (where Powertools is installed) and
-    # appears as Any in pre-commit's .venv (no Powertools, attrs conflict
-    # — see .pre-commit-config.yaml mypy comment). The cast is explicit
-    # at the type-check layer and a no-op at runtime.
-    return cast(dict, app.resolve(event, context))
+    # The cast() satisfies both mypy environments — _resolve_with_idempotency is
+    # decorated with @idempotent, which returns Any in .venv-lambda. Powertools'
+    # app.resolve() is well-typed there, but the @idempotent wrapper erases the
+    # signature; cast() restores the return type without runtime cost.
+    try:
+        return cast(dict, _resolve_with_idempotency(event, context))
+    except IdempotencyKeyError:
+        logger.warning("Request rejected: missing Idempotency-Key header")
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": '{"message":"Idempotency-Key header is required"}',
+            "isBase64Encoded": False,
+        }

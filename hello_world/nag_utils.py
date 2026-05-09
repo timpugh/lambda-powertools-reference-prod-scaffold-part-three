@@ -16,7 +16,11 @@ CDK and cannot be configured by the caller. Import it and pass it to
 from collections.abc import Iterable
 from typing import cast
 
-from aws_cdk import Aspects, Stack
+from aws_cdk import Aspects, Duration, RemovalPolicy, Stack
+from aws_cdk import aws_kms as kms
+from aws_cdk import aws_lambda as _lambda
+from aws_cdk import aws_lambda_destinations as destinations
+from aws_cdk import aws_sqs as sqs
 from cdk_nag import (
     AwsSolutionsChecks,
     HIPAASecurityChecks,
@@ -35,6 +39,52 @@ def apply_compliance_aspects(stack: Stack) -> None:
     Aspects.of(stack).add(NIST80053R5Checks(verbose=True))
     Aspects.of(stack).add(HIPAASecurityChecks(verbose=True))
     Aspects.of(stack).add(PCIDSS321Checks(verbose=True))
+
+
+def attach_async_failure_destination(
+    scope: IConstruct,
+    singleton_id: str,
+    *,
+    encryption_key: kms.Key,
+    queue_id: str,
+) -> sqs.Queue | None:
+    """Wire an SQS DLQ to a CDK-managed async singleton Lambda.
+
+    AwsCustomResource provider Lambdas are invoked asynchronously by
+    CloudFormation during stack lifecycle events. Without an on_failure
+    destination, a provider crash that exhausts Lambda's two automatic
+    async retries is silently dropped — the stack rollback still surfaces
+    a CFN error, but the *cause* (Python traceback, AWS API error response)
+    is gone unless someone catches it in CloudWatch within the retention
+    window. SQS as the on_failure destination preserves the failed-event
+    envelope (full request payload + responseContext) for post-mortem.
+
+    The queue uses the same CMK as the surrounding stack, with 14-day
+    retention (Lambda's max meaningful window — events older than that
+    have already aged past most rollback investigations).
+
+    Returns the created queue so callers can attach alarms or outputs;
+    returns None if the singleton isn't present under ``scope`` (which
+    happens when no AwsCustomResource has been instantiated in this stack).
+    """
+    singleton = scope.node.try_find_child(singleton_id)
+    # IFunction is a JSII protocol that isn't runtime-checkable, so we check
+    # the concrete singleton-function classes that CDK actually instantiates.
+    if not isinstance(singleton, _lambda.SingletonFunction | _lambda.Function):
+        return None
+
+    dlq = sqs.Queue(
+        cast(Construct, scope),
+        queue_id,
+        encryption=sqs.QueueEncryption.KMS,
+        encryption_master_key=encryption_key,
+        retention_period=Duration.days(14),
+        enforce_ssl=True,
+        removal_policy=RemovalPolicy.DESTROY,
+    )
+
+    singleton.configure_async_invoke(on_failure=destinations.SqsDestination(dlq))
+    return dlq
 
 
 def suppress_cdk_singletons(scope: IConstruct, singleton_ids: Iterable[str]) -> None:

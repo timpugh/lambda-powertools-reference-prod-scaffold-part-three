@@ -40,6 +40,11 @@ def apigw_event():
         "headers": {
             "Host": "1234567890.execute-api.us-east-1.amazonaws.com",
             "User-Agent": "Custom User Agent String",
+            # The Lambda's idempotency layer keys on Idempotency-Key. Missing
+            # the header surfaces as a 400 in the handler — the test fixture
+            # ships one by default; tests that exercise the missing-header
+            # path delete it explicitly.
+            "Idempotency-Key": "test-idempotency-key-default",
         },
         "pathParameters": None,
         "stageVariables": None,

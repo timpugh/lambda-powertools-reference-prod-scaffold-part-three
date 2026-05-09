@@ -2,6 +2,7 @@ from typing import Any
 
 from aws_cdk import (
     CfnOutput,
+    Duration,
     RemovalPolicy,
     Stack,
 )
@@ -56,13 +57,26 @@ class HelloWorldWafStack(Stack):
             "WafEncryptionKey",
             description=f"KMS key for {self.stack_name} WAF log group encryption",
             enable_key_rotation=True,
+            # See HelloWorldApp.encryption_key for the rationale — automated
+            # rotation, no dependent redeploys, 90-day compliance baseline.
+            rotation_period=Duration.days(90),
             removal_policy=RemovalPolicy.DESTROY,
         )
+        # Confused-deputy guard: see HelloWorldApp.encryption_key for the
+        # rationale — restrict the Logs service principal to log-group ARNs
+        # in this account+region.
         waf_encryption_key.add_to_resource_policy(
             iam.PolicyStatement(
                 actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
                 principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
                 resources=["*"],
+                conditions={
+                    "ArnLike": {
+                        "kms:EncryptionContext:aws:logs:arn": (
+                            f"arn:{self.partition}:logs:{self.region}:{self.account}:log-group:*"
+                        ),
+                    },
+                },
             )
         )
 

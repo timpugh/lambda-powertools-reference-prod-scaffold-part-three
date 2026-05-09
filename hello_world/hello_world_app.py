@@ -81,13 +81,30 @@ class HelloWorldApp(Construct):
             "EncryptionKey",
             description=f"KMS key for {stack.stack_name} log groups and DynamoDB",
             enable_key_rotation=True,
+            # 90 days is a common compliance-aligned cadence (PCI/HIPAA forks
+            # default to 90). Rotation is fully managed by AWS — key ID/ARN
+            # and policies stay constant, prior versions are retained for
+            # transparent decryption, no dependent redeploys required.
+            rotation_period=Duration.days(90),
             removal_policy=RemovalPolicy.DESTROY,
         )
+        # Confused-deputy guard: scope the Logs service principal grant to
+        # log-group ARNs in this account+region. CloudWatch Logs sets the
+        # ``kms:EncryptionContext:aws:logs:arn`` request context to the log
+        # group ARN on every encrypt/decrypt call, so the condition reliably
+        # rejects any cross-account log group that ever found this key ARN.
         self.encryption_key.add_to_resource_policy(
             iam.PolicyStatement(
                 actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
                 principals=[iam.ServicePrincipal(f"logs.{stack.region}.amazonaws.com")],
                 resources=["*"],
+                conditions={
+                    "ArnLike": {
+                        "kms:EncryptionContext:aws:logs:arn": (
+                            f"arn:{stack.partition}:logs:{stack.region}:{stack.account}:log-group:*"
+                        ),
+                    },
+                },
             )
         )
 

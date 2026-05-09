@@ -6,7 +6,11 @@ from cdk_nag import NagSuppressions
 from constructs import Construct
 
 from hello_world.hello_world_app import HelloWorldApp
-from hello_world.nag_utils import apply_compliance_aspects, suppress_cdk_singletons
+from hello_world.nag_utils import (
+    apply_compliance_aspects,
+    attach_async_failure_destination,
+    suppress_cdk_singletons,
+)
 
 # CDK-managed singleton Lambda construct IDs. These are derived from CDK's
 # own source hashes and have remained stable for years — not from our code,
@@ -87,6 +91,19 @@ class HelloWorldStack(Stack):
         # regardless of whether the stack is at the App root or nested inside
         # a cdk.Stage.
         suppress_cdk_singletons(self, _CDK_SINGLETON_IDS)
+
+        # ── Async failure destination for the AwsCustomResource provider ────────
+        # CFN invokes the provider Lambda asynchronously; without an on_failure
+        # destination, a crash that exhausts Lambda's two automatic retries is
+        # silently dropped — only the CFN rollback error remains. Capturing the
+        # failed event envelope to SQS preserves the AWS API response and full
+        # request payload for post-mortem.
+        self.cr_provider_dlq = attach_async_failure_destination(
+            self,
+            "AWS679f53fac002430cb0da5b7982bd2287",
+            encryption_key=self.app.encryption_key,
+            queue_id="AwsCustomResourceProviderDlq",
+        )
 
         # ── Stack-level cdk-nag suppressions (genuinely stack-wide) ─────────────
         NagSuppressions.add_stack_suppressions(
