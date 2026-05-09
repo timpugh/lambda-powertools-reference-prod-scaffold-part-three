@@ -54,6 +54,7 @@ from hello_world.nag_utils import (
     CDK_LAMBDA_SUPPRESSIONS,
     apply_compliance_aspects,
     attach_async_failure_destination,
+    grant_logs_service_to_key,
     suppress_cdk_singletons,
 )
 
@@ -98,22 +99,13 @@ class HelloWorldFrontendStack(Stack):
             rotation_period=Duration.days(90),
             removal_policy=RemovalPolicy.DESTROY,
         )
-        # Confused-deputy guard: see HelloWorldApp.encryption_key for the
-        # rationale — restrict the Logs service principal to log-group ARNs
-        # in this account+region.
-        frontend_encryption_key.add_to_resource_policy(
-            iam.PolicyStatement(
-                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
-                principals=[iam.ServicePrincipal(f"logs.{self.region}.amazonaws.com")],
-                resources=["*"],
-                conditions={
-                    "ArnLike": {
-                        "kms:EncryptionContext:aws:logs:arn": (
-                            f"arn:{self.partition}:logs:{self.region}:{self.account}:log-group:*"
-                        ),
-                    },
-                },
-            )
+        # Confused-deputy guard on the CMK's CloudWatch Logs service grant.
+        # See ``grant_logs_service_to_key`` in ``nag_utils.py``.
+        grant_logs_service_to_key(
+            frontend_encryption_key,
+            region=self.region,
+            account=self.account,
+            partition=self.partition,
         )
 
         # ── S3 access logging bucket ─────────────────────────────────────────

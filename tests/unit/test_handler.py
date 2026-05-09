@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 
 def test_lambda_handler(apigw_event, lambda_context, lambda_app_module):
     ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)
@@ -145,6 +147,18 @@ def test_lowercase_idempotency_key_accepted(apigw_event, lambda_context, lambda_
     assert ret["statusCode"] == 200
 
 
+def test_require_env_raises_when_missing(lambda_app_module, monkeypatch):
+    """_require_env raises RuntimeError naming the missing variable.
+
+    The function runs at import time on real deploys so a missing var fails
+    the cold start with a clear message; this test pins that contract.
+    """
+    monkeypatch.delenv("UNIT_TEST_ABSENT_VAR", raising=False)
+
+    with pytest.raises(RuntimeError, match="UNIT_TEST_ABSENT_VAR"):
+        lambda_app_module._require_env("UNIT_TEST_ABSENT_VAR")
+
+
 def test_persistence_layer_error_propagates(apigw_event, lambda_context, lambda_app_module, monkeypatch, mocker):
     """A DynamoDB-side persistence failure does not get masked as a 400.
 
@@ -155,7 +169,6 @@ def test_persistence_layer_error_propagates(apigw_event, lambda_context, lambda_
     flattened into the generic 400 path. We assert the exception escapes
     rather than being absorbed.
     """
-    import pytest as _pytest
     from aws_lambda_powertools.utilities.idempotency.exceptions import IdempotencyPersistenceLayerError
 
     monkeypatch.delenv("POWERTOOLS_IDEMPOTENCY_DISABLED", raising=False)
@@ -169,5 +182,5 @@ def test_persistence_layer_error_propagates(apigw_event, lambda_context, lambda_
         side_effect=IdempotencyPersistenceLayerError("DDB throttled", Exception("orig")),
     )
 
-    with _pytest.raises(IdempotencyPersistenceLayerError):
+    with pytest.raises(IdempotencyPersistenceLayerError):
         lambda_app_module.lambda_handler(apigw_event, lambda_context)

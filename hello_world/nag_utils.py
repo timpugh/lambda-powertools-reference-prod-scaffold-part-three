@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from typing import cast
 
 from aws_cdk import Aspects, Duration, RemovalPolicy, Stack
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_lambda_destinations as destinations
@@ -39,6 +40,32 @@ def apply_compliance_aspects(stack: Stack) -> None:
     Aspects.of(stack).add(NIST80053R5Checks(verbose=True))
     Aspects.of(stack).add(HIPAASecurityChecks(verbose=True))
     Aspects.of(stack).add(PCIDSS321Checks(verbose=True))
+
+
+def grant_logs_service_to_key(key: kms.Key, *, region: str, account: str, partition: str) -> None:
+    """Add the standard CloudWatch Logs service-principal grant to a CMK.
+
+    Three CMKs in this project (backend, frontend, WAF) need the same statement:
+    a grant to ``logs.{region}.amazonaws.com`` for symmetric encrypt/decrypt
+    operations, conditioned via ``kms:EncryptionContext:aws:logs:arn`` so only
+    log groups in this account+region can request key operations. Defining it
+    in one place keeps the three call sites in lockstep — pylint's R0801
+    duplicate-code check correctly flags any drift between them, and the
+    confused-deputy condition is exactly the kind of thing that's harmful to
+    forget on one of the three CMKs.
+    """
+    key.add_to_resource_policy(
+        iam.PolicyStatement(
+            actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
+            principals=[iam.ServicePrincipal(f"logs.{region}.amazonaws.com")],
+            resources=["*"],
+            conditions={
+                "ArnLike": {
+                    "kms:EncryptionContext:aws:logs:arn": f"arn:{partition}:logs:{region}:{account}:log-group:*",
+                },
+            },
+        )
+    )
 
 
 def attach_async_failure_destination(

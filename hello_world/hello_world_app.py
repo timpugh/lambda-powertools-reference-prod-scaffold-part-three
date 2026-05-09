@@ -57,6 +57,8 @@ from cdk_monitoring_constructs import DefaultDashboardFactory, MonitoringFacade
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
+from hello_world.nag_utils import grant_logs_service_to_key
+
 
 class HelloWorldApp(Construct):
     """Domain-level Hello World application.
@@ -89,23 +91,13 @@ class HelloWorldApp(Construct):
             removal_policy=RemovalPolicy.DESTROY,
         )
         # Confused-deputy guard: scope the Logs service principal grant to
-        # log-group ARNs in this account+region. CloudWatch Logs sets the
-        # ``kms:EncryptionContext:aws:logs:arn`` request context to the log
-        # group ARN on every encrypt/decrypt call, so the condition reliably
-        # rejects any cross-account log group that ever found this key ARN.
-        self.encryption_key.add_to_resource_policy(
-            iam.PolicyStatement(
-                actions=["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"],
-                principals=[iam.ServicePrincipal(f"logs.{stack.region}.amazonaws.com")],
-                resources=["*"],
-                conditions={
-                    "ArnLike": {
-                        "kms:EncryptionContext:aws:logs:arn": (
-                            f"arn:{stack.partition}:logs:{stack.region}:{stack.account}:log-group:*"
-                        ),
-                    },
-                },
-            )
+        # log-group ARNs in this account+region. See ``grant_logs_service_to_key``
+        # in ``nag_utils.py`` — three CMKs in this project share the statement.
+        grant_logs_service_to_key(
+            self.encryption_key,
+            region=stack.region,
+            account=stack.account,
+            partition=stack.partition,
         )
 
         # DynamoDB table for Powertools idempotency.
