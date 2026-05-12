@@ -154,6 +154,13 @@ class HelloWorldStack(Stack):
                     "reason": "Client-side SSL certificates not required for sample app",
                 },
                 {
+                    "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+                    "reason": (
+                        "API Gateway cache cluster intentionally disabled for cost reasons — "
+                        "see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+                    ),
+                },
+                {
                     "id": "HIPAA.Security-DynamoDBInBackupPlan",
                     "reason": "AWS Backup plan not configured for sample app — PITR is enabled for point-in-time recovery",
                 },
@@ -165,6 +172,13 @@ class HelloWorldStack(Stack):
                 {
                     "id": "PCI.DSS.321-APIGWSSLEnabled",
                     "reason": "Client-side SSL certificates not required for sample app",
+                },
+                {
+                    "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+                    "reason": (
+                        "API Gateway cache cluster intentionally disabled for cost reasons — "
+                        "see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+                    ),
                 },
             ],
         )

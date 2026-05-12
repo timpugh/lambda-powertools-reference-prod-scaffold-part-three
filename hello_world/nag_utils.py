@@ -111,7 +111,55 @@ def attach_async_failure_destination(
         removal_policy=RemovalPolicy.DESTROY,
     )
 
+    # This queue IS the dead-letter destination. cdk-nag flags any SQS queue
+    # without a DLQ or a redrive policy, but recursing DLQs into more DLQs
+    # makes no sense — when this terminal queue's consumer fails, manual
+    # inspection of the queue content is the recovery path, not another DLQ.
+    dlq_terminal_reason = (
+        "Terminal DLQ: this queue IS the dead-letter destination — recursing into another DLQ has no recovery value"
+    )
+    NagSuppressions.add_resource_suppressions(
+        dlq,
+        [
+            {"id": "AwsSolutions-SQS3", "reason": dlq_terminal_reason},
+            {"id": "Serverless-SQSRedrivePolicy", "reason": dlq_terminal_reason},
+        ],
+    )
+
     singleton.configure_async_invoke(on_failure=destinations.SqsDestination(dlq))
+
+    # configure_async_invoke + SqsDestination + KMS-encrypted queue adds
+    # kms:GenerateDataKey* and kms:ReEncrypt* wildcards to the singleton's
+    # auto-generated default policy so it can encrypt messages to the DLQ.
+    # These are granular IAM5 findings that need applies_to scoping rather
+    # than the blanket suppression in CDK_LAMBDA_SUPPRESSIONS. Also
+    # re-applies the inline-policy suppressions because the DefaultPolicy
+    # resource only materialized when configure_async_invoke modified the
+    # role above, after the initial suppress_cdk_singletons run.
+    kms_wildcard_reason = (
+        "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+    )
+    NagSuppressions.add_resource_suppressions(
+        cast(Construct, singleton),
+        [
+            {
+                "id": "AwsSolutions-IAM5",
+                "applies_to": ["Action::kms:GenerateDataKey*", "Action::kms:ReEncrypt*"],
+                "reason": kms_wildcard_reason,
+            },
+            {
+                "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+                "reason": "CDK-generated inline policy on singleton service role",
+            },
+            {
+                "id": "HIPAA.Security-IAMNoInlinePolicy",
+                "reason": "CDK-generated inline policy on singleton service role",
+            },
+            {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": "CDK-generated inline policy on singleton service role"},
+        ],
+        apply_to_children=True,
+    )
+
     return dlq
 
 
