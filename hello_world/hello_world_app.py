@@ -72,12 +72,13 @@ class HelloWorldApp(Construct):
 
         stack = Stack.of(self)
 
-        # KMS key shared across CloudWatch log groups and DynamoDB in this app.
+        # KMS key shared across CloudWatch log groups, DynamoDB, Lambda env vars,
+        # and AppConfig hosted configuration content in this app.
         # CloudWatch Logs requires the Logs service principal to be granted access
         # so it can encrypt data on behalf of the service.
         # Note: SSM StringParameter cannot use CMK — CloudFormation does not support
-        # creating SecureString parameters. AppConfig hosted configs use AWS-managed
-        # keys and do not expose a CMK option via CDK.
+        # creating SecureString parameters. AppConfig support arrived later (via
+        # the kms_key_identifier property on CfnConfigurationProfile), wired below.
         self.encryption_key = kms.Key(
             self,
             "EncryptionKey",
@@ -156,6 +157,10 @@ class HelloWorldApp(Construct):
             name=f"{stack.stack_name}-env",
         )
 
+        # kms_key_identifier CMK-encrypts the hosted configuration content at
+        # rest in AppConfig. Required because the Lambda's CMK already covers
+        # logs/DDB/env-vars; pinning AppConfig to the same key keeps the
+        # auditable encryption surface inside one ARN.
         app_config_profile = appconfig.CfnConfigurationProfile(
             self,
             "FeatureFlagsProfile",
@@ -163,6 +168,7 @@ class HelloWorldApp(Construct):
             name=f"{stack.stack_name}-features",
             location_uri="hosted",
             type="AWS.AppConfig.FeatureFlags",
+            kms_key_identifier=self.encryption_key.key_arn,
         )
 
         # Initial feature flags configuration. CFN registration runs as a
