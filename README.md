@@ -30,22 +30,32 @@ This project contains source code and supporting files for a serverless applicat
 - `LICENSE` - Apache 2.0 license
 - `TODO.md` - Outstanding work and deferred items
 
-The application uses several AWS resources, including Lambda functions, an API Gateway API, a DynamoDB table, SSM parameters, AppConfig, an S3-backed CloudFront distribution, and a WAF WebACL. These resources are split across three stack files in `hello_world/` (`hello_world_stack.py` for the backend, `hello_world_waf_stack.py` for WAF, and `hello_world_frontend_stack.py` for S3/CloudFront). The Lambda function uses [AWS Lambda Powertools](https://docs.powertools.aws.dev/lambda/python/latest/) extensively — see the [Lambda Powertools features](#lambda-powertools-features) section below for details. Note that Powertools Tracer currently depends on the `aws-xray-sdk`, which is approaching deprecation. There is an [open RFC](https://github.com/aws-powertools/powertools-lambda/discussions/90) to replace it with OpenTelemetry as the tracing provider. You can update the stack to add AWS resources through the same deployment process that updates your application code.
+This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, AppConfig, CloudFront (S3-backed), and WAF — split across three stack files in `hello_world/` (`hello_world_stack.py` for the backend, `hello_world_waf_stack.py` for WAF, `hello_world_frontend_stack.py` for S3/CloudFront). The Lambda function uses [AWS Lambda Powertools](https://docs.powertools.aws.dev/lambda/python/latest/) for logging, tracing, metrics, routing, idempotency, parameters, and feature flags — see [Lambda Powertools features](#lambda-powertools-features). Note that Powertools Tracer currently depends on `aws-xray-sdk`, which is approaching deprecation; there's an [open RFC](https://github.com/aws-powertools/powertools-lambda/discussions/90) to migrate to OpenTelemetry.
+
+## Table of contents
+
+- [Getting started](#getting-started) — [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Makefile](#makefile) · [Editor setup (VS Code)](#editor-setup-vs-code) · [Debugging the Lambda function](#debugging-the-lambda-function)
+- [Architecture](#architecture) — [Lambda Powertools features](#lambda-powertools-features) · [AWS resources provisioned](#aws-resources-provisioned) · [Stack and construct composition](#stack-and-construct-composition) · [Frontend stack](#frontend-stack) · [Monitoring](#monitoring)
+- [Working in the codebase](#working-in-the-codebase) — [Add a resource](#add-a-resource-to-your-application) · [Useful CDK commands](#useful-cdk-commands) · [Synthesize and validate locally](#synthesize-and-validate-locally) · [Fetch, tail, and filter logs](#fetch-tail-and-filter-lambda-function-logs) · [Documentation](#documentation) · [Cleanup](#cleanup)
+- [Deploy the application](#deploy-the-application) — [Recommended order](#recommended-order-for-ongoing-deploys) · [Different region](#deploying-to-a-different-region) · [Destroying](#destroying-a-deployment)
+- [Quality and security](#quality-and-security) — [Tests](#tests) · [Linting and static analysis](#linting-and-static-analysis) · [Detecting deprecated APIs](#detecting-deprecated-apis) · [Pre-commit hooks](#pre-commit-hooks) · [Security](#security) · [CDK security checks](#cdk-security-checks) · [Commit message convention](#commit-message-convention) · [pyproject.toml configuration](#pyprojecttoml-configuration)
+- [CI/CD](#cicd) — [GitHub Actions](#github-actions)
+- [Project dependencies](#project-dependencies)
+- [When forking for production](#when-forking-for-production) — [Design decisions](#design-decisions-and-known-limitations) · [Scaling](#scaling-beyond-a-reference-architecture) · [AWS ops services](#aws-services-for-post-deployment-operations)
+- [Resources](#resources)
 
 ## Getting started
 
 ### Prerequisites
 
-To use the CDK, you need the following tools.
-
-* [Node.js](https://nodejs.org/) - Required to install the CDK CLI (`npm install -g aws-cdk`)
-* AWS CDK CLI - [Install the CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html)
-* AWS CLI v2 - [Install the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) - Used by `aws logs tail` for streaming Lambda logs (see [Fetch, tail, and filter Lambda function logs](#fetch-tail-and-filter-lambda-function-logs)). The CDK CLI also relies on the same AWS credentials the AWS CLI configures.
-* [Python 3 installed](https://www.python.org/downloads/)
+* [Node.js](https://nodejs.org/) — needed to install the CDK CLI (`npm install -g aws-cdk`)
+* [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html)
+* [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) — used by `aws logs tail` for streaming Lambda logs and shared by the CDK CLI for credentials
+* [Python 3.13+](https://www.python.org/downloads/)
 * [uv](https://docs.astral.sh/uv/) — Python package and environment manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-* A container runtime for bundling Lambda dependencies — either of:
+* A container runtime for bundling Lambda dependencies — either:
   * [Finch](https://runfinch.com/) — AWS-supported, open-source, license-friendly (recommended)
-  * [Docker](https://www.docker.com/) — drop-in alternative; CDK uses Docker by default when `CDK_DOCKER` is unset
+  * [Docker](https://www.docker.com/) — drop-in alternative; CDK uses it by default when `CDK_DOCKER` is unset
 
 ### Quick start
 
@@ -92,62 +102,52 @@ make clean              # remove build artifacts, caches, and coverage files
 
 ### Editor setup (VS Code)
 
-The repo keeps two Python environments for the `attrs` conflict (`.venv` for CDK, `.venv-lambda` for Lambda runtime code — see "Project dependencies").
+The repo keeps two Python environments due to the `attrs` version conflict (`.venv` for CDK, `.venv-lambda` for Lambda runtime — see [Project dependencies](#project-dependencies)).
 
-**Recommended: open the workspace file.** Use `File > Open Workspace from File…` and pick `practice.code-workspace` at the repo root. This is the intended entry point and the only mode where VS Code gets both sides right.
+**Recommended: open the workspace file.** `File > Open Workspace from File…` → `practice.code-workspace`. The workspace declares four folder roots — `.` (CDK + `.venv`), `lambda/` (`.venv-lambda`), `tests/unit/` (`.venv-lambda`), `scripts/` (`.venv-lambda`) — each with its own `python.defaultInterpreterPath` in `.vscode/settings.json`. The effect:
 
-The workspace declares four folder roots — `.` (CDK + `.venv`), `lambda/` (`.venv-lambda`), `tests/unit/` (`.venv-lambda`), and `scripts/` (`.venv-lambda`). Per-folder `python.defaultInterpreterPath` overrides live in each folder's `.vscode/settings.json`. The effect:
+- **Pylance** spins up a separate instance per root, so CDK code resolves `aws_cdk` against `.venv` and Lambda code resolves `aws_lambda_powertools` against `.venv-lambda` simultaneously — no red squiggles on either side.
+- **Terminals** opened from each root auto-activate that root's venv.
+- **Test Explorer** runs unit tests under `.venv-lambda` and CDK tests under `.venv` independently.
 
-- **Pylance** spins up a separate instance per root, so CDK code resolves `aws_cdk` against `.venv` and Lambda code resolves `aws_lambda_powertools` against `.venv-lambda` at the same time. No red squiggles on one side or the other.
-- **Terminals** opened from each root (right-click the folder in the explorer → *Open in Integrated Terminal*, or `Ctrl+\`` while focused on a file under that root) auto-activate that root's venv.
-- **Test Explorer** discovers and runs unit tests under `.venv-lambda` and CDK tests under `.venv` independently.
+**Fallback: open the folder directly.** `File > Open Folder` defaults to `.venv` (CDK side fine, but Powertools imports in `lambda/` show as unresolved due to Pylance's single-interpreter-per-workspace limit). Use only if you specifically don't want the workspace file loaded.
 
-**Fallback: open the folder directly.** `File > Open Folder` on the repo root still works — `.vscode/settings.json` defaults the interpreter to `.venv`, so CDK work is fine, but Pylance will flag Powertools imports under `lambda/` as unresolved (single-interpreter-per-workspace limitation). Use this mode only if you specifically don't want the workspace file loaded.
+[VS Code's `python-envs.pythonProjects`](https://code.visualstudio.com/docs/python/environments#_python-projects) would handle terminal activation and test discovery per folder inside a single workspace, but it assumes each project's venv lives under its folder. This repo keeps both venvs at the repo root (matching uv's `UV_PROJECT_ENVIRONMENT` layout), so the multi-root workspace is the right fit. Pylance is single-interpreter per workspace anyway — multi-root is the only way to get correct type resolution for both sides.
 
-Note: [VS Code's `python-envs.pythonProjects` feature](https://code.visualstudio.com/docs/python/environments#_python-projects) would cover terminal activation and the test runner per folder inside a single workspace, but it assumes each project's venv lives under its folder. This repo keeps both venvs at the repo root (matching uv's layout and the `UV_PROJECT_ENVIRONMENT` switch the Makefile uses), so per-folder `python.defaultInterpreterPath` inside a multi-root workspace is the right fit. Pylance is single-interpreter per workspace anyway, so the multi-root workspace is the only way to get correct type resolution for both sides.
+**Settings worth knowing:**
 
-**Environment discovery (`python-envs.workspaceSearchPaths`).** The new Python Environments extension (`ms-python.vscode-python-envs`, recommended) defaults its search to `./**/.venv`, which only matches the literal name `.venv` and would miss `.venv-lambda`. `.vscode/settings.json` pins the search to both paths explicitly so the *Python: Select Interpreter* picker lists both venvs out of the box. If you add a third venv at a non-default path, append it to the array.
+- `python-envs.workspaceSearchPaths` is pinned to `["./.venv", "./.venv-lambda"]` so the *Python: Select Interpreter* picker lists both. The default `./**/.venv` misses `.venv-lambda` because it matches only the literal name. Append to the array if you add a third venv.
+- `python-envs.alwaysUseUv` is *user-scoped* (cannot be committed). Set it to `true` to create new envs via `uv venv` instead of `python -m venv` — worth turning on since the Makefile already uses uv.
+- `python.analysis.typeCheckingMode: "strict"` runs full Pylance type analysis inline. This **overlaps** with the mypy linter (which runs on save and in CI) but they're separate engines: Pylance is stricter on `Any` and inferred narrowing, mypy catches different things. If too loud, lower to `"basic"`/`"off"` in User Settings.
+- `autoImportCompletions`, `autoFormatStrings`, and the full set of `inlayHints` (`variableTypes`, `functionReturnTypes`, `callArgumentNames: "all"`, `pytestParameters`) are all on. Tune `callArgumentNames` to `"partial"` in User Settings if dense call sites get noisy.
 
-**Optional user setting: `python-envs.alwaysUseUv`.** VS Code scopes this setting to *user* only, so it can't be committed to the repo. If you set it to `true` in your User Settings, the extension creates new envs with `uv venv` instead of `python -m venv`. Worth turning on for this project — the Makefile already uses `uv lock`/`uv export`/`uv sync`, and uv is listed as a prerequisite.
+**Debug configurations (`.vscode/launch.json`)** — three F5 configs pre-wired:
 
-**Debug configurations (`.vscode/launch.json`).** Three F5 configs are pre-wired:
-
-- **Python: Current File** — generic debugpy launch on whatever `.py` file is focused.
-- **Pytest: Current File** — runs `pytest ${file} -v --override-ini=addopts=` under the debugger. The `--override-ini=addopts=` flag clears the global pytest options from `pyproject.toml` (`-n auto`, `--cov-fail-under=100`, the HTML reporter), which would otherwise either fight the debugger or fail single-test runs on the coverage threshold. The same flag is also tagged with `"purpose": ["debug-test"]`, so VS Code's Test Explorer uses this configuration when you click the debug-icon next to a test instead of running its own uncustomized debugpy invocation.
-- **CDK: Synth (app.py)** — runs the root `app.py` (the CDK entry point) under debugpy with the same dummy-account env vars the `cdk-check` CI job uses. Useful when synth blows up and you need to step through stack construction in [hello_world/](hello_world/) — set a breakpoint in any `*_stack.py`, hit F5, and walk the stack assembly.
-
-**Test Explorer.** Pylance fixture inlay hints are on (`python.analysis.inlayHints.pytestParameters: true`) — the inferred type for each fixture parameter renders inline at test-function definitions, which makes the indirection in [tests/conftest.py](tests/conftest.py) easier to follow without a hover. The Test Explorer's *Run Tests with Coverage* toolbar button works out of the box because `pytest-cov` is already a dev dependency: it produces per-line gutter decorations for the file under test, scoped to that single run (independent of `make test`'s 100% threshold gate). Note that VS Code's docs flag a known issue where `pytest-cov` suppresses breakpoints when debugging — the Pytest debug config above already dodges this via `--override-ini=addopts=`, which strips `--cov` along with `-n auto`.
-
-**Pylance defaults.** A few Pylance settings are on by default in `.vscode/settings.json` to make the editor signal closer to what the linters enforce:
-
-- `python.analysis.typeCheckingMode: "strict"` — full Pylance type analysis inline. This overlaps with the mypy linter that runs on save and in CI, but the two are *separate engines with separate rule sets* — they share the goal of type checking but disagree on the specifics. Pylance is stricter on `Any`, more aggressive on inferred narrowing, and will surface problems that mypy lets pass (and vice versa). Expect a wave of new entries in the *Problems* panel after enabling this for the first time; triage with `python.analysis.diagnosticSeverityOverrides` if specific rules get too loud. If you'd rather only see mypy's view of the world, lower this to `"basic"` or `"off"` in your User Settings — the workspace value still wins, so override at folder/user scope rather than editing the committed file.
-- `python.analysis.autoImportCompletions: true` — completing an unknown symbol offers to add the matching `import` line.
-- `python.analysis.autoFormatStrings: true` — typing `{` inside a regular string auto-prefixes the literal with `f` so it becomes an f-string.
-- `python.analysis.inlayHints.{variableTypes,functionReturnTypes,callArgumentNames}` — inline annotations for inferred local-variable types, function return types, and named-argument hints at call sites. `callArgumentNames` is set to `"all"` (the most verbose option); switch to `"partial"` in User Settings if it's too dense at call sites with many args.
+- **Python: Current File** — generic debugpy launch on the focused `.py` file.
+- **Pytest: Current File** — runs `pytest ${file} -v --override-ini=addopts=` under the debugger. `--override-ini=addopts=` strips the global pytest options (`-n auto`, `--cov-fail-under=100`, HTML reporter) that would otherwise fight the debugger, fail single-test runs on the coverage threshold, or suppress breakpoints (a known `pytest-cov` issue). Tagged `"purpose": ["debug-test"]` so the Test Explorer's debug-icon uses this config too.
+- **CDK: Synth (app.py)** — runs the CDK entry point under debugpy with the dummy-account env vars the `cdk-check` CI job uses. Useful when synth blows up — set a breakpoint in any `*_stack.py`, hit F5, walk the stack assembly.
 
 ### Debugging the Lambda function
 
-This project does not use AWS SAM (`sam local invoke`) for local Lambda debugging. The reason: SAM's debug flow injects an unpinned `debugpy` into the runtime requirements, which conflicts with the project's `--require-hashes` install mode (`lambda/requirements.txt` is pinned by hash via `uv export`). Dropping hash-mode would weaken supply-chain integrity for every CI install, so the project debugs through pytest instead.
+This project does **not** use `sam local invoke`. SAM injects an unpinned `debugpy` that conflicts with the project's `--require-hashes` install mode (`lambda/requirements.txt` is pinned by hash via `uv export`); dropping hash-mode would weaken supply-chain integrity across every CI install. Debug through pytest instead.
 
-**The pytest-as-debugger pattern.** Open a test file under [tests/unit/](tests/unit/) that exercises the code path you want to inspect, set a breakpoint anywhere in [lambda/app.py](lambda/app.py), and press F5 → *Pytest: Current File*. The handler executes in-process with all of Powertools' real machinery (resolver routing, middleware order, idempotency wrapping, route-handler logic) — breakpoints, step-through, watch expressions, and exception inspection all work normally. The pytest fixtures in [tests/conftest.py](tests/conftest.py) build realistic API Gateway events, so the resolver sees the same shape it does in production.
+**The pytest-as-debugger pattern.** Open a test file under [tests/unit/](tests/unit/) that exercises the path you want to inspect, set a breakpoint anywhere in [lambda/app.py](lambda/app.py), press F5 → *Pytest: Current File*. The handler runs in-process with all of Powertools' real machinery (resolver routing, middleware, idempotency, route handlers). Breakpoints, step-through, watch expressions, exception inspection all work. The fixtures in [tests/conftest.py](tests/conftest.py) build realistic API Gateway events, so the resolver sees the same shape it does in production. Covers roughly 90% of what you'd debug: handler logic, parsers, validators, idempotency keys, response shapes, exception paths, feature-flag evaluation.
 
-**What this covers.** Code-logic bugs in handlers, parsers, validators, idempotency keys, response shapes, exception paths, feature-flag evaluation — i.e. roughly 90% of what you actually need to debug.
+**What pytest debug cannot reproduce** (deployed-only):
 
-**What pytest debug cannot reproduce.** You're running in your local Python process, not a Lambda execution environment. The following are *only* observable on the deployed function:
+- **Lambda runtime behavior** — cold-start timing, init-phase code, 250 MB unzipped package limit, 512 MB `/tmp` cap, configured memory ceiling.
+- **IAM** — your local AWS credentials are used, not the Lambda execution role. Permission denials in prod won't surface locally.
+- **Real AWS service calls** — most unit tests mock boto3. Service-side behavior (DynamoDB throttling, SSM resolution latency, AppConfig deploy cadence) is invisible.
+- **Network and runtime context** — VPC routing, layers, container reuse, deployed env vars.
 
-- Lambda runtime behavior — cold-start timing, init-phase code, the 250 MB unzipped package limit, the `/tmp` 512 MB cap, the configured memory ceiling.
-- IAM — your local AWS credentials are used, not the Lambda execution role. Permission denials in production won't surface locally.
-- Real AWS service calls — most unit tests mock boto3. Service-side behavior (DynamoDB throttling, SSM parameter resolution latency, AppConfig deployment cadence) is invisible.
-- Network and runtime context — VPC routing, Lambda layers, container reuse, environment variables injected by the deployed stack.
+**For the remaining 10%, debug on the deployed function** via the observability stack:
 
-**For the remaining 10%, debug on the deployed function.** The observability stack is built for this:
+- **Powertools `Logger`** — structured JSON to CloudWatch with `correlation_id` from the API Gateway request ID. Filter Logs Insights by that ID to follow one request end-to-end.
+- **X-Ray traces** (auto-enabled via Powertools `Tracer`) — full call graph including SDK calls to DynamoDB, SSM, AppConfig with per-segment timing. Spots cold-start init time, downstream latency, IAM denials (red segments).
+- **CloudWatch RUM** — correlates frontend requests to backend X-Ray traces via the `X-Amzn-Trace-Id` CORS header. Pivot from a slow user session to the matching backend trace.
+- **CloudWatch Metrics** — custom Powertools metrics + the `MonitoringFacade` dashboard. Throttles, errors, concurrency at the aggregate level.
 
-- **Powertools `Logger`** writes structured JSON to CloudWatch Logs with a `correlation_id` injected from the API Gateway request ID. Filter Logs Insights by that ID to follow a single request end-to-end through every log line the handler emitted.
-- **X-Ray traces** (auto-enabled via Powertools `Tracer`) show the full call graph including SDK calls to DynamoDB, SSM, and AppConfig with per-segment timing. Use traces to spot cold-start init time, downstream latency, and IAM denials (which surface as red segments).
-- **CloudWatch RUM** correlates frontend requests to backend X-Ray traces via the `X-Amzn-Trace-Id` CORS header, so you can pivot from a slow user session to the matching backend trace.
-- **CloudWatch Metrics** (custom Powertools metrics + the `MonitoringFacade` dashboard) surface throttles, errors, and concurrency at the aggregate level.
-
-This combination is the standard professional workflow for serverless Python: local debug for logic, deployed observability for runtime behavior. The toolchain overhead of `sam local` is generally not worth it once Powertools' structured-logging + X-Ray story is in place.
+Local debug for logic, deployed observability for runtime behavior — the standard serverless-Python workflow once Powertools' structured-logging + X-Ray story is in place.
 
 ## Architecture
 
@@ -179,13 +179,13 @@ The `@idempotent` decorator uses a DynamoDB table to prevent duplicate processin
 `FeatureFlags` reads from AWS AppConfig to toggle behavior at runtime. The `enhanced_greeting` flag controls whether the response includes extra text. The CDK stack provisions the AppConfig application, environment, configuration profile, and an initial hosted configuration version.
 
 #### OpenAPI spec (build-time, not runtime)
-The Pydantic models and route type hints that power `enable_validation=True` also drive an OpenAPI 3 spec. The spec is generated at **documentation-build time** by `scripts/generate_openapi.py`, which imports the Lambda resolver, calls `app.get_openapi_json_schema(...)`, and writes `docs/openapi.json`. It is then rendered in the browser by [Scalar](https://github.com/scalar/scalar)'s standalone bundle via `docs/api.html`, which Zensical copies into the built site verbatim alongside the other `docs/` assets.
+The Pydantic models and route hints that power `enable_validation=True` also drive an OpenAPI 3 spec. `scripts/generate_openapi.py` imports the Lambda resolver at **docs-build time**, calls `app.get_openapi_json_schema(...)`, writes `docs/openapi.json`, and `docs/api.html` renders it in-browser via [Scalar](https://github.com/scalar/scalar)'s standalone bundle. Zensical copies both files into the built site verbatim.
 
-After Powertools emits the vanilla OpenAPI document, the script runs a small post-processor that walks every operation and attaches a uniform `x-amazon-apigateway-integration` extension — the AWS_PROXY Lambda integration that the CDK stack actually provisions. The integration `uri` carries literal `{region}` and `{lambdaArn}` placeholders that a reader substitutes before `aws apigateway import-rest-api`; the deployed API is always built by CDK, not imported from this file, so the extensions are **documentation-only** and exist to show the AWS wiring in context. The processor is deliberately undiscriminating — every path + verb gets the same block — because per-route customisation would drift from CDK, which is the real source of truth.
+The script then runs a post-processor that attaches a uniform `x-amazon-apigateway-integration` (AWS_PROXY) extension to every operation, with literal `{region}` and `{lambdaArn}` placeholders for `aws apigateway import-rest-api`. The deployed API is always built by CDK, so the extensions are **documentation-only**, showing the AWS wiring in context. Per-route customisation would drift from CDK — the actual source of truth.
 
-The injection is fully automated. Any new route added to the Lambda resolver (`@app.post("/greet")`, `@app.delete("/hello/{id}")`, etc.) picks up the extension automatically on the next `make docs` run — there is no per-route registration to keep in sync. The only routes that would be skipped are ones using an HTTP verb outside the standard set (`get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace`), which is not a realistic scenario for a REST API.
+The injection is automatic: any new route (`@app.post("/greet")`, `@app.delete("/hello/{id}")`) picks up the extension on the next `make docs` run. Only verbs outside the standard set (`get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace`) would be skipped — not realistic for a REST API.
 
-The spec is intentionally **not** exposed as a runtime endpoint. Publishing the full API surface via a public `/openapi.json` would hand unauthenticated callers a map of every path and field name — a recon gift for attackers. Keeping it a build artifact gives us callable-facing docs for internal consumers without leaking the schema to the open internet. The `make docs` target regenerates the spec and rebuilds Zensical in one step, so the rendered API reference is always current.
+The spec is intentionally **not** exposed at runtime. A public `/openapi.json` hands unauthenticated callers a map of every path and field name. Keeping it a build artifact gives callable-facing docs without leaking the schema. `make docs` regenerates the spec and rebuilds Zensical in one step, so the rendered API reference is always current.
 
 #### Event Source Data Classes
 `APIGatewayProxyEvent` provides typed access to the incoming API Gateway event. Instead of raw dict access like `event["requestContext"]["identity"]["sourceIp"]`, you get `event.request_context.identity.source_ip` with IDE autocomplete and type safety. Powertools includes data classes for many event sources:
@@ -252,24 +252,20 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 
 ### Stack and construct composition
 
-The project follows the CDK best practice ["model with constructs, deploy with stacks"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html): domain resources live inside reusable `Construct` subclasses, and each `Stack` is a thin wrapper that only composes constructs and applies stack-wide concerns (Aspects, CfnOutputs, stack-level nag suppressions).
+The project follows the CDK best practice ["model with constructs, deploy with stacks"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html): domain resources live inside reusable `Construct` subclasses, each `Stack` is a thin wrapper composing them and applying stack-wide concerns (Aspects, CfnOutputs, nag suppressions).
 
-For the backend, that means:
+- [`HelloWorldApp`](hello_world/hello_world_app.py) (`Construct`) owns the KMS key, DynamoDB table, SSM parameter, AppConfig app, Lambda function, API Gateway, Application Insights, dashboard, Logs Insights saved queries, and per-resource cdk-nag suppressions.
+- [`HelloWorldStack`](hello_world/hello_world_stack.py) (`Stack`) instantiates `HelloWorldApp(self, "App")`, calls `apply_compliance_aspects(self)`, wires CfnOutputs, attaches stack-level and singleton-scoped suppressions.
 
-- [`HelloWorldApp`](hello_world/hello_world_app.py) — a `Construct` that owns the KMS key, DynamoDB table, SSM parameter, AppConfig application, Lambda function, API Gateway, Application Insights monitoring, dashboard, and Logs Insights saved queries, along with per-resource cdk-nag suppressions.
-- [`HelloWorldStack`](hello_world/hello_world_stack.py) — a `Stack` that instantiates `HelloWorldApp(self, "App")`, calls `apply_compliance_aspects(self)`, wires CfnOutputs, and attaches stack-level and singleton-scoped suppressions.
+The WAF and frontend stacks are small enough (single logical unit each) to keep their resources inline — the construct-extraction pattern is demonstrated on the backend as the reference example.
 
-The WAF and frontend stacks are small enough (single logical unit each) that they keep their resources inline — the construct-extraction pattern is demonstrated on the backend as the reference example.
+The three stacks are then composed into [`HelloWorldStage`](hello_world/hello_world_stage.py), a [`cdk.Stage`](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html). A Stage groups stacks always deployed together, scopes synthesis under `cdk.out/assembly-{stage}/`, and is the natural boundary for CDK Pipelines. `stack_name=` is set explicitly inside the Stage so CloudFormation names stay as `HelloWorld-{region}` — without the override, the Stage ID would be prepended.
 
-The three stacks are then composed into a [`cdk.Stage`](hello_world/hello_world_stage.py) — `HelloWorldStage`. A Stage is the CDK best-practice deployment unit ([AWS guide](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html), [AWS Heroes article](https://dev.to/aws-heroes/aws-cdk-deployment-best-practices-3doo)): it groups stacks that are always deployed together, scopes synthesis under its own subdirectory (`cdk.out/assembly-{stage}/`), and is the natural boundary for CDK Pipelines. Stack names are set explicitly via `stack_name=` inside the Stage so the CloudFormation names stay as `HelloWorld-{region}` etc. — without the override, the Stage ID would be prepended.
-
-**Generated vs. physical resource names.** Following the ["use generated resource names"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html) best practice, the backend does not set `table_name`, `parameter_name`, or `log_group_name` on the DynamoDB table, SSM parameter, Lambda log group, or API Gateway access log group — CDK auto-generates unique names derived from the construct path. This avoids two hazards: (1) replacement-style schema changes can't fail because the physical name is pinned, and (2) two regional deployments can't collide on the same physical name. Explicit names are retained only where AWS itself requires them: the API Gateway execution log group (`API-Gateway-Execution-Logs_{api-id}/{stage}` is a service-fixed format), the WAF log group (`aws-waf-logs-*` prefix is enforced), and the AppConfig L1 constructs (no auto-generation option via CDK).
+**Generated vs. physical resource names.** Following the ["use generated resource names"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html) best practice, `table_name`, `parameter_name`, and `log_group_name` are left unset on the DynamoDB table, SSM parameter, Lambda log group, and API Gateway access log group — CDK auto-generates unique names from the construct path. This prevents (1) replacement-style schema-change failures from pinned physical names and (2) regional-deployment name collisions. Explicit names are retained only where AWS requires them: the API Gateway execution log group (`API-Gateway-Execution-Logs_{api-id}/{stage}` is service-fixed), the WAF log group (`aws-waf-logs-*` prefix is enforced), and the AppConfig L1 constructs (no auto-generation option via CDK).
 
 ### Frontend stack
 
-The frontend is split across two CDK stacks — `HelloWorldWafStack` and `HelloWorldFrontendStack` — intentionally decoupled from the backend. This allows the frontend to be deployed and destroyed independently of the API, and demonstrates the standard CDK multi-stack and cross-region reference pattern.
-
-#### Architecture
+The frontend is split across `HelloWorldWafStack` and `HelloWorldFrontendStack`, decoupled from the backend so it can be deployed and destroyed independently — and to demonstrate the standard CDK multi-stack and cross-region reference patterns.
 
 ```
 Browser → CloudFront → S3 (private bucket)
@@ -277,13 +273,11 @@ Browser → CloudFront → S3 (private bucket)
         WAF WebACL (us-east-1, always)
 ```
 
-The browser calls `GET /hello` directly from JavaScript against the API Gateway URL — CloudFront only serves static assets, it does not proxy API requests.
+The browser calls `GET /hello` directly against the API Gateway URL — CloudFront only serves static assets, it does not proxy API requests.
 
 #### Three-stack design and cross-region support
 
-This project uses three stacks, not two. WAF lives in its own stack because CloudFront-scoped WAF WebACLs are an AWS hard requirement to exist in `us-east-1` — even if every other resource is in a different region. By isolating WAF into `HelloWorldWafStack`, the backend and frontend can be deployed to any region without duplicating the WAF or violating the constraint.
-
-Each regional deployment gets its own set of three independently named stacks:
+WAF lives in its own stack because CloudFront-scoped WAF WebACLs are an AWS hard requirement to exist in `us-east-1`, regardless of where other resources live. Isolating WAF lets the backend and frontend deploy to any region without duplicating the WAF or violating the constraint. Each regional deployment gets three independently named stacks:
 
 | Stack | Region | Contents |
 |-------|--------|----------|
@@ -291,43 +285,29 @@ Each regional deployment gets its own set of three independently named stacks:
 | `HelloWorld-{region}` | Configurable | Lambda, API Gateway, DynamoDB, SSM, AppConfig |
 | `HelloWorldFrontend-{region}` | Configurable | S3, CloudFront (references WAF ARN) |
 
-**Deploying to us-east-1 (default):**
-
 ```bash
-cdk deploy --all
+cdk deploy --all                                 # us-east-1 (default)
+cdk deploy --all -c region=ap-southeast-1        # Singapore — WAF stays in us-east-1
+cdk destroy --all -c region=ap-southeast-1       # tears down only the Singapore stack set
 ```
 
-**Deploying to a different region:**
+CDK wires the WAF ARN across regions automatically; other regional deployments are unaffected.
 
-```bash
-cdk deploy --all -c region=ap-southeast-1
-```
-
-WAF stays in `us-east-1` (always). The backend and frontend deploy to the target region. CDK wires the WAF ARN across regions automatically — no manual steps.
-
-**Destroying a specific regional deployment:**
-
-```bash
-cdk destroy --all -c region=ap-southeast-1
-```
-
-This tears down only the Singapore stack set (`HelloWorldWaf-ap-southeast-1`, `HelloWorld-ap-southeast-1`, `HelloWorldFrontend-ap-southeast-1`). Any other regional deployments are unaffected.
-
-> **WAF cost note** — Each regional deployment provisions its own WAF WebACL at $5/month. This keeps deployments fully independent, which is the right default for a reference architecture. In a production setup with multiple long-lived environments, you could share a single `HelloWorldWaf` stack across all regions and pass its ARN to each frontend stack, eliminating the per-deployment cost. That optimization is intentionally deferred here in favour of deployment independence.
+> **WAF cost note.** Each regional deployment provisions its own $5/month WAF WebACL. For a reference architecture, deployment independence is the right default. A production setup with multiple long-lived environments could share one `HelloWorldWaf` stack and pass its ARN to each frontend stack — intentionally deferred here.
 
 #### How cross-region references work
 
-When the frontend stack is in a different region from the WAF stack, CDK cannot pass the WAF ARN as a direct CloudFormation output (outputs only work within a single region). Instead, CDK uses `cross_region_references=True` on the frontend stack to bridge the value automatically:
+CloudFormation outputs only work within a single region, so CDK uses `cross_region_references=True` on the frontend stack to bridge values from `us-east-1`:
 
-1. During `cdk deploy`, CDK writes the WAF ARN into an SSM Parameter in `us-east-1`
-2. A CDK-managed custom resource in the frontend stack's region reads that SSM parameter at deploy time
-3. The WAF ARN is resolved and attached to the CloudFront distribution
+1. `cdk deploy` writes the WAF ARN into an SSM Parameter in `us-east-1`.
+2. A CDK-managed custom resource in the frontend stack's region reads that SSM parameter at deploy time.
+3. The WAF ARN is resolved and attached to the CloudFront distribution.
 
-This is entirely transparent — you pass `waf.web_acl_arn` in `app.py` just like any other stack property. The SSM parameters are CloudFormation-managed and are cleaned up on `cdk destroy`.
+Entirely transparent — pass `waf.web_acl_arn` in `app.py` like any other stack property. The SSM parameters are CloudFormation-managed and cleaned up on `cdk destroy`.
 
-The backend exposes `api_url` as a stack property. The frontend stack injects it into `config.json` at deploy time via `BucketDeployment`. The browser fetches `/config.json` at runtime so the API URL is never hardcoded in source.
+The backend exposes `api_url` similarly; the frontend stack injects it into `config.json` via `BucketDeployment`, and the browser fetches `/config.json` at runtime so the API URL is never hardcoded.
 
-The static assets themselves live in the `frontend/` directory at the project root. Currently this is just a single `index.html` that fetches `config.json` and calls the API — replace it with a built SPA bundle (e.g. the `dist/` output from a Vite or Next.js export build) and the existing `BucketDeployment` will pick it up automatically.
+Static assets live in `frontend/` — currently just an `index.html` that fetches `config.json` and calls the API. Replace with a built SPA bundle (e.g. Vite/Next.js `dist/`) and `BucketDeployment` picks it up automatically.
 
 #### S3 bucket
 
@@ -372,13 +352,9 @@ The WebACL sits in front of CloudFront and inspects every request before it reac
 
 The rate-limit rule uses `aggregate_key_type="FORWARDED_IP"` with `header_name="X-Forwarded-For"` and `fallback_behavior="MATCH"`. All traffic enters through CloudFront, so the source IP at WAF is CloudFront's edge — without `FORWARDED_IP`, every viewer would be aggregated under whichever edge they happened to land on. `MATCH` makes a missing or malformed XFF trip the rule rather than skip it, so a determined caller can't bypass by stripping the header.
 
-All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $10/month, plus $0.60 per million inspected requests. Adding any of the four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layers a $10–20/month entity fee on top — see the AntiDDoS write-up in [Design decisions](#design-decisions-and-known-limitations) for why that rule group was tried and removed.
+All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $10/month, plus $0.60 per million inspected requests. The four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layer $10–20/month entity fees on top — see the AntiDDoS write-up in [Design decisions](#design-decisions-and-known-limitations).
 
-All rules emit CloudWatch metrics and sampled requests, so WAF activity is visible in the console without additional configuration.
-
-WAF access logs are written to a CloudWatch Logs log group named `aws-waf-logs-{stack_name}` (the `aws-waf-logs-` prefix is an AWS requirement). The log group is KMS-encrypted with a customer-managed key and has 1-week retention.
-
-The WAF WebACL lives in `HelloWorldWafStack` which is always pinned to `us-east-1`. This is an AWS hard constraint for CloudFront-scoped WebACLs. The cross-region reference pattern described above handles wiring the ARN to CloudFront automatically regardless of where the frontend stack is deployed.
+Every rule emits CloudWatch metrics and sampled requests. WAF access logs go to a CloudWatch log group named `aws-waf-logs-{stack_name}` (the `aws-waf-logs-` prefix is an AWS requirement), KMS-encrypted with the customer-managed key, 1-week retention. The WebACL lives in `HelloWorldWafStack`, always pinned to `us-east-1` per AWS's CloudFront constraint — the cross-region reference pattern above wires the ARN to CloudFront automatically.
 
 #### Observability
 
@@ -489,7 +465,14 @@ The stack includes a [cdk-monitoring-constructs](https://github.com/cdklabs/cdk-
 
 ### Add a resource to your application
 
-To add AWS resources, define new constructs in the appropriate file under `hello_world/`: backend domain resources (Lambda, API Gateway, DynamoDB, SSM, AppConfig, anything the Lambda talks to at runtime) belong in `hello_world_app.py` inside the `HelloWorldApp` construct, frontend resources (S3, CloudFront) belong in `hello_world_frontend_stack.py`, and WAF rules belong in `hello_world_waf_stack.py`. `hello_world_stack.py` itself stays lean — only add something there if it is genuinely stack-wide (a new CfnOutput, a new Aspect, a stack-level nag suppression). The CDK provides high-level constructs for most AWS services. Browse available constructs in the [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/). For resources without a dedicated CDK construct, you can use [CloudFormation resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) directly via `CfnResource`.
+Define new constructs in the appropriate file under `hello_world/`:
+
+- **Backend domain resources** (Lambda, API Gateway, DynamoDB, SSM, AppConfig — anything the Lambda talks to) go in `hello_world_app.py` inside the `HelloWorldApp` construct.
+- **Frontend resources** (S3, CloudFront) go in `hello_world_frontend_stack.py`.
+- **WAF rules** go in `hello_world_waf_stack.py`.
+- `hello_world_stack.py` stays lean — only add things that are genuinely stack-wide (CfnOutput, Aspect, stack-level nag suppression).
+
+Browse [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/) for high-level constructs. For resources without one, drop down to [CloudFormation resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) via `CfnResource`.
 
 ### Useful CDK commands
 
@@ -539,116 +522,57 @@ For richer ad-hoc queries (joins across log groups, percentile aggregations, tim
 
 ### Documentation
 
-Project documentation is generated by [Zensical](https://zensical.org/) (the MkDocs-Material successor from the same maintainer) with the [mkdocstrings](https://mkdocstrings.github.io/) Python handler, and covers two distinct audiences in one site:
+The docs site is built by [Zensical](https://zensical.org/) (MkDocs-Material's successor, same maintainer) with the [mkdocstrings](https://mkdocstrings.github.io/) Python handler. It covers two audiences:
 
-- **Code reference (for developers)** — autodoc-rendered pages for `lambda/app.py` (Lambda handler), `hello_world/hello_world_stack.py` (backend stack wrapper), `hello_world/hello_world_app.py` (backend domain construct), `hello_world/hello_world_waf_stack.py` (WAF), `hello_world/hello_world_frontend_stack.py` (frontend), and `hello_world/nag_utils.py` (shared suppression utilities). Generated from Google-style docstrings via the `::: module.path` directive in each page.
-- **HTTP API reference (for callers)** — a standalone [Scalar](https://github.com/scalar/scalar) API Reference page at `/api.html`, rendered in the browser from `/openapi.json`. Both files are generated pre-build by `scripts/generate_openapi.py` (which imports the Lambda resolver and serializes its schema) and copied into the built site verbatim by Zensical (non-markdown assets in `docs/` pass through untouched). The `make docs` target regenerates the spec before invoking Zensical, so the API page always matches the live code. Scalar's OSS bundle includes a built-in request sandbox — unlike Redoc, which gates "Try it out" behind Redocly's paid tier.
+- **Code reference (for developers)** — autodoc pages for `lambda/app.py`, `hello_world/hello_world_stack.py`, `hello_world/hello_world_app.py`, `hello_world/hello_world_waf_stack.py`, `hello_world/hello_world_frontend_stack.py`, and `hello_world/nag_utils.py`. Generated from Google-style docstrings via `::: module.path` directives.
+- **HTTP API reference (for callers)** — a [Scalar](https://github.com/scalar/scalar) page at `/api.html` rendering `/openapi.json`. Both files are pre-built by `scripts/generate_openapi.py` (imports the Lambda resolver, serializes its schema) and copied into the site verbatim by Zensical. `make docs` regenerates the spec before invoking Zensical, so the API page always matches live code. Scalar's OSS bundle includes a request sandbox — unlike Redoc, where "Try it out" requires Redocly's paid tier.
 
-  The Scalar bundle is loaded from jsdelivr with a **pinned version + SRI hash** rather than a fresh-from-the-internet `@latest` tag. The browser verifies the integrity hash on every page load, so if the CDN is ever compromised to serve tampered bytes, execution fails closed. Upgrading is a two-line change: bump the version in `docs/api.html` and drop in a new hash (the file has a one-line `openssl` recipe in its comments).
+The Scalar bundle is loaded from jsdelivr with a **pinned version + SRI hash** (not `@latest`). The browser verifies integrity on every load; CDN tampering fails closed. Upgrade is two lines in `docs/api.html` (the file has an `openssl` recipe in its comments). Scalar's code-sample panel defaults to **Python + `requests`** via `defaultHttpClient` since callers of this API are overwhelmingly writing Python; other languages stay one click away.
 
-  Scalar's code-sample panel defaults to **Python + `requests`** via the `defaultHttpClient` configuration on the `<script id="api-reference">` tag. Callers of this API are overwhelmingly writing Python against Lambda, so showing the Python snippet on page load beats Scalar's stock `curl` default. All other languages (Go, Node, Shell, etc.) remain one click away in the client picker.
-
-Doc builds are best run in CI/CD pipelines or manually before publishing, rather than on every commit.
+Doc builds are best run in CI/CD or manually before publishing, not on every commit.
 
 ```bash
-# Build HTML docs (regenerates the OpenAPI spec first)
-make docs
-
-# Under the hood, `make docs` runs:
-#   python scripts/generate_openapi.py
-#   zensical build
-
-# Open in browser
-open site/index.html
-# Shortcut for build + open: make docs-open
-
-# Or run the dev server with hot reload:
-make docs-serve
+make docs        # build (runs: python scripts/generate_openapi.py && zensical build)
+make docs-open   # build + open site/index.html
+make docs-serve  # dev server with hot reload
 ```
 
 ### Cleanup
-
-To delete the application and all associated AWS resources, run:
 
 ```bash
 cdk destroy
 ```
 
-Every resource in the stack — including all three CloudWatch log groups — is configured with `RemovalPolicy.DESTROY`, so a single `cdk destroy` leaves no dangling resources and no ongoing AWS costs.
+Every resource (including all log groups) is `RemovalPolicy.DESTROY` — a single `cdk destroy` leaves no dangling resources or ongoing AWS costs.
 
 ## Deploy the application
 
-This project needs a container runtime for bundling Lambda dependencies during synthesis. Either [Finch](https://runfinch.com/) or [Docker](https://www.docker.com/) works — CDK uses whichever runtime is pointed to by the `CDK_DOCKER` environment variable, and falls back to Docker when the variable is unset (see the [CDK GitHub issue](https://github.com/aws/aws-cdk/issues/23680#issuecomment-1741643237) where Finch support was added). Pick one:
+First-time deploy:
 
 ```bash
-# Option 1: Finch (recommended — license-friendly, AWS-supported open source)
-finch vm start
-export CDK_DOCKER=finch
-
-# Option 2: Docker (drop-in alternative — no env var needed, CDK auto-detects it)
-# Just make sure the Docker daemon is running; no CDK_DOCKER export required
-```
-
-To set up and deploy your application for the first time, run the following in your shell:
-
-```bash
-# Install both venvs and pre-commit hooks. Creates:
-#   .venv         — CDK workstation (cdk + test + lint + docs groups)
-#   .venv-lambda  — Lambda runtime   (lambda + test groups)
-# See "Project dependencies" below for why two venvs are required.
-make install
-
-# Start your container runtime (pick one from the block above)
-finch vm start           # if using Finch
-# -- or --
-# (nothing needed for Docker — just ensure Docker Desktop / daemon is running)
-
-# Bootstrap CDK in us-east-1 (always required — WAF stack always deploys here)
-cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
-
-# Deploy all stacks to us-east-1 (default)
+make install                                              # both venvs + pre-commit hooks
+finch vm start && export CDK_DOCKER=finch                 # or: ensure Docker is running
+cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1             # always required (WAF lives here)
 cdk deploy --all
 ```
 
-The `cdk synth` and `cdk deploy` commands use your chosen container runtime to build an image that installs the Lambda dependencies from `lambda/requirements.txt` into the deployment package. The first run will be slower as it pulls the AWS Lambda Python build image (distributed via the SAM project, hence the "SAM build image" label you may see in logs).
+CDK uses the container runtime pointed to by `CDK_DOCKER` and falls back to Docker when unset ([context](https://github.com/aws/aws-cdk/issues/23680#issuecomment-1741643237)). The first synth pulls the AWS Lambda Python build image (distributed via the SAM project — that's the "SAM build image" label in logs) and builds the deployment package from `lambda/requirements.txt`.
 
 ### Recommended order for ongoing deploys
 
-The first-time flow above is enough to get the stacks up. For *every deploy after that* — and for the first one too if you want a safety net — run the validation gates first. Each step catches a different class of failure cheaply, before AWS sees anything:
+Each step catches a different class of failure cheaply, before AWS sees anything:
 
 ```bash
-# 1. Synthesize all stacks. Runs cdk-nag against the four-pack policy
-#    (AwsSolutions, NIST 800-53 R5, HIPAA Security, PCI DSS 3.2.1) and
-#    fails on any unsuppressed finding. Catches IAM / encryption /
-#    logging regressions before they reach CloudFormation.
-make cdk-synth
-
-# 2. Run the CDK assertion tests against the synthesized templates.
-#    Catches structural drift in resource counts, properties, and
-#    suppression coverage. ~120s timeout in the Makefile.
-make test-cdk
-
-# 3. Bootstrap CDK in the target region — only required the first
-#    time per account+region pair. Idempotent if already bootstrapped.
-#    WAF always lives in us-east-1, so us-east-1 is always required;
-#    add the target region too if it differs.
-cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1
-
-# 4. Deploy all three stacks in the Stage. --require-approval never
-#    suppresses interactive IAM-change prompts since cdk-nag already
-#    gated the change at step 1; drop the flag for a manual review of
-#    every IAM diff.
-cdk deploy --all --require-approval never
-
-# 5. CfnOutputs print at the end of step 4 — capture CloudFrontDomainName
-#    (the frontend URL), HelloWorldApiOutput (the API endpoint),
-#    RumAppMonitorId (for browser RUM), and CloudWatchDashboardUrl
-#    (the monitoring dashboard).
+make cdk-synth                                            # 1. synth + cdk-nag (4-pack: AwsSolutions, NIST 800-53 R5, HIPAA, PCI DSS 3.2.1)
+make test-cdk                                             # 2. CDK assertion tests (resource counts, properties, suppression coverage)
+cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1             # 3. one-time per account+region; idempotent if already done
+cdk deploy --all --require-approval never                 # 4. --require-approval never since cdk-nag already gated IAM diffs in step 1
+                                                          # 5. CfnOutputs (CloudFrontDomainName, HelloWorldApiOutput, RumAppMonitorId, CloudWatchDashboardUrl) print at the end
 ```
 
-Skip a step only when you specifically don't need that gate: skip step 1 if you've just synthesized in another shell, skip step 2 if you're iterating on a single resource and the assertion tests don't cover it, skip step 3 once both regions are bootstrapped. Steps 4 and 5 are not optional.
+Skip a step only when you don't need that gate: skip 1 if just synthesized in another shell, skip 2 if iterating on a resource the assertion tests don't cover, skip 3 once the region is bootstrapped. Steps 4 and 5 are not optional.
 
-After deployment, CloudFormation outputs useful values directly in the terminal. Each stack exposes the following:
+After deployment, each stack exposes these CfnOutputs:
 
 **`HelloWorldWaf-{region}`:**
 - `WebAclArn` — WAF WebACL ARN (also used internally by the frontend stack)
@@ -697,150 +621,76 @@ cdk destroy --all -c region=ap-southeast-1
 
 ### Tests
 
-Tests are defined in the `tests` folder in this project. Make sure dependencies are installed first (see [Deploy the application](#deploy-the-application)).
+Tests live in `tests/`. Run via `make test` (unit, in `.venv-lambda`), `make test-cdk` (CDK assertions, in `.venv`), or `make test-integration` (live deployment).
 
 #### Unit test architecture
 
-Unit tests mock all external AWS dependencies so they run locally without credentials or a deployed stack. The key patterns used:
+Unit tests mock all external AWS dependencies so they run locally without credentials or a deployed stack:
 
-**Shared fixtures via conftest.py** — Reusable fixtures live in `tests/conftest.py`, including the API Gateway event, Lambda context mock, and the Lambda app module reference. The autouse mock that patches SSM Parameters and Feature Flags lives in `tests/unit/conftest.py` so it only applies to unit tests. Test files stay clean and focused on assertions.
-
-**Environment variables** — All test env vars are centralized in `pyproject.toml` via pytest-env. This includes Powertools config, mock resource names, and the idempotency disable flag. No `os.environ` calls needed in test files.
-
-**Idempotency disabled via env var** — `POWERTOOLS_IDEMPOTENCY_DISABLED=true` is set in `pyproject.toml` to tell Powertools to skip DynamoDB calls during tests. This is the recommended approach from Powertools docs. In production, this env var is not set, so idempotency is fully active.
-
-**Mocking external calls with pytest-mock** — SSM Parameters and Feature Flags are mocked in `tests/unit/conftest.py` using `mocker.patch.object()`:
-```python
-mocker.patch.object(lambda_app, "get_parameter", return_value="hello world")
-mocker.patch.object(lambda_app.feature_flags, "evaluate", return_value=False)
-```
-
-**Lambda context via pytest-mock** — A `MagicMock` provides the Lambda context object with realistic attributes (function name, ARN, request ID).
-
-**Import path isolation** — The `lambda/` directory is added to `sys.path` in `tests/conftest.py` before the root directory to ensure `import app` resolves to the Lambda handler (`lambda/app.py`) and not the CDK entry point (`app.py`).
-
-#### Running unit tests
+- **Shared fixtures** in `tests/conftest.py` (API Gateway event, Lambda context, app module reference). The autouse mock for SSM Parameters and Feature Flags lives in `tests/unit/conftest.py` so it only applies to unit tests.
+- **Env vars centralized** in `pyproject.toml` via pytest-env — Powertools config, mock resource names, and `POWERTOOLS_IDEMPOTENCY_DISABLED=true` (the Powertools-recommended way to skip DynamoDB calls during tests; not set in production).
+- **External calls mocked** via `pytest-mock`'s `mocker.patch.object()` against `get_parameter` and `feature_flags.evaluate`. The Lambda context is a `MagicMock` with realistic attributes.
+- **Import path isolation** — `tests/conftest.py` puts `lambda/` on `sys.path` before the root so `import app` resolves to the Lambda handler (`lambda/app.py`), not the CDK entry point (`app.py`).
 
 ```bash
-python -m pytest tests/unit -v
-# Shortcut: make test
+python -m pytest tests/unit -v        # or: make test
 ```
 
 #### CDK stack assertion tests
 
-`tests/cdk/test_stacks.py` synthesizes each CDK stack in-process using `aws_cdk.assertions.Template` and verifies that key security properties are correctly configured (KMS encryption on DynamoDB, PITR, CloudFront TLS policy, WAF attached, etc.). If a construct property is accidentally changed, the test fails at synth time rather than silently deploying an insecure template. Any unsuppressed cdk-nag finding also causes synthesis to fail, so these tests double as a CI gate for infrastructure misconfigurations.
+`tests/cdk/test_stacks.py` synthesizes each stack in-process with `aws_cdk.assertions.Template` and asserts security properties (KMS encryption on DynamoDB, PITR, CloudFront TLS policy, WAF attached, etc.). Any unsuppressed cdk-nag finding fails synth — these tests double as a CI gate for infrastructure misconfigurations. Asset bundling (Docker) is skipped via the `aws:cdk:bundling-stacks` context key, so the tests run without Docker.
 
-The suite also enforces the CDK best practice ["don't change logical IDs of stateful resources"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html): `TestLogicalIdStability` freezes the logical IDs of all stateful resources (DynamoDB, KMS keys, S3 buckets, CloudFront distribution, SSM, AppConfig, WAF WebACL, and log groups) in a committed list. A refactor that moves or renames any of those constructs would change their logical ID — which for CloudFormation means resource replacement, i.e. data loss for stateful resources. The test catches that drift at PR time. If you genuinely need to change a logical ID, update the expected value in the same commit so the intent is reviewable.
+`TestLogicalIdStability` enforces the CDK best practice ["don't change logical IDs of stateful resources"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html): logical IDs of stateful resources (DynamoDB, KMS keys, S3 buckets, CloudFront, SSM, AppConfig, WAF WebACL, log groups) are frozen in a committed list. A refactor that renames a stateful construct would change its logical ID, which means resource replacement = data loss. The test catches that drift at PR time. If you genuinely need to change one, update the expected value in the same commit so intent is reviewable.
 
 ```bash
-python -m pytest tests/cdk -v --override-ini="addopts="
-# Shortcut: make test-cdk (requires aws_cdk — use `make install`, not `make install-dev`)
+python -m pytest tests/cdk -v --override-ini="addopts="    # or: make test-cdk
 ```
-
-Asset bundling (Docker) is skipped via the `aws:cdk:bundling-stacks` context key so these tests run without Docker.
 
 #### Integration tests
 
-Two suites of integration tests verify the live deployment:
+Two suites verify the live deployment:
 
-**API Gateway** (`tests/integration/test_api_gateway.py`) — calls the live API Gateway endpoint and verifies the response body, content type headers, and response time (under 10 seconds, to account for Lambda cold starts with SSM and AppConfig initialization). The backend stack name is read from `AWS_BACKEND_STACK_NAME` in `pyproject.toml` (defaults to `HelloWorld-us-east-1`). Override for a different region:
+- **API Gateway** (`tests/integration/test_api_gateway.py`) — calls the endpoint, asserts response body, content type, and < 10s response time (covers cold starts with SSM + AppConfig init).
+- **CloudFront / S3** (`tests/integration/test_frontend.py`) — fetches the distribution URL from stack outputs, asserts index page served, `config.json` contains the injected API URL, HTTPS enforced, security headers present, unknown paths fall back to `index.html` (SPA routing).
 
-```bash
-AWS_BACKEND_STACK_NAME=HelloWorld-ap-southeast-1 pytest tests/integration/
-```
-
-**CloudFront / S3** (`tests/integration/test_frontend.py`) — fetches the CloudFront distribution URL from the frontend stack outputs and verifies that the index page is served, `config.json` contains the injected API URL, HTTPS is enforced, security headers are present, and unknown paths fall back to `index.html` (SPA routing). The frontend stack name is read from `AWS_FRONTEND_STACK_NAME` in `pyproject.toml` (defaults to `HelloWorldFrontend-us-east-1`). Override for a different region:
+Stack names default to `HelloWorld-us-east-1` / `HelloWorldFrontend-us-east-1` (from `pyproject.toml`'s pytest-env block). Override for other regions:
 
 ```bash
-AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-ap-southeast-1 pytest tests/integration/
+AWS_BACKEND_STACK_NAME=HelloWorld-ap-southeast-1 \
+AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-ap-southeast-1 \
+pytest tests/integration/
+# Or: make test-integration
 ```
 
-If either stack is not deployed, its tests skip automatically rather than failing — so the default `pytest` run stays green without a live deployment. Other test environment variables are configured in `pyproject.toml` via pytest-env (see the `env` key under `[tool.pytest.ini_options]`).
+Either suite auto-skips if its stack isn't deployed — `pytest` stays green without a live deployment.
 
-All test environment variables are centralized in `pyproject.toml` rather than scattered across test files. Note that `POWERTOOLS_IDEMPOTENCY_DISABLED=true` is only active during test runs — in production, this env var is not set, so idempotency is fully active against the DynamoDB table.
+#### Pytest behavior
 
-```bash
-python -m pytest tests/integration -v
-# Shortcut: make test-integration
-```
+All driven by `pyproject.toml`'s `[tool.pytest.ini_options]`:
 
-#### Timeout
-
-Every test has a 30-second timeout enforced via `timeout = 30` in `pyproject.toml`. Tests that exceed this are terminated and marked as failed. To override for a specific test, use the `@pytest.mark.timeout(60)` decorator.
-
-#### Test randomization
-
-pytest-randomly shuffles test execution order on every run to catch order-dependent bugs. It activates automatically when installed — no additional configuration needed. The seed is printed at the top of the output. To reproduce a specific order:
-
-```bash
-python -m pytest tests/ -p randomly -p no:randomly  # disable
-python -m pytest tests/ --randomly-seed=12345        # replay a specific seed
-```
-
-#### Coverage
-
-Coverage runs automatically on every test run. Key flags set in `pyproject.toml`:
-
-| Flag | Effect |
+| Behavior | Config |
 |---|---|
-| `--cov=lambda` | Measures coverage for the `lambda/` source directory |
-| `--cov-branch` | Tracks branch coverage (not just whether a line executed, but whether all conditional paths did) |
-| `--cov-report=term-missing` | Prints uncovered line numbers in the terminal |
-| `--cov-report=html` | Generates `htmlcov/index.html` for detailed browsing |
-| `--cov-fail-under=100` | Fails the run if total coverage drops below 100% |
-| `--no-cov-on-fail` | Skips the coverage report when tests fail (avoids misleading partial output) |
-
-To open the HTML report after a test run:
-
-```bash
-open htmlcov/index.html
-```
-
-#### Parallel execution
-
-Tests run in parallel automatically via `-n auto` in `addopts` (`pyproject.toml`). pytest-xdist distributes tests across CPU cores. To disable it for debugging:
-
-```bash
-python -m pytest tests/ -n0
-```
-
-#### HTML report
-
-An HTML test report (`report.html`) is generated automatically on every test run via `--html=report.html --self-contained-html` in `addopts` (`pyproject.toml`). Open it in a browser to view detailed results.
+| **Timeout** | `timeout = 30` (per-test); override with `@pytest.mark.timeout(60)` |
+| **Randomization** | pytest-randomly auto-activates and shuffles every run; seed printed at top — replay via `--randomly-seed=12345`, disable via `-p no:randomly` |
+| **Coverage** | `--cov=lambda --cov-branch --cov-report=term-missing --cov-report=html --cov-fail-under=100 --no-cov-on-fail`; HTML report at `htmlcov/index.html` |
+| **Parallel** | `-n auto` via pytest-xdist; disable for debugging with `-n0` |
+| **HTML report** | `--html=report.html --self-contained-html` generated on every run |
 
 ### Linting and static analysis
 
-This project uses several tools for code quality. Most are configured in `pyproject.toml`; bandit uses a separate `.bandit` file.
+All tools are configured in `pyproject.toml` (except bandit, which uses `.bandit` for YAML-config compatibility with its pre-commit hook). Run individually or together:
 
 ```bash
-# Lint with ruff
-ruff check .
+ruff check .                            # lint
+ruff format .                           # format            (or: make format)
+mypy lambda/ hello_world/               # type check        (or: make typecheck)
+pylint lambda/ hello_world/             # design + complexity
+bandit -r lambda/ hello_world/          # security scan
+pip-audit                               # dep vulnerabilities  (bandit + pip-audit: make security)
+radon cc lambda/ -a                     # cyclomatic complexity
+xenon lambda/ -b B -m A -a A            # complexity gates
 
-# Format with ruff
-ruff format .
-# Shortcut for lint + format: make lint (runs all hooks) or make format (format only)
-
-# Type check with mypy
-mypy lambda/ hello_world/
-# Shortcut: make typecheck
-
-# Design and complexity checks with pylint
-pylint lambda/ hello_world/
-
-# Security scan with bandit
-bandit -r lambda/ hello_world/
-
-# Dependency vulnerability audit
-pip-audit
-# Shortcut for bandit + pip-audit: make security
-
-# Code complexity with radon/xenon
-radon cc lambda/ -a
-xenon lambda/ -b B -m A -a A
-
-# Run all of the above at once via pre-commit:
-pre-commit run --all-files
-# Shortcut: make lint
+pre-commit run --all-files              # run everything (or: make lint)
 ```
 
 #### Bandit configuration (`.bandit`)
@@ -859,53 +709,38 @@ Everything outside these directories — `lambda/` and `hello_world/` — is sca
 
 ### Detecting deprecated APIs
 
-Deprecated APIs are easy to ignore because they keep working — until the next major release removes them. There is no single command that catches every kind of deprecation, so this project uses a combination of approaches. Each one targets a different layer:
+Deprecated APIs keep working until the next major release removes them. No single tool catches every kind, so this project uses five approaches targeting different layers:
 
 | # | Approach | Catches | How to run |
 |---|----------|---------|------------|
-| 1 | **CDK API deprecations** | Deprecated CDK properties or methods used by any stack (e.g. `FunctionOptions#logRetention` → `logGroup`) | `make cdk-deprecations` (greps `cdk synth` output for `deprecated`) |
-| 2 | **`cdk notices`** | AWS-published advisories about the CDK toolchain itself — CVEs, deprecated CDK versions, upcoming breaking changes | `make cdk-notices` |
-| 3 | **Python `DeprecationWarning` in tests** | Deprecated stdlib or third-party API calls hit by your tests (boto3, Powertools, etc.) | Temporarily add `filterwarnings = ["error::DeprecationWarning"]` to `[tool.pytest.ini_options]` in `pyproject.toml`, run `pytest`, then revert. Useful as a one-shot audit but too noisy to leave on permanently. |
-| 4 | **Ruff `UP` (pyupgrade)** | Deprecated Python syntax — e.g. `typing.List` → `list`, `Optional[X]` → `X \| None` | Already enabled in `[tool.ruff.lint]` `select`. Runs on every `make lint` and on every commit via the pre-commit hook. |
-| 5 | **`pip list --outdated`** | Version drift — packages that are multiple major versions behind are likely calling deprecated APIs | `pip list --outdated` |
+| 1 | **CDK API deprecations** | Deprecated CDK properties/methods (e.g. `FunctionOptions#logRetention` → `logGroup`) | `make cdk-deprecations` (greps `cdk synth` output for `deprecated`) |
+| 2 | **`cdk notices`** | AWS-published advisories about the CDK toolchain — CVEs, deprecated CDK versions, breaking changes | `make cdk-notices` |
+| 3 | **Python `DeprecationWarning` in tests** | Deprecated stdlib or third-party calls (boto3, Powertools, etc.) hit by tests | Temporarily set `filterwarnings = ["error::DeprecationWarning"]` in `[tool.pytest.ini_options]`, run `pytest`, revert. Too noisy to leave on permanently |
+| 4 | **Ruff `UP` (pyupgrade)** | Deprecated Python syntax — `typing.List` → `list`, `Optional[X]` → `X \| None` | Enabled in `[tool.ruff.lint]` `select`. Runs on every `make lint` and commit |
+| 5 | **`pip list --outdated`** | Version drift — packages multiple majors behind are likely calling deprecated APIs | `pip list --outdated` |
 
-The first two are CDK-specific, the next two are Python-specific, and the last one is a general health check across all dependencies. None of them are mutually exclusive.
-
-`cdk synth` no longer passes `--no-notices` (it used to, to keep CI output clean), so notices and CDK API deprecation warnings now print on every synth in both local and CI runs.
+`cdk synth` no longer passes `--no-notices`, so notices and CDK deprecation warnings print on every synth in local and CI runs.
 
 ### Pre-commit hooks
 
-Pre-commit runs a chain of hooks automatically on every `git commit`. Hooks are defined in `.pre-commit-config.yaml`. Set it up once after cloning:
-
-```bash
-pre-commit install
-```
-
-To run all hooks manually without committing (useful before pushing or after changing config):
-
-```bash
-pre-commit run --all-files
-```
+Pre-commit runs a chain of hooks on every `git commit`. Set up once after cloning with `pre-commit install`. Run manually with `pre-commit run --all-files`.
 
 #### Hook reference
 
 | Hook | Source | What it does |
 |---|---|---|
-| `ruff` | astral-sh/ruff-pre-commit | Lints and auto-fixes code (runs before formatting) |
-| `ruff-format` | astral-sh/ruff-pre-commit | Formats code (equivalent to black) |
-| `mypy` | mirrors-mypy | Static type checking on `lambda/` and `hello_world/` (excludes `app.py` and `tests/`) |
-| `bandit` | PyCQA/bandit | Security-focused static analysis on `lambda/` and `hello_world/` |
-| `pylint` | local | Design and complexity checks on non-test, non-docs Python files |
-| `trailing-whitespace` | pre-commit-hooks | Removes trailing whitespace |
-| `end-of-file-fixer` | pre-commit-hooks | Ensures every file ends with a newline |
-| `check-yaml` | pre-commit-hooks | Validates YAML syntax |
-| `check-json` | pre-commit-hooks | Validates JSON syntax |
-| `xenon` | local | Enforces cyclomatic complexity thresholds on `lambda/` (max absolute: B, module: A, average: A) |
-| `pip-audit` | local | Scans all installed dependencies for known CVEs (runs on every commit) |
+| `ruff` | local (venv) | Lints and auto-fixes; runs before formatting |
+| `ruff-format` | local (venv) | Formats code (equivalent to black) |
+| `mypy` | local (venv) | Static type checking on `lambda/` and `hello_world/` (excludes `app.py` and `tests/`); `require_serial: true` to avoid SQLite cache lock contention on CI |
+| `bandit` | local (venv) | Security-focused static analysis on `lambda/` and `hello_world/` |
+| `pylint` | local (venv) | Design and complexity checks on non-test, non-docs Python files |
+| `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-json` | pre-commit-hooks | File hygiene (newlines, trailing whitespace, YAML/JSON validity) |
+| `xenon` | local (venv) | Cyclomatic complexity thresholds on `lambda/` (max absolute B, module A, average A) |
+| `pip-audit` | local (venv) | Scans installed deps for known CVEs |
 
-**Version pinning.** The `ruff` and `mypy` hooks are pinned to specific versions in `.pre-commit-config.yaml` (`rev:` for ruff, `additional_dependencies:` for mypy's `boto3-stubs` and `aws-cdk-lib`). These pins must stay in sync with the corresponding versions resolved in `uv.lock` — if Dependabot bumps ruff or boto3-stubs in the lock, update `.pre-commit-config.yaml` to match. A version mismatch means pre-commit and the local venv would run different tool versions, which can cause "passes locally, fails in CI" drift.
+Every tool that's also in `pyproject.toml` runs as a `language: system` hook from the project venv — single source of truth, no version drift between `pre-commit` config and `pyproject.toml` (see commit history `bba3ba0`/`a04d942`).
 
-**Optional: aligning VS Code editor lint output with CI.** The same drift class can appear at a third surface: the Microsoft Pylint and Mypy extensions and the Astral Ruff extension all default to `importStrategy: "useBundled"`, which runs the tool binary that ships *inside the extension* rather than the one resolved in `uv.lock`. The bundled versions can be ahead, behind, or differ on rule defaults from the pins in `pyproject.toml` (currently `ruff==0.15.10`, `mypy==1.20.0`, `pylint==4.0.5`), so it's possible to see a clean editor while CI fails on a rule that exists in the pinned version. To make the editor use the exact same binaries as pre-commit and CI, add the following to your **personal** VS Code settings (User Settings, not the committed `.vscode/settings.json`):
+**Aligning VS Code editor output with CI** (optional). The Microsoft Pylint/Mypy and Astral Ruff extensions default to `importStrategy: "useBundled"`, which runs the binary bundled *inside the extension* rather than the one in `uv.lock`. Bundled versions can drift from the pyproject pins (`ruff==0.15.12`, `mypy==1.20.2`, `pylint==4.0.5`), so a clean editor can hide a CI failure. To use the same binaries everywhere, add this to your **User Settings** (not the committed workspace settings):
 
 ```json
 "ruff.importStrategy": "fromEnvironment",
@@ -913,25 +748,21 @@ pre-commit run --all-files
 "pylint.importStrategy": "fromEnvironment"
 ```
 
-This points each extension at the active interpreter's `.venv/bin/`, where the `lint` dependency group installs the pinned binaries. The setting is intentionally *not* added to the committed workspace settings: a contributor who opens the repo before running `uv sync --group lint` would have empty `.venv/bin/` paths, and `fromEnvironment` would either silently fall back to bundled or surface a confusing error depending on the extension. Keeping the workspace default at `useBundled` means the editor "just works" out of the box; opt-in to `fromEnvironment` once you've synced the lint group locally.
+This points each extension at `.venv/bin/`. Not in committed workspace settings because a fresh clone before `uv sync --group lint` would have empty `.venv/bin/` paths and the extensions would either silently fall back to bundled or surface confusing errors. Opt in once the lint group is synced.
 
 ### Security
 
-Security follows the AWS [CDK security best practices guide](https://docs.aws.amazon.com/cdk/v2/guide/best-practices-security.html) — least-privilege IAM, encryption at rest and in transit, cdk-nag rule packs in the synth loop, and no hardcoded secrets. It is enforced at three layers, each covering a different surface area:
+Security follows the AWS [CDK security best practices guide](https://docs.aws.amazon.com/cdk/v2/guide/best-practices-security.html) (least-privilege IAM, encryption at rest and in transit, cdk-nag in the synth loop, no hardcoded secrets) and is enforced at three complementary layers:
 
-| Layer | Tool | What it scans | When it runs |
+| Layer | Tool | Scans | When |
 |---|---|---|---|
-| **Source code** | bandit | `lambda/` and `hello_world/` for security anti-patterns (hardcoded secrets, shell injection, unsafe deserialization, etc.) | Pre-commit hook on every commit; CI quality job |
-| **Dependencies** | pip-audit | Every dependency group in `uv.lock` for packages with known CVEs | Pre-commit hook on every commit; weekly Dependency Audit workflow |
-| **Infrastructure** | cdk-nag | CDK stacks against AWS Solutions, Serverless, NIST 800-53 R5, HIPAA Security, and PCI DSS 3.2.1 rules | `cdk synth` — findings are printed and fail synthesis if unsuppressed |
-
-These tools are complementary — no single one covers all three surfaces. Bandit catches code-level issues, pip-audit catches supply chain issues, and cdk-nag catches infrastructure misconfigurations.
+| **Source code** | bandit | `lambda/` and `hello_world/` for hardcoded secrets, shell injection, unsafe deserialization, etc. | Pre-commit + CI quality job |
+| **Dependencies** | pip-audit | Every group in `uv.lock` for known CVEs | Pre-commit + weekly Dependency Audit workflow |
+| **Infrastructure** | cdk-nag | CDK stacks against AWS Solutions, Serverless, NIST 800-53 R5, HIPAA, PCI DSS 3.2.1 | `cdk synth` — unsuppressed findings fail synthesis |
 
 ### CDK security checks
 
-All three stacks use [cdk-nag](https://github.com/cdklabs/cdk-nag) with five rule packs applied to every resource at synth time. Any finding that is not suppressed fails `cdk synth` — infrastructure misconfigurations are caught before deployment, not after.
-
-Checks run automatically on every `cdk synth` and `cdk deploy`. There is no separate command needed. The pack set is attached by a single helper — [`apply_compliance_aspects`](hello_world/nag_utils.py) — that every stack calls in its constructor, so adding or removing a pack is a one-line change in one place.
+All three stacks use [cdk-nag](https://github.com/cdklabs/cdk-nag) with five rule packs applied at synth time. Any unsuppressed finding fails `cdk synth` — infrastructure misconfigurations are caught before deployment. Checks run automatically on every `cdk synth` and `cdk deploy`; the pack set is attached by [`apply_compliance_aspects`](hello_world/nag_utils.py), called from each stack's constructor, so adding or removing a pack is a one-line change in one place.
 
 #### Rule packs in use
 
@@ -1007,14 +838,13 @@ For a serverless reference architecture already invested in the cdk-nag suppress
 
 #### Suppressions
 
-Not every rule is appropriate for a sample application. Where a rule has been intentionally suppressed, the suppression lives in the stack file in either `NagSuppressions.add_stack_suppressions` (stack-wide) or `NagSuppressions.add_resource_suppressions`/`add_resource_suppressions_by_path` (targeted to a specific resource). Each entry includes a `reason` field explaining why it was suppressed rather than fixed.
+Suppressions live in the stack file via `NagSuppressions.add_stack_suppressions` (stack-wide) or `add_resource_suppressions`/`add_resource_suppressions_by_path` (targeted). Each entry has a `reason` explaining why it was suppressed rather than fixed.
 
-Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g., no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius of each suppression as small as possible. CDK-managed singleton Lambdas (BucketDeployment provider, S3AutoDeleteObjects, AwsCustomResource) share a common suppression list defined in `hello_world/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`) and are targeted by their stable CDK construct IDs using `add_resource_suppressions_by_path`. `AwsSolutions-IAM5` suppressions on `HelloWorldFunction` use the `applies_to` parameter to scope them to specific wildcard actions and resources rather than suppressing all IAM5 findings on the role.
+Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g. no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius small. CDK-managed singleton Lambdas (BucketDeployment provider, S3AutoDeleteObjects, AwsCustomResource) share a common list in `hello_world/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`), targeted by stable construct IDs via `add_resource_suppressions_by_path`. `AwsSolutions-IAM5` suppressions on `HelloWorldFunction` use `applies_to` to scope to specific wildcard actions rather than suppressing all IAM5 findings.
 
-Every CloudWatch log group in the stack — including those for the BucketDeployment, AwsCustomResource, and S3 auto-delete provider Lambdas — is pre-created in CDK and passed to the consumer via `log_group=` (rather than the legacy `log_retention=` path that creates an unencrypted log group through the LogRetention singleton). This closes the `*-CloudWatchLogGroupEncrypted` finding for the singleton Lambdas without an Aspect-level suppression.
+Every log group — including singleton Lambdas' — is pre-created in CDK and passed via `log_group=` instead of the legacy `log_retention=` path (which creates an unencrypted group through the `LogRetention` singleton). This closes the `*-CloudWatchLogGroupEncrypted` finding without an Aspect-level suppression.
 
-**What is encrypted with CMK:**
-All CloudWatch log groups (Lambda, API Gateway access, API Gateway execution, WAF, auto-delete Lambda, BucketDeployment provider, AwsCustomResource provider) use AWS KMS customer-managed keys with 90-day key rotation enabled. The Lambda function's environment variables are also CMK-encrypted via `environment_encryption=` so the security boundary stays inside one key rather than splitting across the AWS-managed default and the project key. DynamoDB and the S3 frontend bucket use the same CMK pattern. Athena query results are written under `athena-results/` with SSE-KMS — Athena's PutObject calls override the bucket's SSE-S3 default on a per-object basis. The S3 access logging bucket itself uses SSE-S3 because the S3 log delivery service does not support KMS-encrypted target buckets. SSM parameters cannot use CMK (CloudFormation limitation — SecureString is not supported). AppConfig hosted configurations use AWS-managed keys (no CMK option in CDK).
+**CMK encryption boundary.** All CloudWatch log groups (Lambda, API Gateway access/execution, WAF, auto-delete Lambda, BucketDeployment provider, AwsCustomResource provider) use customer-managed KMS keys with 90-day rotation. Lambda environment variables are CMK-encrypted via `environment_encryption=` so the security boundary stays in one key rather than splitting across the AWS-managed default. DynamoDB and the frontend S3 bucket use the same CMK. Athena query results in `athena-results/` use SSE-KMS via per-object override on the SSE-S3 bucket. The access-log bucket itself uses SSE-S3 because the S3 log delivery service doesn't support KMS-encrypted target buckets. SSM parameters can't use CMK (CFN doesn't support SecureString creation). AppConfig hosted configs use AWS-managed keys (no CDK CMK option).
 
 Current suppressions across all stacks:
 
@@ -1052,17 +882,15 @@ Current suppressions across all stacks:
 | `HIPAA.Security-*` | — | Mirrors the NIST R5 rows above | Every HIPAA Security finding duplicates a NIST R5 counterpart with the same reason (e.g. `HIPAA.Security-LambdaInsideVPC` ↔ `NIST.800.53.R5-LambdaInsideVPC`); suppressions are in the same locations as their NIST R5 twins |
 | `PCI.DSS.321-*` | — | Mirrors the NIST R5 rows above | Same as HIPAA — each PCI finding duplicates a NIST R5 counterpart (e.g. `PCI.DSS.321-S3BucketVersioningEnabled` ↔ `NIST.800.53.R5-S3BucketVersioningEnabled`) and is suppressed alongside it |
 
-Rules that were previously suppressed and have since been implemented are removed from this list. If you add a suppression, include a clear `reason` and consider whether the finding represents a genuine gap worth addressing in production.
+Rules previously suppressed and since implemented are removed from this list. New suppressions should include a clear `reason` and consider whether the finding represents a genuine gap to fix in production.
 
 #### CDK context flags (`cdk.json`)
 
-CDK uses context flags to opt into newer behaviors that would otherwise be breaking changes. Each flag controls a specific aspect of how CDK generates CloudFormation templates. The `cdk.json` context block is divided into three groups:
+CDK uses context flags to opt into newer template-generation behaviors. The `cdk.json` context block has three groups:
 
-**Original flags (from project creation):** `@aws-cdk/aws-lambda:recognizeLayerVersion`, `@aws-cdk/core:checkSecretUsage`, and `@aws-cdk/core:target-partitions`. These shipped with the CDK Python template and have been active since the first deploy.
-
-**Safe flags (added later, zero template drift):** 12 additional flags that CDK 2.248.0 recommends but that produce no CloudFormation changes against the deployed stacks. These were validated by running `cdk diff --all` with each flag enabled — zero diffs across all three stacks. They cover improved validation, metadata collection, unique resource naming, and scoped KMS/DynamoDB/Lambda/CloudFront/API Gateway behaviors.
-
-**Template-changing flags (deployed):** 7 flags that produce real CloudFormation mutations. These were validated with `cdk diff --all`, deployed, and confirmed with integration tests:
+- **Original flags (from project creation):** `@aws-cdk/aws-lambda:recognizeLayerVersion`, `@aws-cdk/core:checkSecretUsage`, `@aws-cdk/core:target-partitions`. Shipped with the CDK Python template.
+- **Safe flags (zero template drift):** 12 additional flags that CDK 2.248.0 recommends and that produce no CloudFormation changes against the deployed stacks (validated via `cdk diff --all` with each flag enabled, zero diffs). They cover improved validation, metadata collection, unique resource naming, and scoped KMS/DynamoDB/Lambda/CloudFront/API Gateway behaviors.
+- **Template-changing flags (deployed):** 7 flags that produce real CloudFormation mutations — validated with `cdk diff --all`, deployed, and confirmed by integration tests:
 
 | Flag | Effect |
 |---|---|
@@ -1078,9 +906,9 @@ CDK uses context flags to opt into newer behaviors that would otherwise be break
 
 #### Commit `cdk.context.json`
 
-The `cdk.context.json` file — distinct from the `cdk.json` context block above — caches environmental lookups (AZs, AMI IDs, hosted zones, SSM parameter values) that CDK resolves at synth time. **It is committed to the repo on purpose.** Per the CDK best practice ([AWS context guide](https://docs.aws.amazon.com/cdk/v2/guide/context.html), [AWS guide](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html), [AWS Heroes article](https://dev.to/aws-heroes/aws-cdk-deployment-best-practices-3doo)), the same cached values must be used across every synth of a given commit, or templates will drift depending on whose machine ran the build.
+`cdk.context.json` (distinct from the `cdk.json` context block above) caches environmental lookups (AZs, AMI IDs, hosted zones, SSM values) that CDK resolves at synth time. **Commit it on purpose** ([AWS context guide](https://docs.aws.amazon.com/cdk/v2/guide/context.html)): the same cached values must be used across every synth of a commit, or templates drift by machine.
 
-If `cdk.context.json` were gitignored, the first synth after a fresh clone would re-resolve every lookup against live AWS APIs and rewrite the file — which means two engineers synthesizing the same commit might produce different CloudFormation templates, and CI might produce yet a third. Committing the file pins the values so the synth is deterministic per commit. To refresh a cached value intentionally, run `cdk context --reset <key>` and commit the resulting diff.
+If gitignored, the first synth after a fresh clone re-resolves every lookup against live AWS APIs and rewrites the file — two engineers on the same commit could produce different CloudFormation, and CI could produce a third. Committing pins the values so synth is deterministic. To refresh a cached value, `cdk context --reset <key>` and commit the diff.
 
 ### Commit message convention
 
@@ -1182,87 +1010,71 @@ Four workflows are configured:
 | Workflow | Trigger | What it does |
 |---|---|---|
 | **CI** | Push / PR to `main` | Three jobs: pre-commit hooks (`quality`), pytest unit tests (`test`), CDK synth + stack assertion tests (`cdk-check`) |
-| **Docs** | Push to `main` | Builds Zensical docs and deploys to GitHub Pages |
+| **Docs** | Push to `main` | Builds Zensical docs, deploys to GitHub Pages |
 | **Dependency Audit** | Every Monday 9am UTC | Runs `pip-audit` against each dependency group exported from `uv.lock` |
-| **Dependabot Auto-merge** | Dependabot PRs | Approves and auto-merges patch/minor updates from `github_actions`, `uv`, and `pip` ecosystems when CI passes; majors stay manual. Gated on PR opener (not latest pusher) so maintainer pushes via `make deps-merge` don't disarm it |
+| **Dependabot Auto-merge** | Dependabot PRs | Approves and auto-merges patch/minor `github_actions`, `uv`, and `pip` updates when CI passes; majors stay manual. Gated on PR *opener* (not latest pusher) so maintainer pushes via `make deps-merge` don't disarm it |
 
-All three CI jobs must pass before anything can merge to `main` (branch protection).
+All three CI jobs must pass before merge to `main` (branch protection).
 
-The CI uses [uv](https://docs.astral.sh/uv/) to install dependencies from the single `uv.lock` at the repo root. Each job syncs only the groups it needs, passing `--locked` so the job fails loudly if `pyproject.toml` and `uv.lock` are out of sync rather than silently regenerating the lock mid-build:
-- `quality` job: `uv sync --locked --group cdk --group test --group lint --group docs` (runs pre-commit hooks, which cover every tool across every group)
-- `test` job: `uv sync --locked --only-group lambda --only-group test` into `.venv-lambda` via `UV_PROJECT_ENVIRONMENT=.venv-lambda` — isolates Powertools' `attrs>=26` from CDK's `attrs<26`
-- `cdk-check` job: `uv sync --locked --group cdk --group test` (CDK + pytest) + CDK CLI via `npm install -g aws-cdk`
+Each job uses `uv sync --locked` so it fails loudly if `pyproject.toml` and `uv.lock` are out of sync rather than silently regenerating mid-build:
+- **`quality`** — `--group cdk --group test --group lint --group docs` (runs pre-commit hooks covering every tool)
+- **`test`** — `--only-group lambda --only-group test` into `.venv-lambda` via `UV_PROJECT_ENVIRONMENT=.venv-lambda` (isolates Powertools `attrs>=26` from CDK `attrs<26`)
+- **`cdk-check`** — `--group cdk --group test` + CDK CLI via `npm install -g aws-cdk`; runs `cdk synth` (catches unsuppressed cdk-nag findings) then `tests/cdk/test_stacks.py` (assertion tests via `aws_cdk.assertions.Template`). Asset bundling skipped via `aws:cdk:bundling-stacks` context key so it runs without Docker. Lives under `tests/cdk/` rather than `tests/unit/` so the unit-test autouse fixture doesn't apply — the job intentionally omits Powertools to dodge the `attrs` conflict.
 
-Each job ends with `uv cache prune --ci` before `setup-uv`'s post-step saves the cache. `--ci` drops pre-built wheels (cheap to redownload) and keeps only the expensive-to-rebuild source distributions, shrinking the cached artifact `actions/cache` persists between runs.
-
-The `cdk-check` job runs `cdk synth` to catch unsuppressed cdk-nag findings, then runs `tests/cdk/test_stacks.py` which uses `aws_cdk.assertions.Template` to verify key security properties of each synthesized stack (KMS encryption, DynamoDB PITR, API Gateway caching, CloudFront TLS version, etc.). These tests live under `tests/cdk/` rather than `tests/unit/` so the unit-test autouse fixture (which mocks Powertools internals) does not apply — the cdk-check job intentionally omits Powertools to avoid the `attrs` version conflict. Asset bundling (Docker) is skipped via the `aws:cdk:bundling-stacks` context key so the job runs without Docker build time.
+Each job ends with `uv cache prune --ci`, which drops pre-built wheels (cheap to redownload) and keeps source distributions (expensive to rebuild), shrinking the `actions/cache` artifact between runs.
 
 #### Dependabot
 
-Dependabot is configured in `.github/dependabot.yml` to check for updates every Monday across two ecosystems:
+`.github/dependabot.yml` checks for updates every Monday across three ecosystems:
 
 | Ecosystem | What it checks | Auto-merge? |
-|-----------|----------------|-------------|
-| `github-actions` | Workflow YAML for newer action versions (e.g. `actions/checkout@v4` → `v5`) | Patch and minor updates auto-merge via the `dependabot-auto-merge` workflow once CI passes; major updates require human review |
-| `uv` | `pyproject.toml` + `uv.lock` — every dependency group in one lock file, regenerated atomically | Patch and minor updates auto-merge once CI passes; major updates require human review. Updates that touch the `lambda` runtime group (e.g. `boto*`, `aws-lambda-powertools`) need a one-time `make lock` push from a maintainer before CI greens — see "Python (`uv`) updates" below |
+|---|---|---|
+| `github-actions` | Workflow YAML for newer action versions (`actions/checkout@v4` → `v5`) | Patch/minor auto-merge once CI passes; majors require human review |
+| `uv` | `pyproject.toml` + `uv.lock` — every dependency group in one lock, regenerated atomically | Patch/minor auto-merge once CI passes; majors require human review. Updates touching the `lambda` runtime group (`boto*`, `aws-lambda-powertools`) need a one-time `make lock` push first — see "Python (uv) updates" below |
+| `pre-commit` | `rev:` field on each remote pre-commit hook | Patch/minor auto-merge once CI passes |
 
-The `dependabot-auto-merge` workflow runs on every Dependabot PR and approves + arms auto-merge when **all** of the following hold:
-1. The PR's *opener* is Dependabot — `github.event.pull_request.user.login == 'dependabot[bot]'`. Gating on the PR opener (not `github.actor`, the latest pusher) keeps the workflow eligible across maintainer follow-up pushes — for example, the `make deps-merge` script's `make lock` regenerations on Dependabot branches.
-2. `dependabot/fetch-metadata` reports the ecosystem as `github_actions`, `uv`, or `pip`. Both `uv` and `pip` are accepted because Dependabot's `uv` ecosystem reports `pip` in `fetch-metadata` output (uv builds on pip's resolver, so the metadata action surfaces the underlying tool rather than the configured ecosystem).
-3. `dependabot/fetch-metadata` reports the update type as `version-update:semver-patch` or `version-update:semver-minor`.
+The `dependabot-auto-merge` workflow approves + arms auto-merge when **all** of:
 
-The metadata action is configured with `skip-commit-verification: true`. Without it, `fetch-metadata` refuses to proceed when the PR's latest commit isn't signed by Dependabot's GPG key — and after a `make deps-merge` push, the latest commit is the maintainer's. The job-level PR-opener gate above already protects the author identity, so dropping the commit-signature layer is what makes the maintainer-push flow work.
+1. The PR's *opener* is Dependabot (`github.event.pull_request.user.login == 'dependabot[bot]'`). Gating on opener (not `github.actor`, the latest pusher) keeps the workflow eligible across maintainer follow-up pushes — e.g. `make deps-merge`'s `make lock` regenerations on Dependabot branches.
+2. `dependabot/fetch-metadata` reports the ecosystem as `github_actions`, `uv`, or `pip`. Both `uv` and `pip` are accepted because Dependabot's `uv` ecosystem reports `pip` in `fetch-metadata` output (uv builds on pip's resolver).
+3. The update type is `version-update:semver-patch` or `version-update:semver-minor`.
 
-Once auto-merge is armed, GitHub itself waits for required status checks (the `quality`, `test`, and `cdk-check` jobs) to pass and then merges the PR. If any check fails, the PR stays open with auto-merge enabled but unsatisfied, surfacing the failure rather than silently merging.
+The metadata action is configured with `skip-commit-verification: true` because `fetch-metadata` otherwise refuses to proceed when the latest commit isn't signed by Dependabot's GPG key — after a `make deps-merge` push, the latest commit is the maintainer's. The job-level opener gate already protects the author identity.
 
-Major updates (e.g. `actions/upload-artifact@v4 → @v7`, or an aws-cdk major bump) intentionally fall through to manual review because cooldowns catch *malicious* releases but not intentional API breaks, and majors warrant a human glance at the changelog.
+Once armed, GitHub waits for required status checks (`quality`, `test`, `cdk-check`) and then merges. If any check fails, the PR stays open with auto-merge unsatisfied — surfacing the failure rather than silently merging. Majors fall through to manual review because cooldowns catch malicious releases but not intentional API breaks.
 
-If CI fails on a Dependabot PR (any ecosystem), it stays open for investigation rather than merging.
-
-**Repo setting required for auto-merge to work.** GitHub repositories ship with GitHub Actions blocked from approving pull requests by default. Until this is changed, the `dependabot-auto-merge` workflow will fail with `GraphQL: GitHub Actions is not permitted to approve pull requests` and even GitHub Actions PRs must be merged manually. Enable it once under **Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"**. This only needs to be done a single time per repo. Leave the **Workflow permissions** radio set to **Read repository contents and packages permissions** (the safer default) — every workflow in this repo declares its own explicit `permissions:` block, so the elevated `Read and write permissions` default is not needed. See "Least-privilege workflow permissions" in the supply-chain hardening section below.
+**Repo setting required for auto-merge.** Enable **Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"** once per repo. Without it, the workflow fails with `GraphQL: GitHub Actions is not permitted to approve pull requests`. Leave **Workflow permissions** at **Read repository contents and packages permissions** (safer default) — every workflow declares its own `permissions:` block, so the elevated default is unnecessary. See "Least-privilege workflow permissions" below.
 
 ##### Python (`uv`) updates
 
-All Python dependencies live in a single `pyproject.toml` with five groups (`lambda`, `cdk`, `test`, `lint`, `docs`) and resolve into one `uv.lock`. The `lambda` and `cdk` groups are declared mutually exclusive via `[tool.uv.conflicts]` so uv records two valid resolutions for the `attrs` conflict inside the same lock file and installs the right one into each venv at sync time — see the "attrs version conflict" note in Design decisions.
+All Python dependencies live in `pyproject.toml` across five groups (`lambda`, `cdk`, `test`, `lint`, `docs`) and resolve into one `uv.lock`. `[tool.uv.conflicts]` declares `lambda` and `cdk` as mutually exclusive so uv records two resolutions for the `attrs` conflict in the same lock and installs the right one per venv. Dependabot regenerates `pyproject.toml` + `uv.lock` together in a single PR — no pip-tools constraint chain.
 
-**One ecosystem entry covers everything.** Dependabot's `uv` ecosystem regenerates `pyproject.toml` + `uv.lock` together in a single PR, so the old pip-tools constraint chain (three `.in` files compiled in order, downstream-recompile dance when shared packages moved) no longer exists. Every group is updated atomically from a single lock regeneration.
+**Grouped updates** in `dependabot.yml` bundle related packages: `aws-cdk*`/`constructs`, `aws-*`/`boto*`/`botocore`/`s3transfer`, `pytest`+plugins, docs tooling, linting tooling, and a weekly "patches" PR for everything else. Within a group, `uv.lock` regenerates in one shot — no cross-package skew between boto3+botocore+aws-lambda-powertools. Majors outside these groups still get individual PRs so each changelog can be reviewed.
 
-**Grouped updates collapse the PR volume.** The uv ecosystem entry in `dependabot.yml` defines `groups:` that bundle related packages into a single PR — `aws-cdk*`/`constructs` update together, `aws-*`/`boto*`/`botocore`/`s3transfer` update together, `pytest` and its plugins update together, docs tooling together, linting tooling together, all remaining patch bumps roll into one weekly "patches" PR. Within a group, Dependabot regenerates `uv.lock` in one shot, so the cross-package version skew that would otherwise hit boto3+botocore+aws-lambda-powertools (when each is bumped in isolation) cannot happen. Major and minor bumps outside these groups still get individual PRs so each changelog can be reviewed on its own.
+**When a `make lock` push is required.** The deployed Lambda installs from a flat `lambda/requirements.txt` (CDK's `PythonFunction` construct expects one), generated from `uv.lock` via `uv export --only-group lambda --no-emit-project`. The `quality` CI job re-runs that export and fails if the committed file drifts — preventing a stale `requirements.txt` from shipping when Dependabot bumps a runtime dep.
 
-**Merge flow.** A Dependabot uv PR updates `pyproject.toml` + `uv.lock` in lockstep. CI re-syncs each job's venv from the new lock and runs the test suite against both resolutions (CDK venv in `cdk-check`, Lambda venv in `test`). Patch and minor PRs auto-merge once CI greens; majors stay open for human review. There is no per-tier recompile step, no Case 1/2/3 handling — the single lock file is always internally consistent.
+Dependabot updates `uv.lock` but **not** the exported `requirements.txt`, so any uv PR touching the `lambda` group (`aws-lambda-powertools`, `boto*`, `botocore`, `aws-encryption-sdk`, etc.) fails the drift check on first CI run. The PR sits open with auto-merge armed, waiting.
 
-**When a `make lock` push is required.** The packaged Lambda installs from a flat `lambda/requirements.txt` at deploy time (CDK's `PythonFunction` construct expects one). That file is generated from `uv.lock` via `uv export --only-group lambda --no-emit-project` and is treated as a build artifact. The `quality` job in CI re-runs that export and fails if the committed file drifts from what the current `uv.lock` would produce — this is what stops a stale `requirements.txt` from shipping to production Lambda when Dependabot bumps a runtime dep.
-
-Dependabot updates `uv.lock` but **not** the exported `requirements.txt`, so any uv PR that touches the `lambda` group (`aws-lambda-powertools`, `boto*`, `botocore`, `aws-encryption-sdk`, etc.) will fail the drift check on first CI run. The PR sits open with auto-merge already armed, waiting on the failing check.
-
-The simplest way to unblock these is `make deps-merge`, which automates the rebase + `make lock` + push + arm-auto-merge loop across every open Dependabot PR sequentially:
+Unblock with `make deps-merge`, which automates the rebase + `make lock` + push + arm-auto-merge loop:
 
 ```bash
 make deps-merge            # process every open Dependabot PR
 make deps-merge PR=42      # process only PR #42 (skips the wait between PRs)
 ```
 
-For each PR the script does: sync main → checkout the PR branch → rebase onto main → run `make lock` → run `uv run ruff format .` (catches reformatter drift from a `ruff` bump) → commit and force-push if there's content → arm `gh pr merge --auto --squash`. When processing all, it then waits for the PR to merge before moving to the next so each subsequent PR rebases onto a main that already includes its predecessors (sequential is required because every `make lock` regenerates `uv.lock` and concurrent processing would clobber predecessors at squash-merge time). PRs whose rebase conflicts, whose `make lock` fails, or whose CI surfaces a real failure are skipped with a clear log line — the script never `--admin`-bypasses failing checks.
-
-Equivalent manual flow if you'd rather drive each PR by hand:
+Per PR: sync main → checkout PR branch → rebase → `make lock` → `uv run ruff format .` (catches reformatter drift from ruff bumps) → commit + force-push → arm `gh pr merge --auto --squash`. When processing all, it waits for each merge before moving on so subsequent PRs rebase onto a main that already includes their predecessors — sequential is required because every `make lock` regenerates `uv.lock` and concurrent processing would clobber predecessors at squash time. PRs that rebase-conflict, fail `make lock`, or fail CI are skipped with a clear log line; the script never `--admin`-bypasses failing checks. Manual equivalent:
 
 ```bash
-gh pr checkout <pr-number>     # check out the Dependabot branch
-make lock                      # regenerates lambda/requirements.txt from uv.lock
-git add lambda/requirements.txt
-git commit -m "chore: regenerate lambda/requirements.txt"
-git push
+gh pr checkout <pr-number>
+make lock                                  # regenerates lambda/requirements.txt
+git add lambda/requirements.txt && git commit -m "chore: regenerate lambda/requirements.txt" && git push
 ```
 
-In either case the push triggers a fresh CI run; once it greens, the auto-merge that was already armed fires and GitHub merges the PR. No second approval click is needed.
+PRs touching only non-lambda groups (`aws-cdk`, `pytest`, `docs`, `linting`) don't drift `lambda/requirements.txt` and merge with zero maintainer involvement.
 
-PRs that only touch non-lambda groups (`aws-cdk`, `pytest`, `docs`, `linting`) do not drift `lambda/requirements.txt` and merge themselves with no maintainer involvement.
+**Why this compromise.** A Personal Access Token could let the workflow regenerate + push automatically (the auto-scoped `GITHUB_TOKEN` deliberately doesn't retrigger workflows on its own pushes), but adds a long-lived credential to rotate. Treating `lambda/requirements.txt` as a fully-generated artifact would remove the drift check, but adds a build step before every `cdk synth` and forfeits the pinned-dependency-set-at-any-commit property. The current setup keeps credential surface and build pipeline unchanged at the cost of one occasional manual step. Always run `make lock` after changing `pyproject.toml` — never hand-edit `lambda/requirements.txt`.
 
-This compromise — auto-merge for everything, with a manual `make lock` push for lambda-runtime updates — was chosen because the alternative paths each carry their own cost: a Personal Access Token would let the workflow regenerate and push automatically (GitHub's `GITHUB_TOKEN` deliberately does not retrigger workflows on its own pushes, so a workflow-managed regeneration would stall auto-merge forever), but adds a long-lived credential to manage and rotate. Treating `lambda/requirements.txt` as a fully-generated artifact (regenerated at synth time, not committed) would remove the drift check entirely, but adds a build step before every `cdk synth` and forfeits the ability to inspect the exact pinned dependency set at any commit. The current setup keeps both the credential surface and the build pipeline unchanged at the cost of one occasional manual step.
-
-Run `make lock` locally any time you change `pyproject.toml` so both files move together — never hand-edit `lambda/requirements.txt`.
-
-**Useful Dependabot commands.** When a PR becomes stale relative to `main` (shown as `BEHIND` in `gh pr view`), comment `@dependabot rebase` on the PR to trigger a fresh rebase and CI run. Other useful commands include `@dependabot recreate` (regenerates the PR from scratch) and `@dependabot ignore this version` (skip a specific release). The full command list is at <https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates>.
+**Useful Dependabot commands.** Comment `@dependabot rebase` on a stale PR (shown `BEHIND` in `gh pr view`) to trigger fresh rebase + CI. Other useful commands: `@dependabot recreate` (regenerate from scratch) and `@dependabot ignore this version`. Full list: <https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates>.
 
 ##### Supply-chain hardening
 
@@ -1307,54 +1119,33 @@ This project uses Dependabot because it is the GitHub-native default and already
 
 ## Project dependencies
 
-Dependencies are managed with [uv](https://docs.astral.sh/uv/) in [project mode](https://docs.astral.sh/uv/concepts/projects/). All direct dependencies live in `pyproject.toml` under five [dependency groups](https://peps.python.org/pep-0735/) (PEP 735); the fully resolved graph — with hashes for every wheel and sdist — lives in a single `uv.lock` at the repo root.
+Managed with [uv](https://docs.astral.sh/uv/) in [project mode](https://docs.astral.sh/uv/concepts/projects/). All direct deps live in `pyproject.toml` under five [PEP 735 dependency groups](https://peps.python.org/pep-0735/); the resolved graph (with hashes for every wheel and sdist) lives in `uv.lock`.
 
 | Group | Purpose | Installed into |
 |---|---|---|
-| `lambda` | Lambda runtime dependencies (Powertools, boto3, X-Ray SDK) | `.venv-lambda` |
+| `lambda` | Lambda runtime (Powertools, boto3, X-Ray SDK) | `.venv-lambda` |
 | `cdk` | CDK core, constructs, cdk-nag, cdk-monitoring-constructs | `.venv` |
 | `test` | pytest, coverage, xdist, mock, html, timeout, randomly | both venvs |
 | `lint` | ruff, mypy, pylint, bandit, radon, xenon, pre-commit, pip-audit, boto3-stubs | `.venv` |
-| `docs` | zensical + mkdocstrings for the generated site | `.venv` |
+| `docs` | zensical + mkdocstrings | `.venv` |
 
-**Two venvs, one lock file.** The `lambda` and `cdk` groups are declared mutually exclusive in `pyproject.toml`:
+**Two venvs, one lock file.** `[tool.uv].conflicts = [[{group = "lambda"}, {group = "cdk"}]]` declares the groups mutually exclusive so uv records **both** valid resolutions of the `attrs` conflict (25.4.0 CDK, 26.1.0 Powertools) in one `uv.lock` and installs the right one per venv. The Makefile switches between them by setting `UV_PROJECT_ENVIRONMENT=.venv-lambda` for Lambda-side commands. `make install` provisions both.
 
-```toml
-[tool.uv]
-conflicts = [[{group = "lambda"}, {group = "cdk"}]]
-```
+**`lambda/requirements.txt` is a generated artifact** — CDK's `PythonFunction` bundles Lambda deps from a flat requirements file at deploy time. `make lock` runs `uv export --only-group lambda --no-emit-project --format requirements.txt` after every `uv lock`. Never hand-edit.
 
-This lets uv record **both** valid resolutions of the `attrs` conflict (25.4.0 for CDK, 26.1.0 for Powertools) inside a single `uv.lock` and install the correct one into each venv at sync time. The CDK-side venv lives at `.venv` and the Lambda-side venv lives at `.venv-lambda`; the Makefile switches between them by setting `UV_PROJECT_ENVIRONMENT=.venv-lambda` for Lambda-side commands. `make install` provisions both.
-
-**`lambda/requirements.txt` is a generated artifact.** CDK's `PythonFunction` construct bundles Lambda dependencies from a flat `requirements.txt` at deploy time, so `make lock` runs `uv export --only-group lambda --no-emit-project --format requirements.txt` after every `uv lock` to keep the file in step. Never hand-edit it.
-
-To regenerate the lock after editing `pyproject.toml`:
+Common operations:
 
 ```bash
-make lock    # runs `uv lock` + `uv export` for the Lambda runtime file
+make lock                                # regenerate uv.lock + lambda/requirements.txt
+make install                             # sync both venvs from the lock
+uv add <pkg> --group <group>             # add a dep (updates pyproject.toml + uv.lock atomically)
+
+make upgrade                             # bump all deps, blocking any version <7 days old (cooldown)
+make upgrade COOLDOWN_DAYS=14            # stricter (older than 14 days)
+make upgrade COOLDOWN_DAYS=0             # disable cooldown
 ```
 
-To upgrade all dependencies:
-
-```bash
-# Default: blocks any version uploaded to PyPI in the last 7 days (cooldown defense)
-make upgrade
-
-# Override the cooldown window
-make upgrade COOLDOWN_DAYS=14   # stricter — only versions older than 14 days
-make upgrade COOLDOWN_DAYS=1    # near-immediate — only the last 24 hours filtered
-make upgrade COOLDOWN_DAYS=0    # disable cooldown entirely
-```
-
-`make upgrade` passes uv's `--exclude-newer` flag to `uv lock --upgrade` so brand-new PyPI releases (the window in which malicious versions typically get caught and yanked) are not pulled into the lockfile. See "Local cooldown on `make upgrade`" in the supply-chain hardening section for the full rationale.
-
-To install or re-sync both venvs from the lock:
-
-```bash
-make install    # provisions .venv (CDK + test + lint + docs) and .venv-lambda (lambda + test)
-```
-
-`uv sync` only installs what is locked — no stale packages, no drift. Adding a dependency is `uv add <pkg> --group <group>` (updates `pyproject.toml` and `uv.lock` in one step).
+`make upgrade` passes `--exclude-newer` to `uv lock --upgrade` so brand-new PyPI releases (the window in which malicious versions typically get yanked) don't enter the lock. See "Local cooldown on `make upgrade`" in supply-chain hardening for the full rationale.
 
 ### `lambda` group — Lambda runtime
 
