@@ -34,11 +34,11 @@ This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, 
 
 ## Table of contents
 
-- [Getting started](#getting-started) — [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Makefile](#makefile) · [Editor setup (VS Code)](#editor-setup-vs-code) · [Debugging the Lambda function](#debugging-the-lambda-function)
+- [Getting started](#getting-started) — [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Makefile](#makefile) · [Editor setup (VS Code)](#editor-setup-vs-code)
 - [Architecture](#architecture) — [Lambda Powertools features](#lambda-powertools-features) · [AWS resources provisioned](#aws-resources-provisioned) · [Stack and construct composition](#stack-and-construct-composition) · [Frontend stack](#frontend-stack) · [Monitoring](#monitoring)
-- [Working in the codebase](#working-in-the-codebase) — [Add a resource](#add-a-resource-to-your-application) · [Useful CDK commands](#useful-cdk-commands) · [Synthesize and validate locally](#synthesize-and-validate-locally) · [Fetch, tail, and filter logs](#fetch-tail-and-filter-lambda-function-logs) · [Documentation](#documentation) · [Cleanup](#cleanup)
-- [Deploy the application](#deploy-the-application) — [Recommended order](#recommended-order-for-ongoing-deploys) · [Different region](#deploying-to-a-different-region) · [Destroying](#destroying-a-deployment)
-- [Quality and security](#quality-and-security) — [Tests](#tests) · [Linting and static analysis](#linting-and-static-analysis) · [Detecting deprecated APIs](#detecting-deprecated-apis) · [Pre-commit hooks](#pre-commit-hooks) · [Security](#security) · [CDK security checks](#cdk-security-checks) · [Commit message convention](#commit-message-convention) · [pyproject.toml configuration](#pyprojecttoml-configuration)
+- [Deploy the application](#deploy-the-application) — [Recommended order](#recommended-order-for-ongoing-deploys) · [Different region](#deploying-to-a-different-region) · [Destroying](#destroying-a-deployment) · [Cleanup](#cleanup)
+- [Working in the codebase](#working-in-the-codebase) — [Add a resource](#add-a-resource-to-your-application) · [Useful CDK commands](#useful-cdk-commands) · [Synthesize and validate locally](#synthesize-and-validate-locally) · [Debugging the Lambda function](#debugging-the-lambda-function) · [Fetch, tail, and filter logs](#fetch-tail-and-filter-lambda-function-logs) · [Commit message convention](#commit-message-convention) · [Documentation](#documentation)
+- [Quality and security](#quality-and-security) — [Tests](#tests) · [Linting and static analysis](#linting-and-static-analysis) · [Detecting deprecated APIs](#detecting-deprecated-apis) · [Pre-commit hooks](#pre-commit-hooks) · [Security](#security) · [CDK security checks](#cdk-security-checks) · [pyproject.toml configuration](#pyprojecttoml-configuration)
 - [CI/CD](#cicd) — [GitHub Actions](#github-actions)
 - [Project dependencies](#project-dependencies)
 - [When forking for production](#when-forking-for-production) — [Design decisions](#design-decisions-and-known-limitations) · [Scaling](#scaling-beyond-a-reference-architecture) · [AWS ops services](#aws-services-for-post-deployment-operations)
@@ -126,28 +126,6 @@ The repo keeps two Python environments due to the `attrs` version conflict (`.ve
 - **Python: Current File** — generic debugpy launch on the focused `.py` file.
 - **Pytest: Current File** — runs `pytest ${file} -v --override-ini=addopts=` under the debugger. `--override-ini=addopts=` strips the global pytest options (`-n auto`, `--cov-fail-under=100`, HTML reporter) that would otherwise fight the debugger, fail single-test runs on the coverage threshold, or suppress breakpoints (a known `pytest-cov` issue). Tagged `"purpose": ["debug-test"]` so the Test Explorer's debug-icon uses this config too.
 - **CDK: Synth (app.py)** — runs the CDK entry point under debugpy with the dummy-account env vars the `cdk-check` CI job uses. Useful when synth blows up — set a breakpoint in any `*_stack.py`, hit F5, walk the stack assembly.
-
-### Debugging the Lambda function
-
-This project does **not** use `sam local invoke`. SAM injects an unpinned `debugpy` that conflicts with the project's `--require-hashes` install mode (`lambda/requirements.txt` is pinned by hash via `uv export`); dropping hash-mode would weaken supply-chain integrity across every CI install. Debug through pytest instead.
-
-**The pytest-as-debugger pattern.** Open a test file under [tests/unit/](tests/unit/) that exercises the path you want to inspect, set a breakpoint anywhere in [lambda/app.py](lambda/app.py), press F5 → *Pytest: Current File*. The handler runs in-process with all of Powertools' real machinery (resolver routing, middleware, idempotency, route handlers). Breakpoints, step-through, watch expressions, exception inspection all work. The fixtures in [tests/conftest.py](tests/conftest.py) build realistic API Gateway events, so the resolver sees the same shape it does in production. Covers roughly 90% of what you'd debug: handler logic, parsers, validators, idempotency keys, response shapes, exception paths, feature-flag evaluation.
-
-**What pytest debug cannot reproduce** (deployed-only):
-
-- **Lambda runtime behavior** — cold-start timing, init-phase code, 250 MB unzipped package limit, 512 MB `/tmp` cap, configured memory ceiling.
-- **IAM** — your local AWS credentials are used, not the Lambda execution role. Permission denials in prod won't surface locally.
-- **Real AWS service calls** — most unit tests mock boto3. Service-side behavior (DynamoDB throttling, SSM resolution latency, AppConfig deploy cadence) is invisible.
-- **Network and runtime context** — VPC routing, layers, container reuse, deployed env vars.
-
-**For the remaining 10%, debug on the deployed function** via the observability stack:
-
-- **Powertools `Logger`** — structured JSON to CloudWatch with `correlation_id` from the API Gateway request ID. Filter Logs Insights by that ID to follow one request end-to-end.
-- **X-Ray traces** (auto-enabled via Powertools `Tracer`) — full call graph including SDK calls to DynamoDB, SSM, AppConfig with per-segment timing. Spots cold-start init time, downstream latency, IAM denials (red segments).
-- **CloudWatch RUM** — correlates frontend requests to backend X-Ray traces via the `X-Amzn-Trace-Id` CORS header. Pivot from a slow user session to the matching backend trace.
-- **CloudWatch Metrics** — custom Powertools metrics + the `MonitoringFacade` dashboard. Throttles, errors, concurrency at the aggregate level.
-
-Local debug for logic, deployed observability for runtime behavior — the standard serverless-Python workflow once Powertools' structured-logging + X-Ray story is in place.
 
 ## Architecture
 
@@ -461,90 +439,6 @@ Note: CDK creates an internal singleton Lambda to empty the S3 bucket before del
 
 The stack includes a [cdk-monitoring-constructs](https://github.com/cdklabs/cdk-monitoring-constructs) MonitoringFacade that creates a CloudWatch dashboard with Lambda, API Gateway, and DynamoDB metrics out of the box.
 
-## Working in the codebase
-
-### Add a resource to your application
-
-Define new constructs in the appropriate file under `hello_world/`:
-
-- **Backend domain resources** (Lambda, API Gateway, DynamoDB, SSM, AppConfig — anything the Lambda talks to) go in `hello_world_app.py` inside the `HelloWorldApp` construct.
-- **Frontend resources** (S3, CloudFront) go in `hello_world_frontend_stack.py`.
-- **WAF rules** go in `hello_world_waf_stack.py`.
-- `hello_world_stack.py` stays lean — only add things that are genuinely stack-wide (CfnOutput, Aspect, stack-level nag suppression).
-
-Browse [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/) for high-level constructs. For resources without one, drop down to [CloudFormation resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) via `CfnResource`.
-
-### Useful CDK commands
-
-* `cdk ls`                         list all stacks in the app
-* `cdk synth`                      emit the synthesized CloudFormation template
-* `cdk deploy --all`               deploy all stacks to us-east-1 (default)
-* `cdk deploy --all -c region=X`   deploy all stacks to region X
-* `cdk diff`                       compare deployed stack with current state
-* `cdk destroy --all`              destroy all stacks in the default region
-
-### Synthesize and validate locally
-
-Synthesize your application to verify the CloudFormation template (requires a container runtime — Finch or Docker — to be running):
-
-```bash
-# If using Finch:
-export CDK_DOCKER=finch
-cdk synth
-
-# If using Docker: just run `cdk synth` — CDK auto-detects Docker
-cdk synth
-```
-
-For local *invocation* of the Lambda handler, use the pytest-driven debug flow described in [Debugging the Lambda function](#debugging-the-lambda-function) — `sam local invoke` is intentionally not used by this project (the unpinned `debugpy` it injects conflicts with the project's `--require-hashes` install mode for `lambda/requirements.txt`).
-
-### Fetch, tail, and filter Lambda function logs
-
-The AWS CLI `logs tail` command streams a CloudWatch log group directly — no SAM CLI dependency. Get the function's log group from the backend stack outputs (or look it up in the AWS Console under the Lambda's *Monitor* tab):
-
-```bash
-# Tail the live stream (Ctrl+C to stop)
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow
-
-# Filter for errors only
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
-    --filter-pattern '{ $.level = "ERROR" }'
-
-# Tail with a JMESPath filter, picking out one structured field per line
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
-    --format short \
-    --filter-pattern '{ $.correlation_id = "abc-123" }'
-```
-
-The Lambda's `logging_format=JSON` config makes every line valid JSON, which `--filter-pattern` queries against directly using [CloudWatch metric-filter syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). Pair with [Powertools' `correlation_id` injection](https://docs.powertools.aws.dev/lambda/python/latest/core/logger/#setting-a-correlation-id) to follow a single request end-to-end across all the structured log entries it produced.
-
-For richer ad-hoc queries (joins across log groups, percentile aggregations, time-series visualizations), use [CloudWatch Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html) in the AWS Console — the WAF stack already pre-creates three saved queries (see [WAF rules](#waf-rules)) as a model for how to wire those into CDK.
-
-### Documentation
-
-The docs site is built by [Zensical](https://zensical.org/) (MkDocs-Material's successor, same maintainer) with the [mkdocstrings](https://mkdocstrings.github.io/) Python handler. It covers two audiences:
-
-- **Code reference (for developers)** — autodoc pages for `lambda/app.py`, `hello_world/hello_world_stack.py`, `hello_world/hello_world_app.py`, `hello_world/hello_world_waf_stack.py`, `hello_world/hello_world_frontend_stack.py`, and `hello_world/nag_utils.py`. Generated from Google-style docstrings via `::: module.path` directives.
-- **HTTP API reference (for callers)** — a [Scalar](https://github.com/scalar/scalar) page at `/api.html` rendering `/openapi.json`. Both files are pre-built by `scripts/generate_openapi.py` (imports the Lambda resolver, serializes its schema) and copied into the site verbatim by Zensical. `make docs` regenerates the spec before invoking Zensical, so the API page always matches live code. Scalar's OSS bundle includes a request sandbox — unlike Redoc, where "Try it out" requires Redocly's paid tier.
-
-The Scalar bundle is loaded from jsdelivr with a **pinned version + SRI hash** (not `@latest`). The browser verifies integrity on every load; CDN tampering fails closed. Upgrade is two lines in `docs/api.html` (the file has an `openssl` recipe in its comments). Scalar's code-sample panel defaults to **Python + `requests`** via `defaultHttpClient` since callers of this API are overwhelmingly writing Python; other languages stay one click away.
-
-Doc builds are best run in CI/CD or manually before publishing, not on every commit.
-
-```bash
-make docs        # build (runs: python scripts/generate_openapi.py && zensical build)
-make docs-open   # build + open site/index.html
-make docs-serve  # dev server with hot reload
-```
-
-### Cleanup
-
-```bash
-cdk destroy
-```
-
-Every resource (including all log groups) is `RemovalPolicy.DESTROY` — a single `cdk destroy` leaves no dangling resources or ongoing AWS costs.
-
 ## Deploy the application
 
 First-time deploy:
@@ -615,6 +509,131 @@ cdk destroy --all
 
 # Destroy a specific regional deployment (does not affect other regions)
 cdk destroy --all -c region=ap-southeast-1
+```
+
+### Cleanup
+
+```bash
+cdk destroy
+```
+
+Every resource (including all log groups) is `RemovalPolicy.DESTROY` — a single `cdk destroy` leaves no dangling resources or ongoing AWS costs.
+
+## Working in the codebase
+
+### Add a resource to your application
+
+Define new constructs in the appropriate file under `hello_world/`:
+
+- **Backend domain resources** (Lambda, API Gateway, DynamoDB, SSM, AppConfig — anything the Lambda talks to) go in `hello_world_app.py` inside the `HelloWorldApp` construct.
+- **Frontend resources** (S3, CloudFront) go in `hello_world_frontend_stack.py`.
+- **WAF rules** go in `hello_world_waf_stack.py`.
+- `hello_world_stack.py` stays lean — only add things that are genuinely stack-wide (CfnOutput, Aspect, stack-level nag suppression).
+
+Browse [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/) for high-level constructs. For resources without one, drop down to [CloudFormation resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) via `CfnResource`.
+
+### Useful CDK commands
+
+* `cdk ls`                         list all stacks in the app
+* `cdk synth`                      emit the synthesized CloudFormation template
+* `cdk deploy --all`               deploy all stacks to us-east-1 (default)
+* `cdk deploy --all -c region=X`   deploy all stacks to region X
+* `cdk diff`                       compare deployed stack with current state
+* `cdk destroy --all`              destroy all stacks in the default region
+
+### Synthesize and validate locally
+
+Synthesize your application to verify the CloudFormation template (requires a container runtime — Finch or Docker — to be running):
+
+```bash
+# If using Finch:
+export CDK_DOCKER=finch
+cdk synth
+
+# If using Docker: just run `cdk synth` — CDK auto-detects Docker
+cdk synth
+```
+
+For local *invocation* of the Lambda handler, use the pytest-driven debug flow described in [Debugging the Lambda function](#debugging-the-lambda-function) — `sam local invoke` is intentionally not used by this project (the unpinned `debugpy` it injects conflicts with the project's `--require-hashes` install mode for `lambda/requirements.txt`).
+
+### Debugging the Lambda function
+
+This project does **not** use `sam local invoke`. SAM injects an unpinned `debugpy` that conflicts with the project's `--require-hashes` install mode (`lambda/requirements.txt` is pinned by hash via `uv export`); dropping hash-mode would weaken supply-chain integrity across every CI install. Debug through pytest instead.
+
+**The pytest-as-debugger pattern.** Open a test file under [tests/unit/](tests/unit/) that exercises the path you want to inspect, set a breakpoint anywhere in [lambda/app.py](lambda/app.py), press F5 → *Pytest: Current File*. The handler runs in-process with all of Powertools' real machinery (resolver routing, middleware, idempotency, route handlers). Breakpoints, step-through, watch expressions, exception inspection all work. The fixtures in [tests/conftest.py](tests/conftest.py) build realistic API Gateway events, so the resolver sees the same shape it does in production. Covers roughly 90% of what you'd debug: handler logic, parsers, validators, idempotency keys, response shapes, exception paths, feature-flag evaluation.
+
+**What pytest debug cannot reproduce** (deployed-only):
+
+- **Lambda runtime behavior** — cold-start timing, init-phase code, 250 MB unzipped package limit, 512 MB `/tmp` cap, configured memory ceiling.
+- **IAM** — your local AWS credentials are used, not the Lambda execution role. Permission denials in prod won't surface locally.
+- **Real AWS service calls** — most unit tests mock boto3. Service-side behavior (DynamoDB throttling, SSM resolution latency, AppConfig deploy cadence) is invisible.
+- **Network and runtime context** — VPC routing, layers, container reuse, deployed env vars.
+
+**For the remaining 10%, debug on the deployed function** via the observability stack:
+
+- **Powertools `Logger`** — structured JSON to CloudWatch with `correlation_id` from the API Gateway request ID. Filter Logs Insights by that ID to follow one request end-to-end.
+- **X-Ray traces** (auto-enabled via Powertools `Tracer`) — full call graph including SDK calls to DynamoDB, SSM, AppConfig with per-segment timing. Spots cold-start init time, downstream latency, IAM denials (red segments).
+- **CloudWatch RUM** — correlates frontend requests to backend X-Ray traces via the `X-Amzn-Trace-Id` CORS header. Pivot from a slow user session to the matching backend trace.
+- **CloudWatch Metrics** — custom Powertools metrics + the `MonitoringFacade` dashboard. Throttles, errors, concurrency at the aggregate level.
+
+Local debug for logic, deployed observability for runtime behavior — the standard serverless-Python workflow once Powertools' structured-logging + X-Ray story is in place.
+
+### Fetch, tail, and filter Lambda function logs
+
+The AWS CLI `logs tail` command streams a CloudWatch log group directly — no SAM CLI dependency. Get the function's log group from the backend stack outputs (or look it up in the AWS Console under the Lambda's *Monitor* tab):
+
+```bash
+# Tail the live stream (Ctrl+C to stop)
+aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow
+
+# Filter for errors only
+aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
+    --filter-pattern '{ $.level = "ERROR" }'
+
+# Tail with a JMESPath filter, picking out one structured field per line
+aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
+    --format short \
+    --filter-pattern '{ $.correlation_id = "abc-123" }'
+```
+
+The Lambda's `logging_format=JSON` config makes every line valid JSON, which `--filter-pattern` queries against directly using [CloudWatch metric-filter syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). Pair with [Powertools' `correlation_id` injection](https://docs.powertools.aws.dev/lambda/python/latest/core/logger/#setting-a-correlation-id) to follow a single request end-to-end across all the structured log entries it produced.
+
+For richer ad-hoc queries (joins across log groups, percentile aggregations, time-series visualizations), use [CloudWatch Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/AnalyzingLogData.html) in the AWS Console — the WAF stack already pre-creates three saved queries (see [WAF rules](#waf-rules)) as a model for how to wire those into CDK.
+
+### Commit message convention
+
+This project follows [Conventional Commits](https://www.conventionalcommits.org/). Format:
+
+```
+type: short description
+```
+
+| Type | When to use |
+|---|---|
+| `feat` | A new feature |
+| `fix` | A bug fix |
+| `docs` | Documentation changes only |
+| `chore` | Maintenance tasks that don't affect functionality (lock files, Makefile, LICENSE) |
+| `ci` | Changes to CI/CD configuration (GitHub Actions, pre-commit) |
+| `test` | Adding or updating tests |
+| `refactor` | Code restructuring that neither fixes a bug nor adds a feature |
+| `build` | Changes to the build system or dependencies |
+
+### Documentation
+
+The docs site is built by [Zensical](https://zensical.org/) (MkDocs-Material's successor, same maintainer) with the [mkdocstrings](https://mkdocstrings.github.io/) Python handler. It covers two audiences:
+
+- **Code reference (for developers)** — autodoc pages for `lambda/app.py`, `hello_world/hello_world_stack.py`, `hello_world/hello_world_app.py`, `hello_world/hello_world_waf_stack.py`, `hello_world/hello_world_frontend_stack.py`, and `hello_world/nag_utils.py`. Generated from Google-style docstrings via `::: module.path` directives.
+- **HTTP API reference (for callers)** — a [Scalar](https://github.com/scalar/scalar) page at `/api.html` rendering `/openapi.json`. Both files are pre-built by `scripts/generate_openapi.py` (imports the Lambda resolver, serializes its schema) and copied into the site verbatim by Zensical. `make docs` regenerates the spec before invoking Zensical, so the API page always matches live code. Scalar's OSS bundle includes a request sandbox — unlike Redoc, where "Try it out" requires Redocly's paid tier.
+
+The Scalar bundle is loaded from jsdelivr with a **pinned version + SRI hash** (not `@latest`). The browser verifies integrity on every load; CDN tampering fails closed. Upgrade is two lines in `docs/api.html` (the file has an `openssl` recipe in its comments). Scalar's code-sample panel defaults to **Python + `requests`** via `defaultHttpClient` since callers of this API are overwhelmingly writing Python; other languages stay one click away.
+
+Doc builds are best run in CI/CD or manually before publishing, not on every commit.
+
+```bash
+make docs        # build (runs: python scripts/generate_openapi.py && zensical build)
+make docs-open   # build + open site/index.html
+make docs-serve  # dev server with hot reload
 ```
 
 ## Quality and security
@@ -909,25 +928,6 @@ CDK uses context flags to opt into newer template-generation behaviors. The `cdk
 `cdk.context.json` (distinct from the `cdk.json` context block above) caches environmental lookups (AZs, AMI IDs, hosted zones, SSM values) that CDK resolves at synth time. **Commit it on purpose** ([AWS context guide](https://docs.aws.amazon.com/cdk/v2/guide/context.html)): the same cached values must be used across every synth of a commit, or templates drift by machine.
 
 If gitignored, the first synth after a fresh clone re-resolves every lookup against live AWS APIs and rewrites the file — two engineers on the same commit could produce different CloudFormation, and CI could produce a third. Committing pins the values so synth is deterministic. To refresh a cached value, `cdk context --reset <key>` and commit the diff.
-
-### Commit message convention
-
-This project follows [Conventional Commits](https://www.conventionalcommits.org/). Format:
-
-```
-type: short description
-```
-
-| Type | When to use |
-|---|---|
-| `feat` | A new feature |
-| `fix` | A bug fix |
-| `docs` | Documentation changes only |
-| `chore` | Maintenance tasks that don't affect functionality (lock files, Makefile, LICENSE) |
-| `ci` | Changes to CI/CD configuration (GitHub Actions, pre-commit) |
-| `test` | Adding or updating tests |
-| `refactor` | Code restructuring that neither fixes a bug nor adds a feature |
-| `build` | Changes to the build system or dependencies |
 
 ### pyproject.toml configuration
 
