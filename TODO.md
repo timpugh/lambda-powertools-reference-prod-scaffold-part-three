@@ -2,6 +2,57 @@
 
 Items that would improve this project for production use but are not yet implemented.
 
+## Production readiness checklist
+
+The hard gates a fork needs to clear before customer traffic touches it. Most items are also broken out individually in the per-service sections below — this section is the at-a-glance summary. The cdk-nag suppressions in [hello_world/hello_world_stack.py](hello_world/hello_world_stack.py) labeled `"... not needed for sample app"` enumerate the workload-shape gates; the rest are architectural choices outside the nag rule set.
+
+**Workload-shape gates** (cdk-nag suppressions to retire as the gate is closed):
+
+- [ ] Authentication / authorization on the API — currently `AwsSolutions-APIG4` + `AwsSolutions-COG4` suppressed
+- [ ] API Gateway request validation — `AwsSolutions-APIG2` suppressed
+- [ ] API Gateway throttling (per-stage rate + burst) — `Serverless-APIGWDefaultThrottling` suppressed
+- [ ] CORS `allow_origin` restricted from `*` to the specific frontend domain
+- [ ] AWS Backup plan for DynamoDB — `DynamoDBInBackupPlan` (NIST/HIPAA/PCI) suppressed; PITR alone is a 35-day rolling window with no cross-region/cross-account copies
+- [ ] DynamoDB deletion protection paired with `RemovalPolicy.RETAIN`
+- [ ] Lambda reserved concurrency — `NIST.800.53.R5-LambdaConcurrency` / `HIPAA.Security-LambdaConcurrency` suppressed
+
+**Edge and transport gates:**
+
+- [ ] Custom domain + ACM certificate on CloudFront and API Gateway (the defaults `*.cloudfront.net` and `*.execute-api.amazonaws.com` pin the TLS floor at TLS 1.0)
+- [ ] CloudFront `Strict-Transport-Security` header
+- [ ] CloudFront-bypass window on the `execute-api` URL closed (regional WAF on API Gateway, or CloudFront-injected secret header)
+
+**Operations gates:**
+
+- [ ] Alarms wired to a pageable channel — `MonitoringFacade` creates alarms but they aren't routed anywhere; cdk-wakeful + SNS / Chatbot / PagerDuty
+- [ ] CloudWatch Logs retention at audit-grade durations on the WAF and CloudTrail log groups (current 7-day setting is sample-app default)
+- [ ] Live integration tests in CI as a post-deploy gate
+
+**Deployment safety gates:**
+
+- [ ] Multi-environment deployment pipeline (dev → staging → prod with approval gates) — current CI builds and tests; deploys are manual via `make deploy`
+- [ ] Branch protection enforced, not routinely bypassed
+- [ ] CDK bootstrap permissions narrowed with a permissions boundary
+
+**Resilience gates:**
+
+- [ ] Multi-region deployment if the workload's RTO/RPO requires surviving a regional outage — single-region single-AZ failure modes are also implicitly accepted
+
+**Threat detection gates:**
+
+- [ ] GuardDuty enabled at the account level (Lambda Protection in particular activates the backend CMK's `kms:Decrypt` grant — see README "GuardDuty has `kms:Decrypt` on the backend CMK")
+- [ ] AWS Security Hub aggregator on, pulling Inspector / GuardDuty / IAM Access Analyzer findings into one ASFF stream
+
+**Already in place — no action required in a fork:**
+
+- [x] CMK encryption on every data-bearing resource that supports per-resource keys: DynamoDB, Lambda env vars, all log groups (Lambda / API Gateway access + execution / WAF / CloudTrail / all custom-resource provider log groups), frontend S3 bucket, AppConfig hosted configuration content, SQS DLQs, CloudTrail trail log files (per-object SSE-KMS into an SSE-S3 bucket). Account/region-wide encryption settings (X-Ray, Glue Data Catalog) deliberately out of scope.
+- [x] cdk-nag with five compliance rule packs (AwsSolutions, Serverless, NIST 800-53 R5, HIPAA Security, PCI DSS 3.2.1) gating every `cdk synth`
+- [x] WAF with five managed rule sets + forwarded-IP rate limit, attached to CloudFront
+- [x] CloudTrail with object-level S3 data events on every audited bucket, log-file integrity validation, CMK-encrypted trail log files
+- [x] GuardDuty `kms:Decrypt` grant on the backend CMK (dormant until Lambda Protection is enabled in the account)
+- [x] Supply-chain hygiene: pip-audit + bandit + hash-pinned GitHub Actions + Dependabot grouped updates + `uv.lock` ↔ `lambda/requirements.txt` drift check in CI
+- [x] CDK synth runs against Stage-nested stacks (`'**'` glob) so cdk-nag actually evaluates the workload stacks, not just the App's direct children
+
 ## Infrastructure
 
 - [ ] **Multi-environment CDK stacks** — separate dev/staging/prod stacks with environment-specific config (SSM paths, AppConfig environments, DynamoDB table names)
@@ -10,6 +61,7 @@ Items that would improve this project for production use but are not yet impleme
 - [ ] **SSM SecureString** — store the greeting parameter as a `SecureString` (KMS-encrypted) rather than plaintext. Note: CloudFormation does not support creating SecureString parameters, so this would require a custom resource or out-of-band provisioning.
 - [ ] **Parameterise the SSM path** — pass the parameter path through CDK context rather than deriving it from the stack name
 - [ ] **AppConfig initial value management** — manage the feature flag hosted configuration outside the CDK stack so it can be updated independently of a deployment
+- [ ] **Multi-region deployment for regional-outage survival** — currently single-region (us-east-1). Active-active or active-passive across regions requires per-region stacks, Route 53 health checks, DynamoDB Global Tables (or app-level replication), and cross-region S3 replication. AWS Resilience Hub is the assessment gate against defined RTO/RPO targets. Many workloads are fine single-region — the choice should be explicit and tied to the workload's resilience requirements rather than a default. Significant work; appropriate only if the RTO/RPO actually requires it.
 
 ## Observability
 
@@ -35,6 +87,7 @@ Items that would improve this project for production use but are not yet impleme
 - [ ] **CORS origin restriction** — the Lambda handler uses `allow_origin="*"`. In production, restrict to the specific CloudFront domain and set `allow_credentials=True` if cookies or Authorization headers are needed.
 - [ ] **CloudFront Strict-Transport-Security header** — the CDK `SECURITY_HEADERS` managed `ResponseHeadersPolicy` sets X-Content-Type-Options, X-Frame-Options, Referrer-Policy, X-XSS-Protection but **not** HSTS. Per the [CloudFront controls reference](https://docs.aws.amazon.com/controltower/latest/controlreference/cloudfront-rules.html), HSTS is recommended. Build a custom `ResponseHeadersPolicy` that includes both the existing four and `strict_transport_security` (e.g., `max-age=31536000`, `include_subdomains=True`, `preload=True` once the domain is stable enough to commit to the preload list).
 - [ ] **Narrow the CDK bootstrap permissions** — the default `cdk bootstrap` creates a `CloudFormationExecutionRole` with `AdministratorAccess`. Any identity that can `sts:AssumeRole` into the deployment roles (by default, any principal in the account) can do anything in the account during deploy. Fine for a solo-dev laptop, a headache for organizations. Fix path: re-bootstrap with `cdk bootstrap --custom-permissions-boundary <POLICY_NAME>` so CFN can do anything inside the boundary but can't escape it (e.g., can't attach `AdministratorAccess` or create roles that bypass the boundary). At the org level, use SCPs via AWS Organizations to prevent tampering with the boundary. Restrict who can assume `DeploymentActionRole` to the CI role + named humans. **Sequence this before the Deploy workflow above** — once CI gets credentials that can assume the bootstrap roles, the admin default becomes a real blast radius.
+- [ ] **Branch protection enforced, not routinely bypassed** — branch protection rules exist on `main` (required status checks from CI), but `git push` reports `Bypassed rule violations for refs/heads/main`, meaning maintainers routinely override the gate. For production, each bypass should be an audited exception with a recorded rationale, not a normal merge workflow — otherwise the gate exists only to slow down non-maintainers. Tighten via GitHub branch protection settings: require status checks to pass for *administrators* too, require pull-request reviews, and dismiss stale reviews on new commits. The signal "maintainer pushes directly to main" should be unusual enough that each occurrence triggers a question.
 - [ ] **Enforce TLS 1.2+ minimum on both edges** — the CloudFront distribution and API Gateway both currently sit on AWS-managed default certificates (`*.cloudfront.net` and `*.execute-api.{region}.amazonaws.com`), which pin the TLS floor at **TLS 1.0**. Verified empirically: `curl --tls-max 1.0 https://<dist>.cloudfront.net` and the equivalent against the execute-api endpoint both complete a full handshake. The CDK code in [hello_world_frontend_stack.py](hello_world/hello_world_frontend_stack.py) sets `TLS_V1_2_2021` but AWS silently overrides it whenever `CloudFrontDefaultCertificate: true`. The cdk-nag rule `AwsSolutions-CFR4` correctly flags this and is intentionally suppressed at the stack level. **Fix path:** acquire a domain, provision an ACM certificate (CloudFront cert must live in us-east-1, API Gateway custom-domain cert lives in the API's region), attach as `viewer_certificate` / `apigateway.DomainName`, then set the strongest matching `securityPolicy` (e.g. `SecurityPolicy_TLS13_2025_EDGE` for an edge-optimized API Gateway domain, `SecurityPolicy_TLS13_1_3_2025_09` for a regional one, and `TLSv1.2_2021` minimum on CloudFront). Once the custom domain is wired and verified, remove the CFR4 suppression. Also reconsider whether the API needs to remain `EDGE` — CloudFront already fronts it, so making the backend `REGIONAL` removes the redundant edge layer and unlocks the regional `securityPolicy` set (which includes post-quantum and PFS variants).
 
 ## Code
