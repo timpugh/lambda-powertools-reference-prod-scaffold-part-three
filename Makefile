@@ -8,17 +8,27 @@
 # in a single uv.lock via `[tool.uv.conflicts]`, but each resolution must
 # install into its own venv.
 #
+# Both venvs live at the PROJECT ROOT (relative paths, gitignored):
+#
 #   .venv         — CDK workstation: cdk + test + lint + docs groups
-#   .venv-lambda  — Lambda runtime:  lambda + test groups (unit tests, OpenAPI gen)
+#   .venv-lambda  — Lambda runtime:  lambda + test + lint groups (unit tests, OpenAPI gen)
+#
+# Both are created automatically by `make install` (which runs `uv sync` for
+# each group set into the right env). You do not pick the location — uv does,
+# based on the directory `make` is invoked from. Each clone of this repo gets
+# its own pair; nothing is shared across projects on disk.
+#
+# Check status with `make doctor`. Nuke and rebuild with `make clean-venvs &&
+# make install`.
 #
 # The venv selector uses the UV_PROJECT_ENVIRONMENT env var that uv honours
 # natively — no activation dance, no symlink juggling.
 LAMBDA_ENV := UV_PROJECT_ENVIRONMENT=.venv-lambda
 LAMBDA_RUN := $(LAMBDA_ENV) uv run
 
-.PHONY: help install install-cdk install-lambda test test-cdk test-integration \
+.PHONY: help install install-cdk install-lambda doctor test test-cdk test-integration \
 	lint format typecheck security cdk-synth cdk-notices cdk-deprecations \
-	deploy destroy docs docs-open docs-serve lock upgrade deps-merge clean
+	deploy destroy docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -44,6 +54,37 @@ install-cdk: ## Install the CDK workstation env into .venv (cdk + test + lint + 
 # weaker .venv-side check that treats Powertools as Any.
 install-lambda: ## Install the Lambda runtime env into .venv-lambda (lambda + test + lint)
 	$(LAMBDA_ENV) uv sync --locked --only-group lambda --only-group test --only-group lint
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+
+doctor: ## Diagnostic snapshot — uv/cdk/drawio versions, venv state, pre-commit wiring
+	@echo "=== Toolchain ==="
+	@command -v uv >/dev/null 2>&1 && printf "uv:          %s\n" "$$(uv --version)" || echo "uv:          MISSING — install from https://docs.astral.sh/uv/"
+	@command -v cdk >/dev/null 2>&1 && printf "cdk CLI:     %s\n" "$$(cdk --version)" || echo "cdk CLI:     MISSING — run 'npm install -g aws-cdk'"
+	@command -v drawio >/dev/null 2>&1 && printf "drawio:      %s\n" "$$(drawio --version)" || echo "drawio:      MISSING (optional) — 'brew install --cask drawio' for diagram exports"
+	@echo
+	@echo "=== Virtual environments (project-local, gitignored) ==="
+	@if [ -x .venv/bin/python ]; then \
+		printf ".venv:        %s\n" "$$(.venv/bin/python --version)"; \
+		.venv/bin/python -c "import aws_cdk" 2>/dev/null && echo "              [OK] CDK group installed" || echo "              [X]  CDK group missing — run 'make install-cdk'"; \
+	else \
+		echo ".venv:        NOT CREATED — run 'make install-cdk' or 'make install'"; \
+	fi
+	@if [ -x .venv-lambda/bin/python ]; then \
+		printf ".venv-lambda: %s\n" "$$(.venv-lambda/bin/python --version)"; \
+		.venv-lambda/bin/python -c "import aws_lambda_powertools" 2>/dev/null && echo "              [OK] Lambda runtime group installed" || echo "              [X]  Lambda runtime group missing — run 'make install-lambda'"; \
+	else \
+		echo ".venv-lambda: NOT CREATED — run 'make install-lambda' or 'make install'"; \
+	fi
+	@echo
+	@echo "=== Pre-commit hooks ==="
+	@if [ -f .git/hooks/pre-commit ]; then \
+		echo "Installed:   [OK] .git/hooks/pre-commit present"; \
+	else \
+		echo "Installed:   [X]  not wired — run 'make install' (or '.venv/bin/pre-commit install')"; \
+	fi
 
 # =============================================================================
 # Testing
@@ -179,6 +220,15 @@ deps-merge: ## Process Dependabot PRs (rebase + lock + push + arm auto-merge). U
 # Cleanup
 # =============================================================================
 
-clean: ## Remove build artifacts, caches, and coverage files
+clean: ## Remove build artifacts, caches, and coverage files (preserves venvs)
 	rm -rf site htmlcov .coverage report.html .pytest_cache .mypy_cache .ruff_cache cdk.out
 	find . -type d -name __pycache__ -exec rm -rf {} +
+
+# Separate from `clean` because re-installing both venvs takes minutes (CDK
+# bundle, all groups) and is not something you want in a routine cache reset.
+# When you DO need a fresh install (lockfile changes that uv refuses to
+# reconcile, corrupted venv, switching Python versions), run this then
+# `make install`.
+clean-venvs: ## Wipe .venv and .venv-lambda (separate from `clean` which preserves them)
+	rm -rf .venv .venv-lambda
+	@echo "Venvs removed. Run 'make install' to recreate."
