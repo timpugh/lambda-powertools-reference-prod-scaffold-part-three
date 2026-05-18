@@ -551,12 +551,25 @@ Browse [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/) f
 
 ### Useful CDK commands
 
-* `cdk ls`                         list all stacks in the app
-* `cdk synth`                      emit the synthesized CloudFormation template
-* `cdk deploy --all`               deploy all stacks to us-east-1 (default)
-* `cdk deploy --all -c region=X`   deploy all stacks to region X
-* `cdk diff`                       compare deployed stack with current state
-* `cdk destroy --all`              destroy all stacks in the default region
+Every CDK operation against this project should go through `make`, not bare `cdk`. The three real stacks live inside a `cdk.Stage` (see [Stack and construct composition](#stack-and-construct-composition)), so bare `cdk synth` / `cdk deploy` / `cdk diff` walk only the App's direct children and silently no-op on the actual stacks. Each make target below wraps `cdk <subcommand> '**'` with the glob that descends into the Stage, keeping the local workflow consistent with what CI runs.
+
+| Phase | Target | What it does |
+|---|---|---|
+| Discovery | `make cdk-ls` | List all stacks (Backend, WAF, Frontend) — sanity check after stack-graph refactors. |
+| Pre-deploy | `make cdk-synth` | Synthesize all three stacks and run the five cdk-nag rule packs (hard gate — see [CDK security checks](#cdk-security-checks)). |
+| Pre-deploy | `make cdk-diff` | Preview changes against the currently deployed stacks (requires AWS credentials). |
+| Pre-deploy | `make cdk-notices` | Show AWS-published CDK notices (CVEs, deprecated CDK versions, upcoming breaking changes). |
+| Pre-deploy | `make cdk-deprecations` | List every deprecated CDK API in use across all stacks. |
+| Deploy | `make deploy` | Deploy all three stacks to us-east-1 (non-interactive — cdk-nag has already gated the change at synth). |
+| Post-deploy | `make cdk-drift` | Detect resources mutated outside CDK. Load-bearing for this template's encryption posture: CMK key policies, IAM grants, and CloudTrail trail config are easy to silently drift. |
+| Post-deploy | `make cdk-gc` | Dry-run garbage collection of unused Lambda/Docker assets in the CDKToolkit bootstrap S3 bucket and ECR repo. Runs behind `--unstable=gc` until the feature graduates. To actually delete, run `cdk --unstable=gc gc` directly (prompts interactively). |
+| Forensics | `make cdk-diagnose` | Root-cause a failed CloudFormation deploy by mapping CFN errors back to construct paths and source `file:line`. Requires the CDK CLI at `2.1120.0+`; runs behind `--unstable=diagnose` until the feature graduates. |
+| Recovery | `make cdk-rollback` | Roll stacks back to their last stable state when a deploy parks them in `UPDATE_ROLLBACK_FAILED`. Pairs with `cdk-diagnose`: find the cause, then roll back. |
+| Teardown | `make destroy` | Destroy all stacks in us-east-1 (non-interactive — `--force` mirrors `--require-approval never` on deploy). |
+
+For different regions, invoke the CLI directly with the project's region context flag: `cdk deploy '**' -c region=ap-southeast-1`. The `'**'` glob is still required.
+
+**Troubleshooting synth warnings.** When `make cdk-synth` surfaces a warning whose origin isn't obvious, re-run with `cdk synth '**' --trace` to print full stack traces for each warning back to the construct that emitted it. This is usually enough to identify which suppression or property to adjust without bisecting the stack graph by hand. `--trace` works on any synth-fronted subcommand (`synth`, `diff`, `ls`, `diagnose`, `drift`, `gc`).
 
 ### Synthesize and validate locally
 
