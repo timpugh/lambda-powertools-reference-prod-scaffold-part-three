@@ -28,7 +28,7 @@ LAMBDA_RUN := $(LAMBDA_ENV) uv run
 
 .PHONY: help install install-cdk install-lambda doctor test test-cdk test-integration \
 	lint format typecheck security cdk-synth cdk-notices cdk-deprecations \
-	cdk-ls cdk-diff cdk-drift cdk-diagnose cdk-gc cdk-rollback \
+	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
 	deploy destroy docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
@@ -140,6 +140,21 @@ cdk-drift: ## Detect drift between deployed resources and what CDK last shipped 
 	# encryption posture: CMK key policies, IAM grants, and CloudTrail
 	# trail config are easy to silently drift and easy to miss.
 	cdk drift '**'
+
+cdk-revert-drift: ## Deploy AND auto-revert out-of-band drift back to code (requires CDK CLI 2.1110.0+)
+	# The remediation half of cdk-drift: where `cdk drift` only reports
+	# resources mutated outside CDK, --revert-drift rolls them back to what
+	# the code last shipped — in the same operation as any pending template
+	# changes (CloudFormation's REVERT_DRIFT deployment mode). Self-healing
+	# posture for this template's encryption invariants: a console-edited CMK
+	# key policy or IAM grant snaps back to the committed state on deploy.
+	#
+	# Deliberately a separate, opt-in target rather than folded into `deploy`:
+	# --revert-drift assumes code is always the source of truth, so it would
+	# also undo a legitimate emergency console change made during an incident.
+	# Keep the default `deploy` predictable; reach for this consciously after
+	# `make cdk-drift` shows what would be reverted.
+	cdk deploy '**' --revert-drift --require-approval never
 
 cdk-diagnose: ## Root-cause CloudFormation failures with construct paths and source locations (CDK 2.1120.0+)
 	# The --unstable=diagnose flag gates the command while it's behind the
