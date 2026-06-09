@@ -29,7 +29,7 @@ LAMBDA_RUN := $(LAMBDA_ENV) uv run
 .PHONY: help install install-cdk install-lambda doctor test test-cdk test-integration \
 	lint format typecheck security cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy destroy docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
+	deploy destroy destroy-clean _empty-frontend-buckets docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -203,6 +203,38 @@ deploy: ## Deploy all stacks to us-east-1 (use `cdk deploy '**' -c region=X` for
 destroy: ## Destroy all stacks in us-east-1 (use `cdk destroy '**' --force -c region=X` for other regions)
 	cdk destroy '**' --force
 
+# Region the frontend stack (and its log buckets) live in. Override to match a
+# non-default deploy: `make destroy-clean REGION=ap-southeast-1`.
+REGION ?= us-east-1
+
+# Resolve every S3 bucket in the frontend stack by type (names are CDK-generated,
+# so we can't hardcode them) and empty each. Idempotent: a missing stack or empty
+# bucket is a no-op. Used by destroy-clean below.
+_empty-frontend-buckets:
+	@echo "Emptying frontend-stack S3 buckets in $(REGION)..."
+	@for b in $$(aws cloudformation list-stack-resources \
+		--stack-name HelloWorldFrontend-$(REGION) --region $(REGION) \
+		--query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket'].PhysicalResourceId" \
+		--output text 2>/dev/null); do \
+		echo "  emptying s3://$$b"; \
+		aws s3 rm "s3://$$b" --recursive --region $(REGION) >/dev/null 2>&1 || true; \
+	done
+
+# CloudFront / S3 / CloudTrail log delivery is ASYNCHRONOUS, so a log file can land
+# in the access-log (or CloudTrail) bucket AFTER cdk's auto_delete_objects empties
+# it during teardown — leaving DeleteBucket with a 409 "bucket not empty" and the
+# stack in DELETE_FAILED. This target empties the frontend log buckets first to
+# shrink that window, then destroys; if a straggler log still lands while the
+# CloudFront distribution is deleting (which takes minutes), it empties once more
+# and retries. Re-running the whole target is always safe — emptying is idempotent.
+destroy-clean: ## Empty async-log buckets, then destroy all stacks (avoids the CloudFront-log teardown race). REGION=us-east-1 default.
+	@$(MAKE) _empty-frontend-buckets REGION=$(REGION)
+	cdk destroy '**' --force -c region=$(REGION) || { \
+		echo "destroy hit a late-arriving log straggler — emptying again and retrying once..."; \
+		$(MAKE) _empty-frontend-buckets REGION=$(REGION); \
+		cdk destroy '**' --force -c region=$(REGION); \
+	}
+
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files
 
@@ -220,7 +252,9 @@ typecheck: ## Run mypy type checking (CDK side in .venv, Lambda runtime + script
 	$(LAMBDA_RUN) mypy lambda/ scripts/
 
 security: ## Run bandit security scan and pip-audit vulnerability check
-	uv run bandit -r lambda/ hello_world/
+	# scripts/ is included to match the typecheck target and the pre-commit bandit
+	# hook; bandit only scans .py files, so the shell scripts are harmlessly ignored.
+	uv run bandit -r lambda/ hello_world/ scripts/
 	# pip-audit goes through the pre-commit hook so the --ignore-vuln list
 	# (currently CVE-2026-3219 — pip 26.0.1, no upstream fix) is sourced
 	# from .pre-commit-config.yaml. Invoking pip-audit directly here would
@@ -264,6 +298,11 @@ COOLDOWN_DAYS ?= 7
 # Lazy ('=' not ':=') so the python3 subshell only runs when the recipe that
 # expands $(COOLDOWN_CUTOFF) actually fires. Otherwise every `make help` /
 # `make test` invocation pays the python startup cost up-front.
+# Bare `python3` (not `uv run python`) is intentional: this is a stdlib-only date
+# calc, system python3 is already a documented prerequisite, and avoiding `uv run`
+# preserves the lazy-eval startup savings above. python3's datetime is also more
+# portable than shelling out to `date`, whose flags differ between macOS (-v) and
+# GNU/Linux (-d) — this repo is developed on both.
 COOLDOWN_CUTOFF = $(shell python3 -c 'from datetime import datetime, timedelta, timezone; print((datetime.now(timezone.utc) - timedelta(days=$(COOLDOWN_DAYS))).strftime("%Y-%m-%dT00:00:00Z"))')
 
 lock: ## Regenerate uv.lock and lambda/requirements.txt from pyproject.toml

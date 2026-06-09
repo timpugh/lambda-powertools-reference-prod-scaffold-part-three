@@ -148,7 +148,14 @@ process_pr() {
     fi
 
     yellow "  Arming auto-merge..."
-    gh pr merge "$pr" --auto --squash >/dev/null 2>&1 || true
+    # Don't swallow the result: if arming fails (auto-merge disabled on the repo,
+    # branch protection, insufficient perms) the operator must know, otherwise
+    # wait_for_pr later burns its full timeout on a PR that will never auto-merge.
+    if ! gh pr merge "$pr" --auto --squash >/dev/null 2>&1; then
+        red "  Could not arm auto-merge (auto-merge disabled, branch protection, or perms?) — skipping."
+        red "  Merge this PR manually, or enable auto-merge, then re-run."
+        return 1
+    fi
 
     green "  Local work complete. Auto-merge armed; CI will merge on green."
     return 0
@@ -188,7 +195,15 @@ for pr in "${PR_NUMBERS[@]}"; do
         # Single-PR mode: kick off the work and exit; user picks up from there.
         # All-PRs mode: wait so the next PR rebases onto a main that includes this one.
         if [ -z "$SINGLE_PR" ] && [ ${#PR_NUMBERS[@]} -gt 1 ]; then
-            wait_for_pr "$pr" || true
+            # If the predecessor doesn't actually merge (failing checks or timeout),
+            # the sequential-rebase invariant is broken: every remaining PR would
+            # rebase onto a main WITHOUT this one. Stop rather than silently
+            # processing the rest against a stale base.
+            if ! wait_for_pr "$pr"; then
+                red "PR #$pr did not merge — stopping so later PRs don't rebase onto a main missing it."
+                red "Resolve PR #$pr (or re-run with PR=<n> per PR), then re-run for the remainder."
+                break
+            fi
         fi
     fi
     echo

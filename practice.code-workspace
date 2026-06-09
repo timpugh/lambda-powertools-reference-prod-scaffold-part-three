@@ -27,6 +27,7 @@
             "cdk.out": true,
             "**/__pycache__": true,
             "**/*.egg-info": true
-        }
+        },
+        "makefile.configureOnOpen": true
     }
 }

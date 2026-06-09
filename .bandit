@@ -1,4 +1,9 @@
+# Anchored to repo-root paths (./) so a future nested directory whose name merely
+# contains one of these (e.g. a load_tests/ package) isn't silently skipped by
+# bandit's substring match. .venv-lambda is listed explicitly rather than relying
+# on the .venv prefix coincidence.
 exclude_dirs:
-  - tests
-  - cdk.out
-  - .venv
+  - ./tests
+  - ./cdk.out
+  - ./.venv
+  - ./.venv-lambda

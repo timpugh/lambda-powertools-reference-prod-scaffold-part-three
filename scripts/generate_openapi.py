@@ -36,12 +36,16 @@ sys.path.insert(0, str(REPO_ROOT / "lambda"))
 # (``_require_env``) raise at import time when any of these are missing,
 # so we seed every one with a non-empty placeholder. Real deployments get
 # real values from the CDK Lambda environment block.
-os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
-os.environ.setdefault("IDEMPOTENCY_TABLE_NAME", "openapi-generator-placeholder")
-os.environ.setdefault("GREETING_PARAM_NAME", "/openapi-generator/placeholder")
-os.environ.setdefault("APPCONFIG_APP_NAME", "openapi-generator-placeholder")
-os.environ.setdefault("APPCONFIG_ENV_NAME", "openapi-generator-placeholder")
-os.environ.setdefault("APPCONFIG_PROFILE_NAME", "openapi-generator-placeholder")
+# Unconditional assignment (not setdefault) keeps generation hermetic: the spec
+# is introspected from route decorators / Pydantic models and never depends on
+# these values, so a real AWS env in the developer's shell must not bleed in and
+# make the output non-reproducible.
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+os.environ["IDEMPOTENCY_TABLE_NAME"] = "openapi-generator-placeholder"
+os.environ["GREETING_PARAM_NAME"] = "/openapi-generator/placeholder"
+os.environ["APPCONFIG_APP_NAME"] = "openapi-generator-placeholder"
+os.environ["APPCONFIG_ENV_NAME"] = "openapi-generator-placeholder"
+os.environ["APPCONFIG_PROFILE_NAME"] = "openapi-generator-placeholder"
 
 # Import must follow sys.path mutation so the lambda/ directory is importable.
 # pylint: disable=wrong-import-position

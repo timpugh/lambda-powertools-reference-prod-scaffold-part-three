@@ -1,8 +1,8 @@
 # git-cliff ~ configuration file
 # https://git-cliff.org/docs/configuration
 #
-# Regenerate CHANGELOG.md from current git history with:
-#   git cliff --tag v$(yq '.project.version' pyproject.toml) -o CHANGELOG.md
+# Regenerate CHANGELOG.md from current git history with (see README "Cutting a release"):
+#   git cliff --tag vX.Y.Z -o CHANGELOG.md   # substitute the release version
 # Or for an unreleased section against HEAD:
 #   git cliff --unreleased --prepend CHANGELOG.md
 
