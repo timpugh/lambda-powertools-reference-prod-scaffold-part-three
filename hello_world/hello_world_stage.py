@@ -64,6 +64,7 @@ class HelloWorldStage(cdk.Stage):
             frontend_stack_name,
             stack_name=frontend_stack_name,
             api_url=self.backend.api_url,
+            api_id=self.backend.api_id,
             waf_acl_arn=self.waf.web_acl_arn,
             env=target_env,
             # Enables CDK's SSM-based cross-region reference bridging.

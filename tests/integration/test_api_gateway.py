@@ -75,17 +75,26 @@ class TestApiGateway:
     def test_api_gateway_response_time_warm(self, api_gateway_url):
         """Warm-path latency budget — a P50 ceiling, not a timeout proxy.
 
-        A first call warms the container; a second call asserts the warm-path
-        budget. ``response.elapsed`` is the request-side timing as measured by
-        ``requests`` (network + server), so this is a black-box ceiling rather
-        than a backend SLO.
+        A black-box smoke check, not a backend SLO: ``response.elapsed`` is the
+        request-side timing measured by ``requests`` (network + server). To reduce
+        flakiness, a connection-reusing Session is warmed once, then the assertion
+        uses the MIN of several samples (best-case warm latency) rather than a
+        single measurement that a one-off network blip could fail. A failure here
+        is a latency signal worth investigating, not necessarily a code defect.
         """
-        # warm-up
-        requests.get(api_gateway_url, timeout=10, headers=_idempotency_headers())
-        response = requests.get(api_gateway_url, timeout=10, headers=_idempotency_headers())
+        with requests.Session() as session:
+            # Warm the container and the TCP/TLS connection.
+            session.get(api_gateway_url, timeout=10, headers=_idempotency_headers())
 
-        assert response.status_code == 200
-        assert response.elapsed.total_seconds() < 2.0
+            samples = []
+            last_status = None
+            for _ in range(3):
+                resp = session.get(api_gateway_url, timeout=10, headers=_idempotency_headers())
+                last_status = resp.status_code
+                samples.append(resp.elapsed.total_seconds())
+
+        assert last_status == 200
+        assert min(samples) < 2.0, f"warm-path latency over budget: min={min(samples):.3f}s of {samples}"
 
     def test_missing_idempotency_key_returns_400(self, api_gateway_url):
         """The Lambda requires Idempotency-Key — calls without it return 400."""

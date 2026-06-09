@@ -8,14 +8,14 @@
       "requirements*.txt",
       "source.bat",
       "**/__pycache__",
-      "**/.venv",
+      "**/.venv*",
       "*.egg-info"
     ]
   },
   "context": {
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
-    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"],
+    "@aws-cdk/core:target-partitions": ["aws"],
 
     "_comment_safe_flags": "These flags are safe to enable — they produce zero CloudFormation template drift against the currently deployed stacks.",
     "@aws-cdk/core:validateSnapshotRemovalPolicy": true,

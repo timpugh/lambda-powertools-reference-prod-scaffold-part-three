@@ -1,4 +1,10 @@
+# Bandit matches exclude_dirs against the paths it is given. The pre-commit hook
+# and `bandit -r` both pass unanchored, repo-relative paths (e.g. tests/cdk/...),
+# so these entries are NOT `./`-anchored — a `./tests` entry would fail to match
+# `tests/...` and let asserts in test files trip B101. `.venv-lambda` is listed
+# explicitly (the second project venv) rather than relying on a `.venv` prefix.
 exclude_dirs:
   - tests
   - cdk.out
   - .venv
+  - .venv-lambda

@@ -50,6 +50,9 @@ from aws_cdk import (
     aws_ssm as ssm,
 )
 from aws_cdk import (
+    aws_wafv2 as wafv2,
+)
+from aws_cdk import (
     custom_resources as cr,
 )
 from aws_cdk.aws_lambda_python_alpha import PythonFunction
@@ -57,7 +60,11 @@ from cdk_monitoring_constructs import DefaultDashboardFactory, MonitoringFacade
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
-from hello_world.nag_utils import grant_guardduty_service_to_key, grant_logs_service_to_key
+from hello_world.nag_utils import (
+    build_managed_threat_rules,
+    grant_guardduty_service_to_key,
+    grant_logs_service_to_key,
+)
 
 
 class HelloWorldApp(Construct):
@@ -211,6 +218,15 @@ class HelloWorldApp(Construct):
             architecture=_lambda.Architecture.ARM_64,
             memory_size=256,
             timeout=Duration.seconds(10),
+            # Reserved concurrency caps how much of the account's concurrency pool
+            # (default 1000) this one function can consume, so a runaway loop or a
+            # traffic spike on /hello can't starve every other Lambda in the
+            # account. 100 is a deliberately modest ceiling for a reference
+            # workload — size it to real peak traffic in a fork (and note that a
+            # reserved value also guarantees that headroom is always available to
+            # this function). Retires the NIST.800.53.R5-LambdaConcurrency /
+            # HIPAA.Security-LambdaConcurrency suppressions below.
+            reserved_concurrent_executions=100,
             tracing=_lambda.Tracing.ACTIVE,
             log_group=lambda_log_group,
             logging_format=_lambda.LoggingFormat.JSON,
@@ -234,8 +250,14 @@ class HelloWorldApp(Construct):
         # Recursive-loop detection. Default is Terminate, but the L2 PythonFunction
         # construct doesn't surface this property — set it explicitly on the
         # underlying CfnFunction so the posture is visible in code rather than
-        # implicit in the runtime default.
-        cast(_lambda.CfnFunction, self.function.node.default_child).recursive_loop = "Terminate"
+        # implicit in the runtime default. A runtime isinstance check (instead of a
+        # bare cast) makes a future CDK change to the L2->L1 default_child
+        # relationship fail loudly at synth rather than silently dropping the
+        # Terminate posture — mirroring the provider-lookup guard in the frontend stack.
+        cfn_function = self.function.node.default_child
+        if not isinstance(cfn_function, _lambda.CfnFunction):
+            raise TypeError(f"Expected HelloWorldFunction default_child to be CfnFunction, got {type(cfn_function)}")
+        cfn_function.recursive_loop = "Terminate"
 
         # Grant permissions
         self.idempotency_table.grant_read_write_data(self.function)
@@ -281,6 +303,15 @@ class HelloWorldApp(Construct):
             deploy_options=apigw.StageOptions(
                 stage_name="Prod",
                 tracing_enabled=True,
+                # Stage-level throttling caps steady-state and burst request rates
+                # across the whole stage, bounding both abuse and runaway cost.
+                # These are method-level defaults applied to every route; per-method
+                # overrides or a usage plan can layer tighter limits later. Values
+                # are deliberately modest for a reference workload — raise them in a
+                # fork sized to real traffic. This retires the
+                # Serverless-APIGWDefaultThrottling suppression in HelloWorldStack.
+                throttling_rate_limit=100,
+                throttling_burst_limit=200,
                 access_log_destination=apigw.LogGroupLogDestination(api_log_group),
                 access_log_format=apigw.AccessLogFormat.custom(
                     # Built from typed AccessLogField references — json_with_standard_fields
@@ -338,6 +369,10 @@ class HelloWorldApp(Construct):
             retention=logs.RetentionDays.ONE_WEEK,
             removal_policy=RemovalPolicy.DESTROY,
         )
+
+        # Regional WAF on API Gateway — closes the CloudFront-bypass window on the
+        # public execute-api URL. See _attach_regional_waf for the full rationale.
+        self._attach_regional_waf()
 
         self._create_insights_queries(lambda_log_group, api_log_group)
 
@@ -424,6 +459,76 @@ class HelloWorldApp(Construct):
 
         self._add_resource_suppressions(app_insights_dashboard_cleanup)
 
+    def _attach_regional_waf(self) -> None:
+        """Attach a REGIONAL WAF WebACL to the API Gateway stage.
+
+        The CLOUDFRONT-scoped WebACL in ``HelloWorldWafStack`` only inspects
+        traffic that arrives through CloudFront. The API Gateway's public
+        ``https://{id}.execute-api.{region}.amazonaws.com/Prod`` URL — published
+        in the ``HelloWorldApiOutput`` CfnOutput — bypasses CloudFront entirely,
+        so without a second ACL here a caller hitting that URL directly evades
+        every managed rule group. This REGIONAL ACL mirrors the four managed
+        threat rule groups onto the origin so both paths get the same protection.
+
+        Scope must be ``REGIONAL`` and the ACL must live in the API's own region
+        (which is why it's here, in the backend stack, not in the us-east-1-pinned
+        WAF stack). The shared ``build_managed_threat_rules`` helper guarantees the
+        rule set never drifts from the CloudFront ACL. The rate-based rule is
+        deliberately omitted — every request reaching the origin comes from a
+        CloudFront edge IP, so an IP-aggregated limit would penalise legitimate
+        funnelled traffic; origin volume is bounded by the stage's
+        throttling_rate_limit/throttling_burst_limit and the function's
+        reserved_concurrent_executions instead.
+
+        This is defence in depth, not a replacement for the documented fixes:
+        a fork can still add a CloudFront-injected secret header + API Gateway
+        resource policy to make the origin reject any non-CloudFront request
+        outright (TODO "Close the CloudFront-bypass window").
+        """
+        stack = Stack.of(self)
+        regional_acl = wafv2.CfnWebACL(
+            self,
+            "ApiRegionalWebACL",
+            scope="REGIONAL",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled=True,
+                metric_name=f"{stack.stack_name}ApiRegionalWebACL",
+                sampled_requests_enabled=True,
+            ),
+            rules=build_managed_threat_rules(f"{stack.stack_name}-api"),
+        )
+
+        # WAF logging — required by NIST/HIPAA/PCI WAFv2LoggingEnabled, mirroring
+        # the CloudFront ACL in HelloWorldWafStack. The log-group name must start
+        # with "aws-waf-logs-" (AWS requirement) and is CMK-encrypted with the
+        # backend key (the Logs service principal grant is already on this key via
+        # grant_logs_service_to_key in __init__). WAFv2 writes via its
+        # service-linked role, so no extra log-group resource policy is needed.
+        regional_waf_log_group = logs.LogGroup(
+            self,
+            "ApiRegionalWafLogGroup",
+            log_group_name=f"aws-waf-logs-{stack.stack_name}-api",
+            encryption_key=self.encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        wafv2.CfnLoggingConfiguration(
+            self,
+            "ApiRegionalWafLogging",
+            log_destination_configs=[regional_waf_log_group.log_group_arn],
+            resource_arn=regional_acl.attr_arn,
+        )
+
+        # Associate the ACL with the deployed Prod stage. stage_arn is the
+        # resource ARN WAFv2 expects for an API Gateway stage.
+        wafv2.CfnWebACLAssociation(
+            self,
+            "ApiRegionalWebACLAssociation",
+            resource_arn=self.api.deployment_stage.stage_arn,
+            web_acl_arn=regional_acl.attr_arn,
+        )
+
     def _add_resource_suppressions(self, app_insights_dashboard_cleanup: cr.AwsCustomResource) -> None:
         """Attach per-resource cdk-nag suppressions for resources owned by this construct.
 
@@ -456,14 +561,9 @@ class HelloWorldApp(Construct):
                     "id": "HIPAA.Security-LambdaDLQ",
                     "reason": "Invoked synchronously via API Gateway — async DLQ pattern does not apply",
                 },
-                {
-                    "id": "NIST.800.53.R5-LambdaConcurrency",
-                    "reason": "Concurrency limits not configured for sample app",
-                },
-                {
-                    "id": "HIPAA.Security-LambdaConcurrency",
-                    "reason": "Concurrency limits not configured for sample app",
-                },
+                # NIST.800.53.R5-LambdaConcurrency / HIPAA.Security-LambdaConcurrency
+                # are no longer suppressed — reserved_concurrent_executions is set
+                # on the function above.
                 {"id": "NIST.800.53.R5-LambdaInsideVPC", "reason": "No VPC — adds significant operational complexity"},
                 {"id": "HIPAA.Security-LambdaInsideVPC", "reason": "No VPC — adds significant operational complexity"},
                 {"id": "PCI.DSS.321-LambdaInsideVPC", "reason": "No VPC — adds significant operational complexity"},

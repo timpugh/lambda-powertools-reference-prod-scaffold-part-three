@@ -9,9 +9,16 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded in-progress runs on the same ref — rapid pushes to a PR
+# otherwise launch redundant overlapping quality/test/cdk-check runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
@@ -45,6 +52,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
@@ -73,6 +81,7 @@ jobs:
 
   cdk-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
@@ -88,8 +97,14 @@ jobs:
       - name: Install CDK + test runner
         run: uv sync --locked --group cdk --group test
 
+      # Pin the CDK CLI rather than installing floating @latest: an unpinned CLI is
+      # the one un-tracked supply-chain input in an otherwise fully-pinned repo, and
+      # a CLI major ahead of the pinned aws-cdk-lib (2.248.0) can change synth output
+      # and break this gate on an unrelated PR. NOTE: this version is bumped manually
+      # — Dependabot's uv ecosystem does not see it. To track it automatically, add a
+      # package.json with an aws-cdk devDependency and a Dependabot npm entry.
       - name: Install CDK CLI
-        run: npm install -g aws-cdk
+        run: npm install -g aws-cdk@2.1122.0
 
       # CDK's PythonFunction bundling pulls public.ecr.aws/sam/build-python3.13
       # for the Lambda function's architecture. The Lambda runs on arm64

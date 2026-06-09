@@ -1,6 +1,6 @@
 [project]
 name = "hello-world"
-version = "1.0.1"
+version = "1.1.0"
 description = "Production-grade AWS CDK reference architecture for Lambda + Powertools serverless applications, with multi-rule-pack cdk-nag, WAF, CloudTrail data events, CMK encryption end-to-end, and supply-chain hygiene."
 requires-python = ">=3.13"
 readme = "README.md"
@@ -182,7 +182,7 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120  # must match [tool.ruff] line-length above
-max-module-lines = 1400  # CDK frontend stack legitimately exceeds default 1000 — many resources, each with its own nag suppressions, plus the audit-pass additions (KMS confused-deputy guards, CloudTrail bucket Deny, async DLQ wiring, RUM log-group cleanup CR, etc.)
+max-module-lines = 1500  # CDK frontend stack legitimately exceeds default 1000 — many resources, each with its own nag suppressions, plus the audit-pass additions (KMS confused-deputy guards, CloudTrail bucket Deny, async DLQ wiring, RUM log-group cleanup CR), the hardening additions (custom HSTS + CSP ResponseHeadersPolicy), and the review-pass additions (exact-API-host CSP, auto-delete-provider warning, extracted helper docstrings)
 
 # Structural complexity thresholds — pylint fails if any function or class exceeds these.
 # Complexity is also enforced via the xenon pre-commit hook.
@@ -200,6 +200,11 @@ max-attributes = 10  # max instance attributes per class
 [tool.pytest.ini_options]
 testpaths = ["tests"]  # only collect tests from tests/ (avoids scanning the whole project)
 timeout = 30           # fail any test that runs longer than 30 seconds (pytest-timeout)
+# NOTE: addopts below hardcodes lambda/ coverage with a 100% gate, which only makes
+# sense for the unit suite. The cdk and integration suites measure no lambda/ code,
+# so `make test-cdk` / `make test-integration` (and the CI cdk-check job) pass
+# --override-ini="addopts=" to drop these flags. Running `pytest tests/cdk` directly
+# WITHOUT that override will fail the coverage gate — use the make targets.
 addopts = [
     "-ra",                       # print a short summary of all non-passed tests at the end
     "--cov=lambda",              # measure coverage for the lambda/ source directory
@@ -240,4 +245,11 @@ branch = true        # track branch coverage in addition to line coverage
 exclude_lines = [
     "pragma: no cover",  # manual opt-out on a per-line basis
     "if TYPE_CHECKING:",  # type-only imports are never executed at runtime
+    # Conventional defensive/unreachable patterns, excluded so the 100% gate stays
+    # meaningful as code is added without needing a per-line pragma on each one.
+    # (A bare `...` ellipsis is deliberately NOT excluded: it would also match the
+    # Pydantic Field(...) required-field marker, which is real executed code.)
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
 ]

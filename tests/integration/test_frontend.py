@@ -69,16 +69,26 @@ class TestFrontend:
         assert cloudfront_url.startswith("https://")
 
     def test_security_headers_present(self, cloudfront_url):
-        """CloudFront ResponseHeadersPolicy.SECURITY_HEADERS adds standard headers."""
+        """The custom CloudFront ResponseHeadersPolicy adds the four base headers plus HSTS + CSP."""
         response = requests.get(cloudfront_url, timeout=15)
         headers = {k.lower(): v for k, v in response.headers.items()}
 
         assert "x-content-type-options" in headers
         assert "x-frame-options" in headers
+        # HSTS + CSP are the headers the custom policy adds over the managed one.
+        assert "strict-transport-security" in headers
+        assert "content-security-policy" in headers
 
     def test_unknown_path_returns_spa_fallback(self, cloudfront_url):
         """CloudFront error responses return index.html (200) for SPA client-side routing."""
+        # Fetch the real index first so we can confirm the deep route returns the
+        # SAME body (the SPA fallback), not just any 200/text-html page — so the
+        # test fails if the 403/404 → /index.html mapping is ever removed.
+        index = requests.get(cloudfront_url, timeout=15)
+        assert index.status_code == 200
+
         response = requests.get(f"{cloudfront_url}/some/deep/client/route", timeout=15)
 
         assert response.status_code == 200
         assert "text/html" in response.headers.get("Content-Type", "")
+        assert response.text == index.text

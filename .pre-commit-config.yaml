@@ -48,14 +48,20 @@ repos:
         # run mypy in a single worker, so cache access is sequential and the
         # lock never contends.
         require_serial: true
-        # scripts/generate_openapi.py imports from lambda/app.py (Powertools),
-        # which conflicts with aws-cdk-lib on `attrs`. Pre-commit hooks run
-        # in .venv (CDK side); scripts/ is checked via `make typecheck`
-        # inside .venv-lambda instead.
-        exclude: ^(app\.py|tests/|docs/|scripts/)
+        # scripts/generate_openapi.py AND lambda/app.py import Powertools, which
+        # conflicts with aws-cdk-lib on `attrs`. Pre-commit hooks run in .venv (CDK
+        # side) where Powertools isn't installed, so checking lambda/ here would only
+        # degrade its Powertools/pydantic/boto3 symbols to Any under
+        # --ignore-missing-imports — a vacuous pass. lambda/ and scripts/ are type-
+        # checked properly via `make typecheck` inside .venv-lambda instead.
+        exclude: ^(app\.py|lambda/|tests/|docs/|scripts/)
 
   - repo: local
     hooks:
+      # Two security linters run intentionally: ruff's flake8-bandit ("S") rules
+      # (enabled in [tool.ruff]) are a fast partial reimplementation, while bandit
+      # proper catches checks ruff's "S" set does not yet cover. Belt-and-suspenders;
+      # keep their suppressions in sync if you ever silence a finding in one.
       - id: bandit
         name: bandit security checks
         entry: bandit -c .bandit
@@ -95,11 +101,12 @@ repos:
         pass_filenames: false
       - id: pip-audit
         name: pip-audit vulnerability scan
-        # Both CVEs affect pip 26.0.1 (the version uv ships into the build env).
-        # CVE-2026-3219 has no upstream fix as of 2026-04. CVE-2026-6357 has
-        # a fix in pip 26.1 but is unreachable until uv ships a build pinning
-        # the patched pip. Revisit this list when uv publishes a release that
-        # bundles pip >= 26.1.
+        # Both CVEs affect pip (the version uv ships into the build env).
+        # CVE-2026-3219 had no upstream fix as of 2026-04. CVE-2026-6357 is fixed
+        # in pip 26.1. RE-CHECK 2026-06: local uv now resolves pip 26.1, so
+        # CVE-2026-6357 may be droppable — confirm the build env's pip is >= 26.1,
+        # then remove it here AND in .github/workflows/dependency-audit.yml (keep
+        # the two lists in sync).
         entry: pip-audit --ignore-vuln CVE-2026-3219 --ignore-vuln CVE-2026-6357
         language: system
         pass_filenames: false

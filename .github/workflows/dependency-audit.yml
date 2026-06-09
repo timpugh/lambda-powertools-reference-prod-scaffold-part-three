@@ -32,18 +32,23 @@ jobs:
           uv export --only-group cdk    --no-emit-project --format requirements.txt -o /tmp/req-cdk.txt
           uv export --only-group lambda --no-emit-project --format requirements.txt -o /tmp/req-lambda.txt
           uv export --only-group test   --no-emit-project --format requirements.txt -o /tmp/req-test.txt
+          uv export --only-group lint   --no-emit-project --format requirements.txt -o /tmp/req-lint.txt
+          uv export --only-group docs   --no-emit-project --format requirements.txt -o /tmp/req-docs.txt
 
       # The --ignore-vuln list mirrors .pre-commit-config.yaml's pip-audit hook.
-      # Both CVEs affect pip 26.0.1 (the version uv ships into the build env);
-      # CVE-2026-3219 has no upstream fix as of 2026-04, CVE-2026-6357 is fixed
-      # in pip 26.1 but unreachable until uv ships a release that bundles it.
-      # Without these suppressions the scheduled audit fails every Monday on
-      # vulnerabilities we've already accepted and can't currently fix.
+      # Both CVEs affect pip (the version uv ships into the build env);
+      # CVE-2026-3219 had no upstream fix as of 2026-04, CVE-2026-6357 is fixed in
+      # pip 26.1. Without these suppressions the scheduled audit fails on
+      # vulnerabilities we've already accepted and can't directly control.
+      # RE-CHECK 2026-06: local uv now resolves pip 26.1, so CVE-2026-6357 may be
+      # droppable once CI's setup-uv build env is confirmed on pip >= 26.1. Verify
+      # against the CI environment (not just a laptop) before removing it here AND
+      # in .pre-commit-config.yaml — the two lists must stay in sync.
       - name: Audit dependencies
         run: |
           set +e
           failed=0
-          for group in cdk lambda test; do
+          for group in cdk lambda test lint docs; do
             echo "::group::pip-audit ($group)"
             uv run pip-audit \
               --ignore-vuln CVE-2026-3219 \

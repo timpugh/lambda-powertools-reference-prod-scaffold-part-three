@@ -32,7 +32,40 @@ def test_enhanced_greeting_feature_flag(apigw_event, lambda_context, lambda_app_
     ret = lambda_app_module.lambda_handler(apigw_event, lambda_context)
     data = json.loads(ret["body"])
 
-    assert "enhanced mode enabled" in data["message"]
+    # Assert the full composed string, not just the suffix, so a change to the
+    # base greeting or the separator is caught (the SSM mock pins "hello world").
+    assert data["message"] == "hello world - enhanced mode enabled"
+
+
+def test_feature_flag_receives_ip_and_user_agent_context(apigw_event, lambda_context, lambda_app_module, mocker):
+    """The handler must pass source_ip + user_agent context to feature_flags.evaluate.
+
+    The /hello route documents IP-based gating of enhanced_greeting; without the
+    context dict the AppConfig rules engine can never see those values, so this
+    pins the contract. Dropping the context= arg would otherwise pass the suite.
+    """
+    spy = mocker.patch.object(lambda_app_module.feature_flags, "evaluate", return_value=False)
+
+    lambda_app_module.lambda_handler(apigw_event, lambda_context)
+
+    spy.assert_called_once_with(
+        name="enhanced_greeting",
+        context={"source_ip": "127.0.0.1", "user_agent": "Custom User Agent String"},
+        default=False,
+    )
+
+
+def test_retry_config_wired_into_sdk_clients(lambda_app_module):
+    """The shared adaptive retry boto_config must reach every SDK client.
+
+    A refactor dropping boto_config= from any of the three constructors would
+    silently regress the documented retry posture while passing every other test.
+    """
+    assert lambda_app_module.boto_config.retries["mode"] == "adaptive"
+    # SSMProvider and the DynamoDB persistence layer both build their clients from
+    # the shared config; assert the live client config reflects adaptive mode.
+    assert lambda_app_module.ssm_provider.client.meta.config.retries["mode"] == "adaptive"
+    assert lambda_app_module.persistence_layer.client.meta.config.retries["mode"] == "adaptive"
 
 
 def test_ssm_failure_returns_500(apigw_event, lambda_context, lambda_app_module, mocker):
@@ -44,8 +77,8 @@ def test_ssm_failure_returns_500(apigw_event, lambda_context, lambda_app_module,
     handler so they surface correctly in metrics and X-Ray.
     """
     mocker.patch.object(
-        lambda_app_module,
-        "get_parameter",
+        lambda_app_module.ssm_provider,
+        "get",
         side_effect=lambda_app_module.GetParameterError("SSM unavailable"),
     )
 

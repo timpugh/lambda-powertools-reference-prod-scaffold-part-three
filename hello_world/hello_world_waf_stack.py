@@ -18,7 +18,11 @@ from aws_cdk import (
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
-from hello_world.nag_utils import apply_compliance_aspects, grant_logs_service_to_key
+from hello_world.nag_utils import (
+    apply_compliance_aspects,
+    build_managed_threat_rules,
+    grant_logs_service_to_key,
+)
 
 
 class HelloWorldWafStack(Stack):
@@ -91,74 +95,10 @@ class HelloWorldWafStack(Stack):
                 sampled_requests_enabled=True,
             ),
             rules=[
-                # Blocks IPs with a poor reputation (scanners, botnets, TOR exits)
-                wafv2.CfnWebACL.RuleProperty(
-                    name="AWSManagedRulesAmazonIpReputationList",
-                    priority=0,
-                    statement=wafv2.CfnWebACL.StatementProperty(
-                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
-                            vendor_name="AWS",
-                            name="AWSManagedRulesAmazonIpReputationList",
-                        )
-                    ),
-                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
-                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
-                        cloud_watch_metrics_enabled=True,
-                        metric_name=f"{self.stack_name}-IpReputationList",
-                        sampled_requests_enabled=True,
-                    ),
-                ),
-                # Core rule set — protects against OWASP Top 10 web exploits
-                wafv2.CfnWebACL.RuleProperty(
-                    name="AWSManagedRulesCommonRuleSet",
-                    priority=1,
-                    statement=wafv2.CfnWebACL.StatementProperty(
-                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
-                            vendor_name="AWS",
-                            name="AWSManagedRulesCommonRuleSet",
-                        )
-                    ),
-                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
-                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
-                        cloud_watch_metrics_enabled=True,
-                        metric_name=f"{self.stack_name}-CommonRuleSet",
-                        sampled_requests_enabled=True,
-                    ),
-                ),
-                # Blocks requests containing known malicious inputs (SQLi, XSS patterns)
-                wafv2.CfnWebACL.RuleProperty(
-                    name="AWSManagedRulesKnownBadInputsRuleSet",
-                    priority=2,
-                    statement=wafv2.CfnWebACL.StatementProperty(
-                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
-                            vendor_name="AWS",
-                            name="AWSManagedRulesKnownBadInputsRuleSet",
-                        )
-                    ),
-                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
-                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
-                        cloud_watch_metrics_enabled=True,
-                        metric_name=f"{self.stack_name}-KnownBadInputs",
-                        sampled_requests_enabled=True,
-                    ),
-                ),
-                # Blocks requests from anonymizing services (VPN, Tor exits, hosting providers)
-                wafv2.CfnWebACL.RuleProperty(
-                    name="AWSManagedRulesAnonymousIpList",
-                    priority=3,
-                    statement=wafv2.CfnWebACL.StatementProperty(
-                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
-                            vendor_name="AWS",
-                            name="AWSManagedRulesAnonymousIpList",
-                        )
-                    ),
-                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
-                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
-                        cloud_watch_metrics_enabled=True,
-                        metric_name=f"{self.stack_name}-AnonymousIpList",
-                        sampled_requests_enabled=True,
-                    ),
-                ),
+                # The four AWS managed rule groups (priorities 0-3) are shared with
+                # the REGIONAL WebACL on API Gateway — see build_managed_threat_rules
+                # in nag_utils.py for why the list lives in one place.
+                *build_managed_threat_rules(self.stack_name),
                 # Rate limiting — blocks a single client exceeding 200 requests per 5 minutes.
                 # Aggregates by FORWARDED_IP (X-Forwarded-For) because all traffic enters via
                 # CloudFront, so the source IP at WAF is CloudFront's edge — not the caller's.

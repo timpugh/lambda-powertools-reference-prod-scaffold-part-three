@@ -1,8 +1,9 @@
 from typing import Any
 
 from aws_cdk import (
+    Annotations,
     CfnOutput,
-    CustomResourceProvider,
+    CustomResourceProviderBase,
     Duration,
     Fn,
     RemovalPolicy,
@@ -51,6 +52,7 @@ from cdk_nag import NagSuppressions
 from constructs import Construct
 
 from hello_world.nag_utils import (
+    AWS_CUSTOM_RESOURCE_PROVIDER_ID,
     CDK_LAMBDA_SUPPRESSIONS,
     apply_compliance_aspects,
     attach_async_failure_destination,
@@ -72,17 +74,29 @@ class HelloWorldFrontendStack(Stack):
     SSM Parameter Store (enabled by cross_region_references=True in app.py).
     """
 
-    def __init__(self, scope: Construct, construct_id: str, api_url: str, waf_acl_arn: str, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        *,
+        api_url: str,
+        api_id: str,
+        waf_acl_arn: str,
+        **kwargs: Any,
+    ) -> None:
         """Provision all frontend AWS resources.
 
         Args:
             scope: The CDK construct scope.
             construct_id: The unique identifier for this stack.
             api_url: The backend API Gateway URL, injected into config.json at deploy time.
+            api_id: The backend API Gateway REST API ID, used to pin the CSP connect-src
+                to the exact execute-api host instead of a region-wide wildcard.
             waf_acl_arn: ARN of the WAF WebACL from HelloWorldWafStack (always in us-east-1).
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
+        self._api_id = api_id
 
         apply_compliance_aspects(self)
 
@@ -200,6 +214,12 @@ class HelloWorldFrontendStack(Stack):
 
         self._create_s3_audit_trail(audited_buckets=[bucket, access_log_bucket], encryption_key=frontend_encryption_key)
 
+        # ── CloudFront response headers ──────────────────────────────────────
+        # Custom ResponseHeadersPolicy (replaces the AWS-managed SECURITY_HEADERS)
+        # adding HSTS + CSP on top of the four headers that policy provided.
+        # See _build_response_headers_policy for the full rationale.
+        response_headers_policy = self._build_response_headers_policy()
+
         # ── CloudFront distribution ──────────────────────────────────────────
         distribution = cloudfront.Distribution(
             self,
@@ -208,7 +228,7 @@ class HelloWorldFrontendStack(Stack):
                 origin=origins.S3BucketOrigin.with_origin_access_control(bucket),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
-                response_headers_policy=cloudfront.ResponseHeadersPolicy.SECURITY_HEADERS,
+                response_headers_policy=response_headers_policy,
             ),
             default_root_object="index.html",
             error_responses=[
@@ -383,11 +403,19 @@ class HelloWorldFrontendStack(Stack):
         # BucketDeployment's built-in invalidation hook.
         #
         # CallerReference is gated on the BucketDeployment's content-hashed S3
-        # object key. Same assets → same key → CFN sees no change → no
-        # invalidation fires (correct: nothing to invalidate). Different assets
-        # → different key → CFN fires on_update → invalidation runs. Prevents
-        # backend-only deploys from burning the 1000/month free invalidation
-        # quota. See README "Design decisions" for the longer write-up.
+        # object key. Same assets → same key → CFN sees no change → no invalidation
+        # fires (correct: nothing to invalidate). Different assets → different key →
+        # CFN fires on_update → invalidation runs. Prevents backend-only deploys from
+        # burning the 1000/month free invalidation quota. See README "Design
+        # decisions" for the longer write-up.
+        #
+        # NOTE: CloudFront caps CallerReference at 128 characters, so we cannot fold
+        # the api_url (or other identifiers) into it — the content-hashed object key
+        # alone is already ~68 chars. If a backend-only API replacement changes
+        # config.json's contents, that path is covered because Source.json_data
+        # writes config.json as part of the BucketDeployment asset, so its hash —
+        # and thus this object key — changes when api_url changes.
+        # object_keys is a CDK list-token, not a Python list — use Fn.select.
         cf_invalidation_call = cr.AwsSdkCall(
             service="CloudFront",
             action="createInvalidation",
@@ -395,7 +423,6 @@ class HelloWorldFrontendStack(Stack):
                 "DistributionId": distribution.distribution_id,
                 "InvalidationBatch": {
                     "Paths": {"Quantity": 1, "Items": ["/*"]},
-                    # object_keys is a CDK list-token, not a Python list — use Fn.select.
                     "CallerReference": Fn.select(0, bucket_deployment.object_keys),
                 },
             },
@@ -499,32 +526,10 @@ class HelloWorldFrontendStack(Stack):
             ],
         )
 
-        # ── Explicit log group for the CDK auto-delete Lambda ────────────────
-        # CDK creates a singleton Lambda to empty the bucket before deletion.
-        # It is a CloudFormation-managed Lambda, but its log group is created
-        # implicitly by Lambda and has no retention — it would dangle after
-        # cdk destroy. We find the provider via the construct tree and create
-        # an explicit log group so CloudFormation owns and deletes it.
-        # The lookup is type-checked at runtime instead of cast-asserted: if
-        # CDK ever swaps the provider out for a non-CustomResourceProvider type
-        # the explicit isinstance() returns None and the log-group block is
-        # skipped, rather than letting a stale cast() lie its way into a
-        # service_token attribute access that would crash at synth time.
-        auto_delete_provider_node = self.node.try_find_child("Custom::S3AutoDeleteObjectsCustomResourceProvider")
-        auto_delete_provider = (
-            auto_delete_provider_node if isinstance(auto_delete_provider_node, CustomResourceProvider) else None
-        )
-        if auto_delete_provider is not None:
-            # service_token is the Lambda ARN; index 6 of the colon-split is the function name
-            fn_name = Fn.select(6, Fn.split(":", auto_delete_provider.service_token))
-            logs.LogGroup(
-                self,
-                "AutoDeleteObjectsLogGroup",
-                log_group_name=Fn.join("", ["/aws/lambda/", fn_name]),
-                encryption_key=frontend_encryption_key,
-                retention=logs.RetentionDays.ONE_WEEK,
-                removal_policy=RemovalPolicy.DESTROY,
-            )
+        # Explicit CMK log group for the CDK auto-delete-objects singleton Lambda
+        # (see _create_auto_delete_log_group). Returns the provider so the
+        # suppression block below can target it.
+        auto_delete_provider = self._create_auto_delete_log_group(frontend_encryption_key)
 
         self._create_athena_glue_resources(access_log_bucket, frontend_encryption_key)
 
@@ -545,16 +550,18 @@ class HelloWorldFrontendStack(Stack):
             self,
             (
                 "Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C",
-                "AWS679f53fac002430cb0da5b7982bd2287",
+                AWS_CUSTOM_RESOURCE_PROVIDER_ID,
             ),
         )
 
         # ── Async failure destination for the AwsCustomResource provider ────────
         # See HelloWorldStack for the full rationale — CFN invokes the provider
         # async, and without on_failure a crashed provider's payload is lost.
+        # attach_async_failure_destination also emits a CfnOutput of the DLQ URL,
+        # so the returned queue is surfaced for operators rather than unused.
         self.cr_provider_dlq = attach_async_failure_destination(
             self,
-            "AWS679f53fac002430cb0da5b7982bd2287",
+            AWS_CUSTOM_RESOURCE_PROVIDER_ID,
             encryption_key=frontend_encryption_key,
             queue_id="AwsCustomResourceProviderDlq",
         )
@@ -587,6 +594,133 @@ class HelloWorldFrontendStack(Stack):
         NagSuppressions.add_stack_suppressions(
             self,
             [{"id": rule, "reason": reason} for rule, reason in stack_suppressions],
+        )
+
+    def _create_auto_delete_log_group(self, encryption_key: kms.Key) -> CustomResourceProviderBase | None:
+        """Create an explicit CMK log group for the CDK auto-delete-objects singleton.
+
+        CDK creates a singleton Lambda to empty the bucket before deletion. It is a
+        CloudFormation-managed Lambda, but its log group is created implicitly by
+        Lambda and has no retention — it would dangle after ``cdk destroy``. We find
+        the provider via the construct tree and create an explicit log group so
+        CloudFormation owns and deletes it.
+
+        The lookup is type-checked at runtime instead of cast-asserted: if CDK ever
+        swaps the provider out for an incompatible type the explicit isinstance()
+        returns None and the log-group block is skipped, rather than letting a stale
+        cast() lie its way into a service_token attribute access that would crash at
+        synth time. We match ``CustomResourceProviderBase`` (not the narrower
+        ``CustomResourceProvider`` subclass) because CDK 2.248's S3 auto-delete
+        singleton synthesizes as the base type — matching only the subclass silently
+        skipped the log group and let it dangle. Returns the provider (or None) so
+        the caller can attach suppressions to it.
+        """
+        node = self.node.try_find_child("Custom::S3AutoDeleteObjectsCustomResourceProvider")
+        provider = node if isinstance(node, CustomResourceProviderBase) else None
+        # If the node exists but isn't a CustomResourceProvider, a CDK upgrade has
+        # changed the provider's type and the log-group cleanup is silently skipped —
+        # surface that loudly at synth instead of leaving a dangling /aws/lambda/ group.
+        if node is not None and provider is None:
+            Annotations.of(self).add_warning(
+                "S3 auto-delete provider node found but is not a CustomResourceProviderBase — "
+                "its log group will not be created and may dangle after cdk destroy. "
+                "A CDK version bump likely changed the provider type; update AutoDeleteObjectsLogGroup wiring."
+            )
+        if provider is not None:
+            # service_token is the Lambda ARN; index 6 of the colon-split is the function name
+            fn_name = Fn.select(6, Fn.split(":", provider.service_token))
+            logs.LogGroup(
+                self,
+                "AutoDeleteObjectsLogGroup",
+                log_group_name=Fn.join("", ["/aws/lambda/", fn_name]),
+                encryption_key=encryption_key,
+                retention=logs.RetentionDays.ONE_WEEK,
+                removal_policy=RemovalPolicy.DESTROY,
+            )
+        return provider
+
+    def _build_response_headers_policy(self) -> cloudfront.ResponseHeadersPolicy:
+        """Build the CloudFront ResponseHeadersPolicy (managed SECURITY_HEADERS + HSTS + CSP).
+
+        A custom policy instead of the AWS-managed SECURITY_HEADERS policy, which
+        omits two headers a production edge wants: Strict-Transport-Security (HSTS)
+        and Content-Security-Policy (CSP). The four headers the managed policy
+        already provided (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+        X-XSS-Protection) are reproduced here so nothing regresses.
+
+        HSTS: 1-year max-age with includeSubDomains. ``preload`` is intentionally
+        False — the HSTS preload list is keyed on the registrable domain, and a
+        shared ``*.cloudfront.net`` host cannot (and should not) be submitted. A
+        fork that wires a custom domain (see TODO "Enforce TLS 1.2+ minimum")
+        should flip preload=True once ready to commit the domain to the list.
+
+        CSP: the reference page ships inline ``<script>`` and ``<style>`` blocks
+        (the RUM bootstrap in ``<head>`` shares ``window.__appConfigPromise`` with
+        the body handler, relying on synchronous head execution), so
+        ``'unsafe-inline'`` is required on script-src/style-src or the page's own
+        scripts would be blocked. Everything else is locked down:
+        default-src/object-src/base-uri/frame-ancestors are constrained, and
+        script-src/connect-src are scoped to the exact AWS endpoints the page talks
+        to (RUM client script + data plane, Cognito Identity for guest credentials,
+        and this stack's specific execute-api host for the API call). To reach a
+        strict (nonce/hash) CSP without ``'unsafe-inline'``, externalize the two
+        inline scripts into ``'self'``-served .js assets first — CloudFront cannot
+        mint per-response nonces, and static hashes would break on any edit.
+        Tracked in TODO "CSP header on the static page".
+
+        The RUM client script URL is hardcoded to us-east-1 in frontend/index.html
+        regardless of deploy region, so script-src pins us-east-1 specifically
+        while connect-src follows ``self.region`` for the data plane and Cognito.
+        The execute-api host is pinned to this API's exact ID (``self._api_id``, a
+        CDK token resolved to ``{id}.execute-api.{region}.amazonaws.com`` at synth)
+        rather than a ``*.execute-api`` wildcard, so an injected script can only
+        reach this app's own API — not every API in the region/account.
+        """
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://client.rum.us-east-1.amazonaws.com; "
+            "style-src 'self' 'unsafe-inline'; "
+            "connect-src 'self' "
+            f"https://dataplane.rum.{self.region}.amazonaws.com "
+            f"https://cognito-identity.{self.region}.amazonaws.com "
+            f"https://{self._api_id}.execute-api.{self.region}.amazonaws.com; "
+            "img-src 'self' data:; "
+            "font-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'"
+        )
+        return cloudfront.ResponseHeadersPolicy(
+            self,
+            "SecurityHeadersPolicy",
+            response_headers_policy_name=f"{self.stack_name}-security-headers",
+            comment="Security headers for the Hello World frontend (managed SECURITY_HEADERS + HSTS + CSP)",
+            security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
+                content_type_options=cloudfront.ResponseHeadersContentTypeOptions(override=True),
+                frame_options=cloudfront.ResponseHeadersFrameOptions(
+                    frame_option=cloudfront.HeadersFrameOption.DENY,
+                    override=True,
+                ),
+                referrer_policy=cloudfront.ResponseHeadersReferrerPolicy(
+                    referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+                    override=True,
+                ),
+                xss_protection=cloudfront.ResponseHeadersXSSProtection(
+                    protection=True,
+                    mode_block=True,
+                    override=True,
+                ),
+                strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
+                    access_control_max_age=Duration.days(365),
+                    include_subdomains=True,
+                    preload=False,
+                    override=True,
+                ),
+                content_security_policy=cloudfront.ResponseHeadersContentSecurityPolicy(
+                    content_security_policy=csp,
+                    override=True,
+                ),
+            ),
         )
 
     def _create_s3_audit_trail(self, audited_buckets: list[s3.Bucket], encryption_key: kms.Key) -> None:
@@ -1139,6 +1273,14 @@ class HelloWorldFrontendStack(Stack):
                 ),
                 enforce_work_group_configuration=True,
                 publish_cloud_watch_metrics_enabled=True,
+                # Hard ceiling on bytes scanned per query — Athena cancels any query
+                # that would exceed it, capping the per-query cost (Athena bills
+                # $5/TB scanned) against a forgotten WHERE clause or an accidental
+                # full-table scan. 1 GiB is generous for these access-log tables at
+                # sample-app volume and the 7-day log retention; raise it in a fork
+                # with larger log volumes or wider date-range queries. AWS enforces a
+                # 10 MB floor on this field.
+                bytes_scanned_cutoff_per_query=1024 * 1024 * 1024,
             ),
         )
 

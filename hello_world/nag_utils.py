@@ -9,19 +9,24 @@ findings on overlapping controls.
 singleton Lambdas (AwsCustomResource provider, BucketDeployment, S3AutoDeleteObjects).
 Their runtime, memory, tracing, DLQ, VPC, and IAM policies are all managed by
 CDK and cannot be configured by the caller. Import it and pass it to
-``NagSuppressions.add_resource_suppressions_by_path`` or
-``NagSuppressions.add_resource_suppressions`` with ``apply_to_children=True``.
+``NagSuppressions.add_resource_suppressions`` with ``apply_to_children=True``,
+or use the ``suppress_cdk_singletons`` helper. Absolute-path suppression
+(``add_resource_suppressions_by_path``) is intentionally avoided throughout this
+project: the singletons are resolved via ``node.try_find_child`` so suppressions
+keep working when the stacks are nested under a ``cdk.Stage`` (a path string
+would break on the added Stage prefix).
 """
 
 from collections.abc import Iterable
 from typing import cast
 
-from aws_cdk import Aspects, Duration, RemovalPolicy, Stack
+from aws_cdk import Aspects, CfnOutput, Duration, RemovalPolicy, Stack
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_lambda_destinations as destinations
 from aws_cdk import aws_sqs as sqs
+from aws_cdk import aws_wafv2 as wafv2
 from cdk_nag import (
     AwsSolutionsChecks,
     HIPAASecurityChecks,
@@ -31,6 +36,13 @@ from cdk_nag import (
     ServerlessChecks,
 )
 from constructs import Construct, IConstruct
+
+# CDK-managed singleton Lambda construct ID for the AwsCustomResource provider.
+# Derived from CDK's own source hash; stable for years and unaffected by rescoping
+# stacks under a cdk.Stage. Shared here so the backend and frontend stacks — which
+# both suppress it AND attach an async DLQ to it via try_find_child — provably
+# reference the same construct ID rather than re-typing the literal at each site.
+AWS_CUSTOM_RESOURCE_PROVIDER_ID = "AWS679f53fac002430cb0da5b7982bd2287"
 
 
 def apply_compliance_aspects(stack: Stack) -> None:
@@ -94,6 +106,65 @@ def grant_guardduty_service_to_key(key: kms.Key, *, region: str, account: str, p
             },
         )
     )
+
+
+def build_managed_threat_rules(metric_prefix: str) -> list[wafv2.CfnWebACL.RuleProperty]:
+    """Build the four AWS managed rule groups shared by every WebACL in this project.
+
+    Two WebACLs use these: the CLOUDFRONT-scoped ACL in ``HelloWorldWafStack``
+    (browser traffic at the edge) and the REGIONAL-scoped ACL on API Gateway in
+    ``HelloWorldApp`` (closes the ``execute-api`` CloudFront-bypass window). Both
+    need the identical IP-reputation / common / known-bad-inputs / anonymous-IP
+    protections, so the list is defined once here — pylint's R0801 duplicate-code
+    check would otherwise (correctly) flag two ~60-line copies drifting apart, and
+    a managed rule group that's added to one ACL but forgotten on the other is
+    exactly the kind of asymmetry this consolidation prevents.
+
+    The rate-based rule is intentionally NOT part of this shared set. It belongs
+    only on the CLOUDFRONT ACL, where it aggregates by ``FORWARDED_IP`` because
+    CloudFront is the only client the edge sees. On the regional ACL guarding the
+    origin, every request also arrives from a CloudFront edge IP, so an
+    IP-aggregated limit would penalise legitimate funnelled traffic; origin-side
+    volume is bounded instead by API Gateway stage throttling and the function's
+    reserved concurrency.
+
+    Args:
+        metric_prefix: Prefix for each rule's CloudWatch metric name (the caller
+            passes its stack name so metrics stay unique across deployments).
+
+    Returns:
+        The four managed-rule-group ``RuleProperty`` objects at priorities 0-3.
+        Callers that add a rate rule place it at priority 4.
+    """
+
+    def _managed_group(name: str, priority: int, metric_suffix: str) -> wafv2.CfnWebACL.RuleProperty:
+        return wafv2.CfnWebACL.RuleProperty(
+            name=name,
+            priority=priority,
+            statement=wafv2.CfnWebACL.StatementProperty(
+                managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                    vendor_name="AWS",
+                    name=name,
+                )
+            ),
+            override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled=True,
+                metric_name=f"{metric_prefix}-{metric_suffix}",
+                sampled_requests_enabled=True,
+            ),
+        )
+
+    return [
+        # Blocks IPs with a poor reputation (scanners, botnets, TOR exits)
+        _managed_group("AWSManagedRulesAmazonIpReputationList", 0, "IpReputationList"),
+        # Core rule set — protects against OWASP Top 10 web exploits
+        _managed_group("AWSManagedRulesCommonRuleSet", 1, "CommonRuleSet"),
+        # Blocks requests containing known malicious inputs (SQLi, XSS patterns)
+        _managed_group("AWSManagedRulesKnownBadInputsRuleSet", 2, "KnownBadInputs"),
+        # Blocks requests from anonymizing services (VPN, Tor exits, hosting providers)
+        _managed_group("AWSManagedRulesAnonymousIpList", 3, "AnonymousIpList"),
+    ]
 
 
 def attach_async_failure_destination(
@@ -186,6 +257,16 @@ def attach_async_failure_destination(
             {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": "CDK-generated inline policy on singleton service role"},
         ],
         apply_to_children=True,
+    )
+
+    # Surface the DLQ URL so operators can find captured provider failures. Emitted
+    # here (rather than in each calling stack) so the two call sites don't duplicate
+    # the same CfnOutput block — keeping the queue genuinely consumed, not just bound.
+    CfnOutput(
+        cast(Construct, scope),
+        f"{queue_id}Url",
+        description="SQS DLQ capturing failed async invocations of the AwsCustomResource provider Lambda",
+        value=dlq.queue_url,
     )
 
     return dlq

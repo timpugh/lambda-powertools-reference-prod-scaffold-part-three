@@ -11,6 +11,7 @@ Data Classes.
 import os
 from typing import Any, cast
 
+import boto3
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.event_handler.api_gateway import CORSConfig
@@ -29,9 +30,10 @@ from aws_lambda_powertools.utilities.idempotency import (
 )
 from aws_lambda_powertools.utilities.idempotency.config import IdempotencyConfig
 from aws_lambda_powertools.utilities.idempotency.exceptions import IdempotencyKeyError
-from aws_lambda_powertools.utilities.parameters import get_parameter
+from aws_lambda_powertools.utilities.parameters import SSMProvider
 from aws_lambda_powertools.utilities.parameters.exceptions import GetParameterError
 from aws_lambda_powertools.utilities.typing import LambdaContext
+from botocore.config import Config
 from pydantic import BaseModel, Field
 
 
@@ -51,6 +53,24 @@ def _require_env(name: str) -> str:
 logger = Logger()
 tracer = Tracer()
 metrics = Metrics()
+
+# Shared botocore retry config applied to every AWS SDK client this handler uses
+# (SSM, AppConfig, DynamoDB). botocore retries transient failures by default, but
+# pinning the policy here makes the posture explicit and tunable rather than
+# implicit in the SDK default — the same "visible in code, not implicit in the
+# runtime default" rationale behind setting recursive_loop="Terminate" on the
+# function in CDK. "adaptive" mode adds client-side rate limiting on top of
+# exponential backoff with jitter, which backs off proactively when a dependency
+# starts returning throttling (429) responses; its token-bucket state is useful
+# here because the clients are module-scoped (constructed once below) and reused
+# across every warm invocation, so the limiter persists for the container's life.
+# max_attempts=4 is botocore's "retries AFTER the initial request" count, i.e. up
+# to 5 total attempts — comfortably inside the function's 10s timeout. Retrying is
+# safe because the write path (DynamoDB via @idempotent) is idempotent on the
+# client-supplied Idempotency-Key, and the SSM/AppConfig calls are reads. This
+# implements the AWS "retry with backoff" prescriptive-guidance pattern without
+# hand-rolling a retry loop — see README "Patterns deliberately not used".
+boto_config = Config(retries={"mode": "adaptive", "max_attempts": 4})
 
 # enable_validation=True wires Pydantic into the resolver. Request bodies and
 # response return types are validated against their model annotations, and
@@ -88,6 +108,7 @@ app = APIGatewayRestResolver(
 # actually makes the layer deduplicate.
 persistence_layer = DynamoDBPersistenceLayer(
     table_name=_require_env("IDEMPOTENCY_TABLE_NAME"),
+    boto_config=boto_config,
 )
 idempotency_config = IdempotencyConfig(
     event_key_jmespath='headers."Idempotency-Key" || headers."idempotency-key"',
@@ -95,13 +116,25 @@ idempotency_config = IdempotencyConfig(
     expires_after_seconds=3600,
 )
 
-# Feature Flags setup
+# Feature Flags setup.
+# AppConfigStore is given an explicit appconfigdata client built with the shared
+# retry config. Passing boto_config= (or sdk_config=) to AppConfigStore instead
+# routes through a parameter that Powertools v3 deprecated and emits a warning,
+# so an explicit client is the clean way to apply the retry policy here.
 app_config_store = AppConfigStore(
     environment=_require_env("APPCONFIG_ENV_NAME"),
     application=_require_env("APPCONFIG_APP_NAME"),
     name=_require_env("APPCONFIG_PROFILE_NAME"),
+    boto3_client=boto3.client("appconfigdata", config=boto_config),
 )
 feature_flags = FeatureFlags(store=app_config_store)
+
+# SSM provider for the greeting parameter. An explicit SSMProvider (rather than
+# the module-level get_parameter helper) is used so the shared retry config can
+# be injected — the free helper builds its own client and takes no boto_config.
+# The in-memory cache is per-provider, so reuse this one instance across
+# invocations to preserve warm-container caching (max_age is set per get() call).
+ssm_provider = SSMProvider(boto_config=boto_config)
 
 # Greeting parameter name resolved at module load — fail loudly on
 # misconfiguration rather than letting boto3 reject an empty key at runtime.
@@ -165,7 +198,10 @@ def hello() -> HelloResponse:
     # The greeting changes via deployment, not at runtime, so a longer TTL
     # is safe and meaningfully reduces SSM API spend at higher RPS.
     try:
-        greeting = get_parameter(GREETING_PARAM_NAME, max_age=300)
+        # SSMProvider.get returns str | bytes | dict | None to cover transform/
+        # binary cases; this is a plain String parameter with no transform, so it
+        # is always str at runtime. cast keeps the downstream message typed as str.
+        greeting = cast("str", ssm_provider.get(GREETING_PARAM_NAME, max_age=300))
     except GetParameterError as exc:
         logger.exception("Failed to fetch greeting from SSM", param_name=GREETING_PARAM_NAME)
         raise InternalServerError("Failed to fetch greeting") from exc
@@ -205,6 +241,19 @@ def _resolve_with_idempotency(event: dict[str, Any], context: LambdaContext) -> 
     Split out so the outer handler can catch IdempotencyKeyError (raised by
     @idempotent before this body runs when the request has no Idempotency-Key
     header) and return a 400 instead of letting Lambda surface a 500.
+
+    Caching caveat: @idempotent wraps the whole resolver, and Powertools persists
+    whatever this function *returns* (only raised exceptions are not cached). The
+    APIGatewayRestResolver returns non-2xx outcomes — 404 (unknown route), 422
+    (validation), and the 500 produced when ``hello`` raises InternalServerError —
+    as response dicts rather than exceptions, so those are cached under the
+    client's Idempotency-Key for ``expires_after_seconds`` (1 hour). A client that
+    reuses the same key after fixing the route/payload would get the stale error
+    replayed. This is acceptable for this single-GET reference (the documented
+    contract is one key per logical request — see README "Idempotency keys"); a
+    fork that wants transient errors retried under the same key should move
+    @idempotent onto ``hello`` (the success-bearing function) instead of the
+    resolver, accepting that the missing-key→400 path then needs a separate guard.
     """
     return cast("dict[str, Any]", app.resolve(event, context))
 
@@ -232,7 +281,7 @@ def lambda_handler(event: dict[str, Any], context: LambdaContext) -> dict[str, A
     # passes return values through as Any; .venv (CDK side, no Powertools)
     # already sees the function as Any. The cast is a no-op at runtime.
     try:
-        return cast(dict, _resolve_with_idempotency(event, context))
+        return cast("dict[str, Any]", _resolve_with_idempotency(event, context))
     except IdempotencyKeyError:
         logger.warning("Request rejected: missing Idempotency-Key header")
         return {

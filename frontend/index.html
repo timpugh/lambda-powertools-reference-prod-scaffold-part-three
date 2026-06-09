@@ -72,7 +72,14 @@
     // makes the client attach an X-Amzn-Trace-Id header to outbound fetch()
     // calls so browser spans join the backend API Gateway + Lambda trace.
     (function () {
-      const configPromise = fetch("/config.json").then(function (r) { return r.json(); });
+      // Check r.ok before parsing: CloudFront maps 403/404 → /index.html (200) for
+      // SPA routing, so a missing/forbidden config.json (partial deploy, OAC
+      // misgrant, invalidation race) would otherwise return the HTML index page
+      // and r.json() would throw a confusing "Unexpected token '<'" SyntaxError.
+      const configPromise = fetch("/config.json").then(function (r) {
+        if (!r.ok) throw new Error("config.json fetch failed: " + r.status);
+        return r.json();
+      });
       window.__appConfigPromise = configPromise;
       configPromise.then(function (cfg) {
         if (!cfg || !cfg.rum || !cfg.rum.appMonitorId) return;
@@ -88,6 +95,12 @@
           cfg.rum.appMonitorId,
           "1.0.0",
           cfg.rum.region,
+          // The cwr.js loader host is intentionally pinned to us-east-1 regardless
+          // of deploy region (the loader is region-agnostic; the data plane below
+          // follows cfg.rum.region). The CSP script-src in the CDK
+          // ResponseHeadersPolicy (_build_response_headers_policy) is pinned to
+          // this same us-east-1 host — do not "regionalize" this URL without
+          // updating the CSP to match, or the script will be blocked.
           "https://client.rum.us-east-1.amazonaws.com/1.x/cwr.js",
           {
             sessionSampleRate: 1,
@@ -126,7 +139,16 @@
     const response = document.getElementById("response");
 
     async function getApiUrl() {
-      const cfg = await (window.__appConfigPromise ?? fetch("/config.json").then((r) => r.json()));
+      // Reuse the promise the head IIFE created; the `??` fallback only fires if
+      // that <head> script never ran (stripped / CSP-blocked / failed), in which
+      // case we fetch config.json ourselves with the same r.ok guard.
+      const cfg = await (window.__appConfigPromise ?? fetch("/config.json").then((r) => {
+        if (!r.ok) throw new Error("config.json fetch failed: " + r.status);
+        return r.json();
+      }));
+      if (!cfg || typeof cfg.apiUrl !== "string" || !cfg.apiUrl) {
+        throw new Error("config.json is missing apiUrl");
+      }
       return cfg.apiUrl;
     }
 
@@ -138,16 +160,32 @@
       try {
         const apiUrl = await getApiUrl();
         // Idempotency-Key is required by the Lambda — Powertools' @idempotent
-        // layer keys on this header to deduplicate retries. crypto.randomUUID()
-        // gives a fresh key per click so each user-initiated call is treated
-        // as a distinct logical operation; a real client should reuse the same
-        // key across automatic retries of the same logical request instead.
+        // layer keys on this header to deduplicate retries. A fresh key per click
+        // makes each user-initiated call a distinct logical operation; a real
+        // client should reuse the same key across automatic retries of the same
+        // logical request instead. crypto.randomUUID() is feature-detected so a
+        // pre-2022 browser (no Web Crypto randomUUID) still works — the key only
+        // needs to be reasonably unique, not cryptographically random.
+        const key = (typeof crypto !== "undefined" && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + Math.random().toString(36).slice(2);
         // apiUrl from API Gateway ends in "/", so strip it before joining.
         const base   = apiUrl.replace(/\/$/, "");
         const res    = await fetch(`${base}/hello`, {
-          headers: { "Idempotency-Key": crypto.randomUUID() },
+          headers: { "Idempotency-Key": key },
         });
         const data   = await res.json();
+
+        // Surface non-2xx responses as errors. The backend legitimately returns
+        // 400 (missing Idempotency-Key) and can return 429 under stage throttling;
+        // without this check those bodies would render in the green "success"
+        // style and never reach the RUM recordError hook below.
+        if (!res.ok) {
+          response.textContent = `Error ${res.status}: ${data.message ?? JSON.stringify(data)}`;
+          response.className   = "response error";
+          if (window.cwr) window.cwr("recordError", new Error(`API ${res.status}`));
+          return;
+        }
 
         response.textContent      = data.message ?? JSON.stringify(data);
         response.className        = "response success";
