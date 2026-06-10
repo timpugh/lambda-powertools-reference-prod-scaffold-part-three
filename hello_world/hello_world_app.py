@@ -169,28 +169,42 @@ class HelloWorldApp(Construct):
         # rest in AppConfig. Required because the Lambda's CMK already covers
         # logs/DDB/env-vars; pinning AppConfig to the same key keeps the
         # auditable encryption surface inside one ARN.
+        #
+        # Type is FREEFORM on purpose, not AWS.AppConfig.FeatureFlags: the
+        # native flags type stores the authoring format but its data plane
+        # serves the flattened {"<flag>":{"enabled":bool}} form, which
+        # Powertools FeatureFlags rejects with SchemaValidationError ("feature
+        # 'default' boolean key must be present"). Powertools consumes its OWN
+        # schema ({"<flag>":{"default":bool,"rules":{...}}}) from a freeform
+        # profile — see the Powertools feature-flags docs. Found on a live
+        # deployment; the handler's fallback path masks it at synth/test time.
+        # Name is "-flags" (not the application's "-features") deliberately:
+        # changing a profile's Type forces CFN replacement, and replacement is
+        # create-before-delete — a replacement that keeps the same pinned name
+        # collides with the not-yet-deleted old profile ("Resource already
+        # exists outside the stack"). AppConfig L1s require a name (no CDK
+        # auto-generation), so any future property change that replaces this
+        # profile must change the name in the same commit.
         app_config_profile = appconfig.CfnConfigurationProfile(
             self,
             "FeatureFlagsProfile",
             application_id=self.app_config_app.ref,
-            name=f"{stack.stack_name}-features",
+            name=f"{stack.stack_name}-flags",
             location_uri="hosted",
-            type="AWS.AppConfig.FeatureFlags",
+            type="AWS.Freeform",
             kms_key_identifier=self.encryption_key.key_arn,
         )
 
-        # Initial feature flags configuration.
+        # Initial feature flags configuration, in the Powertools feature-flags
+        # schema. "rules" (conditional enablement, e.g. by source_ip /
+        # user_agent from the evaluation context) can be authored here later.
         flags_version = appconfig.CfnHostedConfigurationVersion(
             self,
             "FeatureFlagsVersion",
             application_id=self.app_config_app.ref,
             configuration_profile_id=app_config_profile.ref,
             content_type="application/json",
-            content=(
-                '{"version":"1","flags":{"enhanced_greeting":'
-                '{"name":"Enhanced Greeting","default":false}},'
-                '"values":{"enhanced_greeting":{"enabled":false}}}'
-            ),
+            content='{"enhanced_greeting":{"default":false}}',
         )
 
         # A hosted configuration version is inert until DEPLOYED: the AppConfig
@@ -457,13 +471,17 @@ class HelloWorldApp(Construct):
 
         # Custom resource to delete the Application Insights auto-created CloudWatch
         # dashboard on stack destroy. Application Insights creates a dashboard named
-        # after the resource group outside of CloudFormation, so CDK cannot own it
-        # directly. This Lambda-backed custom resource calls DeleteDashboards at
-        # destroy time so no dashboard is left behind after cdk destroy.
-        # Policy is scoped to the exact dashboard ARN — CloudWatch dashboards have
-        # a known global ARN format and the name is fixed by the resource group.
+        # "ApplicationInsights-{resource-group-name}" outside of CloudFormation, so
+        # CDK cannot own it directly. Because the resource group's own name already
+        # starts with "ApplicationInsights-", the real dashboard name carries the
+        # DOUBLED prefix — deleting resource_group.name verbatim silently deletes
+        # nothing (verified against a live teardown). This Lambda-backed custom
+        # resource calls DeleteDashboards at destroy time so no dashboard is left
+        # behind after cdk destroy. Policy is scoped to the exact dashboard ARN —
+        # CloudWatch dashboards have a known global ARN format.
+        app_insights_dashboard_name = f"ApplicationInsights-{resource_group.name}"
         app_insights_dashboard_arn = (
-            f"arn:{stack.partition}:cloudwatch::{stack.account}:dashboard/{resource_group.name}"
+            f"arn:{stack.partition}:cloudwatch::{stack.account}:dashboard/{app_insights_dashboard_name}"
         )
         app_insights_dashboard_cleanup = cr.AwsCustomResource(
             self,
@@ -471,8 +489,8 @@ class HelloWorldApp(Construct):
             on_delete=cr.AwsSdkCall(
                 service="CloudWatch",
                 action="deleteDashboards",
-                parameters={"DashboardNames": [resource_group.name]},
-                physical_resource_id=cr.PhysicalResourceId.of(resource_group.name),
+                parameters={"DashboardNames": [app_insights_dashboard_name]},
+                physical_resource_id=cr.PhysicalResourceId.of(app_insights_dashboard_name),
             ),
             policy=cr.AwsCustomResourcePolicy.from_sdk_calls(
                 resources=[app_insights_dashboard_arn],

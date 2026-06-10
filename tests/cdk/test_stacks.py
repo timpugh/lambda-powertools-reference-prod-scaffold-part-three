@@ -281,6 +281,22 @@ class TestBackendStack:
             },
         )
 
+    def test_appinsights_dashboard_cleanup_targets_real_dashboard_name(self, backend_template: Template) -> None:
+        # Application Insights names its auto-created dashboard
+        # "ApplicationInsights-{resource-group-name}", and the resource group
+        # name itself already starts with "ApplicationInsights-" — so the real
+        # dashboard name is the DOUBLED prefix. Deleting resource_group.name
+        # verbatim silently deletes nothing (found as a dangling dashboard
+        # after a live teardown). Both the SDK-call parameter and the scoped
+        # IAM resource must use the doubled-prefix name.
+        crs = backend_template.find_resources("Custom::AWS")
+        deletes = [json.dumps(r["Properties"].get("Delete"), default=str) for r in crs.values()]
+        dashboard_deletes = [d for d in deletes if "deleteDashboards" in d]
+        assert len(dashboard_deletes) == 1, "expected exactly one DeleteDashboards custom resource"
+        assert "ApplicationInsights-ApplicationInsights-TestBackendStack" in dashboard_deletes[0], (
+            "cleanup must target the doubled-prefix dashboard name Application Insights actually creates"
+        )
+
     def test_appconfig_flags_are_deployed_to_environment(self, backend_template: Template) -> None:
         # A hosted configuration version alone is never served: the AppConfig
         # data plane (GetLatestConfiguration) only returns *deployed* config.
@@ -298,6 +314,27 @@ class TestBackendStack:
                 "DeploymentStrategyId": Match.any_value(),
             },
         )
+
+    def test_appconfig_content_is_powertools_schema_in_freeform_profile(self, backend_template: Template) -> None:
+        # Powertools FeatureFlags parses ITS OWN schema ({feature: {default:
+        # bool, rules: ...}}), not AppConfig's native flag format. A profile of
+        # type AWS.AppConfig.FeatureFlags serves the flattened
+        # {feature: {enabled: bool}} form at the data plane, which Powertools
+        # rejects with SchemaValidationError ("feature 'default' boolean key
+        # must be present") — found only on a live deployment because the
+        # handler's fallback masks it. The profile must be freeform and the
+        # hosted content must be the Powertools schema.
+        profiles = backend_template.find_resources("AWS::AppConfig::ConfigurationProfile")
+        (profile,) = profiles.values()
+        assert profile["Properties"].get("Type") in (None, "AWS.Freeform"), (
+            "profile must be freeform — AWS.AppConfig.FeatureFlags serves a format Powertools cannot parse"
+        )
+        versions = backend_template.find_resources("AWS::AppConfig::HostedConfigurationVersion")
+        (version,) = versions.values()
+        content = json.loads(version["Properties"]["Content"])
+        assert content["enhanced_greeting"]["default"] is False
+        assert "flags" not in content
+        assert "values" not in content
 
     def test_regional_waf_log_destination_has_no_wildcard_suffix(self, backend_template: Template) -> None:
         # Same contract as the CloudFront ACL's logging config in the WAF stack:

@@ -87,13 +87,18 @@ def test_ssm_failure_returns_500(apigw_event, lambda_context, lambda_app_module,
     assert ret["statusCode"] == 500
 
 
-def test_feature_flag_failure_falls_back_to_default(apigw_event, lambda_context, lambda_app_module, mocker):
+def test_feature_flag_failure_falls_back_to_default(apigw_event, lambda_context, lambda_app_module, mocker, caplog):
     """Test that a feature flag evaluation failure falls back gracefully.
 
     AppConfig failures are non-critical — the handler catches the Powertools
     FeatureFlags exception types (StoreClientError covers boto3 / network
     errors against the AppConfig data plane) and uses the default value
     (False) rather than failing the whole request.
+
+    The fallback warning must carry the underlying exception (exc_info):
+    without it the cause is invisible in CloudWatch and a permanently broken
+    AppConfig integration looks identical to a transient blip — exactly how
+    a real misconfiguration stayed hidden until the first live deploy.
     """
     mocker.patch.object(
         lambda_app_module.feature_flags,
@@ -106,6 +111,15 @@ def test_feature_flag_failure_falls_back_to_default(apigw_event, lambda_context,
 
     assert ret["statusCode"] == 200
     assert data["message"] == "hello world"
+    # The warning record must carry the underlying exception (exc_info), not
+    # just the generic message. caplog (not capsys) because Powertools'
+    # stdout handler binds the session-level stream, which per-test capsys
+    # never sees; the record itself still propagates to pytest's capture.
+    records = [r for r in caplog.records if "Feature flag evaluation failed" in r.getMessage()]
+    assert records, "expected the fallback warning to be logged"
+    assert records[0].exc_info is not None, "fallback warning must include exc_info"
+    assert records[0].exc_info[0].__name__ == "StoreClientError"
+    assert "AppConfig unavailable" in str(records[0].exc_info[1])
 
 
 def test_unknown_route_returns_404(apigw_event, lambda_context, lambda_app_module):

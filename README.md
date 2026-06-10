@@ -173,6 +173,8 @@ The `@idempotent` decorator uses a DynamoDB table to prevent duplicate processin
 #### Feature Flags
 `FeatureFlags` reads from AWS AppConfig to toggle behavior at runtime. The `enhanced_greeting` flag controls whether the response includes extra text. The CDK stack provisions the AppConfig application, environment, configuration profile, an initial hosted configuration version, **and a deployment** (all-at-once strategy, zero bake). The deployment is load-bearing, not ceremony: AppConfig's data plane (`GetLatestConfiguration`, which Powertools calls) only serves configuration that has been *deployed* to the environment — a hosted version alone is inert, the flag could never evaluate true, and every fetch would silently take the handler's error-fallback path. CloudFormation re-runs the deployment whenever the hosted version's content changes.
 
+Two format details matter and were both verified against a live deployment. The profile is **freeform** (`AWS.Freeform`), not the native `AWS.AppConfig.FeatureFlags` type: the native type's data plane serves the flattened `{"<flag>":{"enabled":bool}}` form, which Powertools rejects with `SchemaValidationError` — Powertools consumes its [own schema](https://docs.powertools.aws.dev/lambda/python/latest/utilities/feature_flags/) (`{"<flag>":{"default":bool,"rules":{...}}}`), which is what the hosted version stores. And because the hosted content is CMK-encrypted, every deployment (CFN-managed or CLI `start-deployment`) must pass the `kms_key_identifier` or AppConfig rejects it.
+
 #### OpenAPI spec (build-time, not runtime)
 The Pydantic models and route hints that power `enable_validation=True` also drive an OpenAPI 3 spec. `scripts/generate_openapi.py` imports the Lambda resolver at **docs-build time**, calls `app.get_openapi_json_schema(...)`, writes `docs/openapi.json`, and `docs/api.html` renders it in-browser via [Scalar](https://github.com/scalar/scalar)'s standalone bundle. Zensical copies both files into the built site verbatim.
 
@@ -223,7 +225,7 @@ Resources are split across three stacks. All resources in all stacks have `Remov
 | SSM Parameter | Greeting message (CDK-generated name, read via the `GREETING_PARAM_NAME` env var) |
 | AppConfig Application | Feature flag configuration |
 | AppConfig Environment | `{stack}-env` environment for feature flags |
-| AppConfig Configuration Profile | `{stack}-features` profile with `AWS.AppConfig.FeatureFlags` type |
+| AppConfig Configuration Profile | `{stack}-flags` freeform profile holding the Powertools feature-flags schema (the native `AWS.AppConfig.FeatureFlags` type serves a format Powertools cannot parse — see Design decisions) |
 | AppConfig Deployment Strategy + Deployment | All-at-once strategy (zero bake) deploying the hosted flag configuration to the environment — without a deployment, `GetLatestConfiguration` serves nothing and flags can never evaluate true |
 | Resource Group + Application Insights | CloudWatch Application Insights monitoring |
 | CloudWatch Dashboard | Lambda, API GW, DynamoDB metrics via cdk-monitoring-constructs |
@@ -262,6 +264,8 @@ The WAF and frontend stacks are small enough (single logical unit each) to keep 
 The three stacks are then composed into [`HelloWorldStage`](hello_world/hello_world_stage.py), a [`cdk.Stage`](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html). A Stage groups stacks always deployed together, scopes synthesis under `cdk.out/assembly-{stage}/`, and is the natural boundary for CDK Pipelines. `stack_name=` is set explicitly inside the Stage so CloudFormation names stay as `HelloWorld-{region}` — without the override, the Stage ID would be prepended.
 
 **Generated vs. physical resource names.** Following the ["use generated resource names"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html) best practice, `table_name`, `parameter_name`, and `log_group_name` are left unset on the DynamoDB table, SSM parameter, Lambda log group, and API Gateway access log group — CDK auto-generates unique names from the construct path. This prevents (1) replacement-style schema-change failures from pinned physical names and (2) regional-deployment name collisions. Explicit names are retained only where AWS requires them: the API Gateway execution log group (`API-Gateway-Execution-Logs_{api-id}/{stage}` is service-fixed), the WAF log group (`aws-waf-logs-*` prefix is enforced), and the AppConfig L1 constructs (no auto-generation option via CDK).
+
+Failure (1) is not hypothetical — it happened in this repo, live. Changing the AppConfig configuration profile's `Type` forces CloudFormation replacement, replacement is create-before-delete, and the replacement profile carried the same pinned name as the not-yet-deleted original → `AlreadyExists` ("Resource already exists outside the stack") and a full rollback. The rule for the AppConfig L1s (and any pinned-name resource): **any property change that triggers replacement must change the physical name in the same commit.** That's why the profile is now named `{stack}-flags` (it was `{stack}-features` before its type changed to freeform).
 
 ### Frontend stack
 
@@ -455,7 +459,12 @@ To run queries, open the Athena console, select the workgroup from the stack out
 
 #### Resource cleanup
 
-Every resource in `HelloWorldWafStack` and `HelloWorldFrontendStack` has `RemovalPolicy.DESTROY`, including all CloudWatch log groups, so a successful `cdk destroy --all` leaves nothing behind in any region. The one teardown caveat is the asynchronous access-log delivery race — a late CloudFront/S3 log can repopulate the access-log bucket after `auto_delete_objects` empties it, blocking `DeleteBucket`. Use `make destroy-clean` (see [Destroying a deployment](#destroying-a-deployment)) to empty-then-destroy with a retry.
+Every resource in `HelloWorldWafStack` and `HelloWorldFrontendStack` has `RemovalPolicy.DESTROY`, including all CloudWatch log groups, so a successful `cdk destroy --all` leaves nothing behind in any region. Two asynchronous-delivery races complicate that in practice — both observed on a live teardown, both handled by `make destroy-clean` (see [Destroying a deployment](#destroying-a-deployment)):
+
+1. **S3 access-log race** — a late CloudFront/S3 log can repopulate the access-log bucket after `auto_delete_objects` empties it, blocking `DeleteBucket` with a 409. `destroy-clean` empties first, destroys, and on failure empties again and retries once.
+2. **CloudWatch log-group race** — the custom-resource provider and BucketDeployment Lambdas flush their final teardown logs *after* CloudFormation deleted their CMK-encrypted log groups, and the Lambda service re-creates the configured group on delivery — leaving unencrypted, retention-less groups dangling. `destroy-clean` finishes with a `_delete-straggler-log-groups` sweep over the template's log-group prefixes.
+
+The Application Insights auto-created dashboard has a naming trap worth knowing: the service names it `ApplicationInsights-{resource-group-name}`, and since the resource group's own name already starts with `ApplicationInsights-`, the real dashboard carries a **doubled prefix** (`ApplicationInsights-ApplicationInsights-{stack}`). The `AppInsightsDashboardCleanup` custom resource targets that doubled name — deleting `resource_group.name` verbatim looks right, succeeds silently, and deletes nothing (a CDK assertion test pins the correct name).
 
 Note: CDK creates an internal singleton Lambda to empty the S3 bucket before deletion (`Custom::S3AutoDeleteObjects`). Its log group is explicitly declared in the stack so CloudFormation owns it and deletes it on destroy — following the same principle as the API Gateway execution log group in the backend stack.
 
@@ -533,10 +542,12 @@ cdk deploy --all -c region=ap-southeast-1
 ### Destroying a deployment
 
 ```bash
-# Recommended: empties the async-log buckets first, then destroys (see note below)
+# Recommended: empties the async-log buckets first, destroys, then sweeps
+# straggler CloudWatch log groups re-created by late async log delivery
 make destroy-clean
 
-# Or destroy directly (may fail on the access-log bucket — see note)
+# Or destroy directly (may fail on the access-log bucket, and leaves any
+# log groups that async delivery re-creates — see notes)
 cdk destroy --all
 
 # Destroy a specific regional deployment (does not affect other regions)
@@ -1329,6 +1340,8 @@ make upgrade COOLDOWN_DAYS=0             # disable cooldown
 **CORS is open (`allow_origin="*"`)** — the Lambda handler configures `APIGatewayRestResolver` with `CORSConfig(allow_origin="*")` for simplicity. In production, restrict this to the specific CloudFront domain (e.g., `allow_origin="https://d1234.cloudfront.net"`) and set `allow_credentials=True` if the API requires cookies or Authorization headers. Leaving CORS open in production allows any origin to call the API from a browser.
 
 **Error handling** — the handler demonstrates the recommended pattern for production Lambda error handling. Critical downstream failures catch the *specific* expected exception type — `aws_lambda_powertools.utilities.parameters.exceptions.GetParameterError` for the SSM call, which is what Powertools raises after wrapping any underlying `botocore` failure — and re-raise as `InternalServerError` so the API responds with a meaningful HTTP status. Truly unexpected exceptions (anything *not* a `GetParameterError`) intentionally propagate to Powertools' default handler so the original type surfaces in CloudWatch metrics and X-Ray rather than being silently flattened to a generic 500. Non-critical failures (AppConfig feature flag evaluation) fall back to a safe default rather than failing the whole request. As you extend this project, apply the same pattern to any new downstream call: decide whether the failure is critical (catch the specific expected type and raise `InternalServerError`) or non-critical (log a warning, use a default), and add a corresponding unit test for each path.
+
+One hard-won addendum on the non-critical path: **the fallback warning must log the exception (`exc_info=True`)**. A graceful fallback without the cause makes a permanently broken integration indistinguishable in CloudWatch from a transient blip — this repo's AppConfig schema mismatch hid behind exactly that warning until the first live deployment, and only adding `exc_info` to the log line exposed the `SchemaValidationError` that explained it. A unit test pins the exception onto the log record so the diagnostic can't regress.
 
 **Idempotency keys come from a client-supplied `Idempotency-Key` header** — Powertools' `@idempotent` decorator is configured with `event_key_jmespath='headers."idempotency-key"'` and `raise_on_no_idempotency_key=True`. HTTP header names are case-insensitive but JMESPath lookups are exact-match, so the handler lowercases all header keys before the idempotency layer sees the event — any casing the caller sends (`Idempotency-Key`, `IDEMPOTENCY-KEY`, …) matches the single lowercase lookup. A request without the header trips Powertools' `IdempotencyKeyError`, which the outer handler catches and converts to a 400 — making the requirement enforced rather than implicit. Keying on a caller-controlled value is what actually makes the layer deduplicate; the obvious-looking `requestContext.requestId` alternative is regenerated by API Gateway on every retry and would cause every call to write a fresh DynamoDB record without ever short-circuiting. Clients should generate the key as a UUID per logical operation (per the [Powertools Idempotency docs](https://docs.aws.amazon.com/powertools/python/latest/utilities/idempotency/)) and reuse it across retries.
 

@@ -226,7 +226,12 @@ def hello() -> HelloResponse:
             default=False,
         )
     except (ConfigurationStoreError, SchemaValidationError, StoreClientError):
-        logger.warning("Feature flag evaluation failed, falling back to default")
+        # exc_info=True puts the underlying exception in the log record —
+        # without it a permanently broken AppConfig integration (bad IAM, bad
+        # config, KMS denial) is indistinguishable in CloudWatch from a
+        # transient network blip, and the cause is unrecoverable after the
+        # fact. Kept at WARNING because the request still succeeds.
+        logger.warning("Feature flag evaluation failed, falling back to default", exc_info=True)
         enhanced = False
 
     if enhanced:

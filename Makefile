@@ -29,7 +29,8 @@ LAMBDA_RUN := $(LAMBDA_ENV) uv run
 .PHONY: help install install-cdk install-lambda doctor test test-cdk test-integration \
 	lint format typecheck security cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy destroy destroy-clean _empty-frontend-buckets docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
+	deploy destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
+	docs docs-open docs-serve lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -224,20 +225,53 @@ _empty-frontend-buckets:
 		aws s3 rm "s3://$$b" --recursive --region $(REGION) >/dev/null 2>&1 || true; \
 	done
 
+# CloudWatch log delivery is asynchronous in the same way: the custom-resource
+# provider and BucketDeployment Lambdas flush their final teardown logs AFTER
+# CloudFormation deleted their (CMK-encrypted) log groups, and the Lambda service
+# re-creates the configured group on delivery — leaving unencrypted,
+# retention-less groups dangling after an otherwise-clean destroy (observed on a
+# live teardown). Conservative prefixes: everything this template creates starts
+# with "HelloWorld" (stack-named groups), "/aws/lambda/HelloWorld" (function
+# groups, including names the Lambda service truncates mid-word), or
+# "aws-waf-logs-HelloWorld" (WAF groups — swept in us-east-1 too because the WAF
+# stack always lives there regardless of REGION). Idempotent; missing groups are
+# no-ops.
+_delete-straggler-log-groups:
+	@echo "Sweeping straggler CloudWatch log groups..."
+	@for prefix in "HelloWorld" "/aws/lambda/HelloWorld" "aws-waf-logs-HelloWorld"; do \
+		for lg in $$(aws logs describe-log-groups --log-group-name-prefix "$$prefix" \
+			--region $(REGION) --query "logGroups[].logGroupName" --output text 2>/dev/null); do \
+			echo "  deleting $$lg ($(REGION))"; \
+			aws logs delete-log-group --log-group-name "$$lg" --region $(REGION) 2>/dev/null || true; \
+		done; \
+	done
+	@if [ "$(REGION)" != "us-east-1" ]; then \
+		for prefix in "/aws/lambda/HelloWorldWaf" "aws-waf-logs-HelloWorldWaf"; do \
+			for lg in $$(aws logs describe-log-groups --log-group-name-prefix "$$prefix" \
+				--region us-east-1 --query "logGroups[].logGroupName" --output text 2>/dev/null); do \
+				echo "  deleting $$lg (us-east-1)"; \
+				aws logs delete-log-group --log-group-name "$$lg" --region us-east-1 2>/dev/null || true; \
+			done; \
+		done; \
+	fi
+
 # CloudFront / S3 / CloudTrail log delivery is ASYNCHRONOUS, so a log file can land
 # in the access-log (or CloudTrail) bucket AFTER cdk's auto_delete_objects empties
 # it during teardown — leaving DeleteBucket with a 409 "bucket not empty" and the
 # stack in DELETE_FAILED. This target empties the frontend log buckets first to
 # shrink that window, then destroys; if a straggler log still lands while the
 # CloudFront distribution is deleting (which takes minutes), it empties once more
-# and retries. Re-running the whole target is always safe — emptying is idempotent.
-destroy-clean: ## Empty async-log buckets, then destroy all stacks (avoids the CloudFront-log teardown race). REGION=us-east-1 default.
+# and retries. After destroy, straggler CloudWatch log groups (re-created by
+# late async log delivery — see _delete-straggler-log-groups) are swept.
+# Re-running the whole target is always safe — every step is idempotent.
+destroy-clean: ## Empty async-log buckets, destroy all stacks, sweep straggler log groups. REGION=us-east-1 default.
 	@$(MAKE) _empty-frontend-buckets REGION=$(REGION)
 	cdk destroy '**' --force -c region=$(REGION) || { \
 		echo "destroy hit a late-arriving log straggler — emptying again and retrying once..."; \
 		$(MAKE) _empty-frontend-buckets REGION=$(REGION); \
 		cdk destroy '**' --force -c region=$(REGION); \
 	}
+	@$(MAKE) _delete-straggler-log-groups REGION=$(REGION)
 
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files
