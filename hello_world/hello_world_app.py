@@ -658,8 +658,15 @@ class HelloWorldApp(Construct):
             pattern="ERROR",
             alarm_friendly_name="lambda error logs",
         )
+        # Explicit names: the facade otherwise derives them from
+        # api.rest_api_name, which is an unresolved CDK token at synth (the
+        # RestApi physical name is generated at deploy) — the token then
+        # stringifies into the template as a literal "TokenTOKEN<n>" fragment
+        # in both the alarm name and the dashboard widget title.
         monitoring.monitor_api_gateway(
             api=self.api,
+            human_readable_name="HelloWorldApi",
+            alarm_friendly_name="HelloWorldApi",
             add5_xx_fault_rate_alarm={"internal_error": ErrorRateThreshold(max_error_rate=1)},
         )
         monitoring.monitor_dynamo_table(table=self.idempotency_table)

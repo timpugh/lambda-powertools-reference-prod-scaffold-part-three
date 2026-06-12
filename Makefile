@@ -254,14 +254,19 @@ _empty-frontend-buckets:
 # retention-less groups dangling after an otherwise-clean destroy (observed on a
 # live teardown). Prefixes are scoped to the FULL stack names of the deployment
 # being torn down — "HelloWorld$(ENVSEG)-$(REGION)" etc. for stack-named groups,
-# "/aws/lambda/<stack-name>" for function groups (including names the Lambda
-# service truncates mid-word — truncation happens at the END, so the prefix
-# still matches), and "aws-waf-logs-<stack-name>" for WAF groups. The env
-# segment in the prefix is what keeps multi-environment accounts safe: a bare
-# "HelloWorld" prefix would also sweep the log groups of every OTHER deployment
-# environment still running in the account. WAF-stack-derived groups are swept
-# in us-east-1 too because the WAF stack always lives there regardless of
-# REGION. Idempotent; missing groups are no-ops.
+# "/aws/lambda/<stack-name>" for function groups, and "aws-waf-logs-<stack-name>"
+# for WAF groups. The env segment in the prefix is what keeps multi-environment
+# accounts safe: a bare "HelloWorld" prefix would also sweep the log groups of
+# every OTHER deployment environment still running in the account.
+# WAF-stack-derived groups are swept in us-east-1 too because the WAF stack
+# always lives there regardless of REGION. Idempotent; missing groups are no-ops.
+#
+# KNOWN GAP these prefixes cannot close (handled by the snapshot pass below):
+# CloudFormation composes Lambda physical names as {stack-name}-{logical-id}-
+# {suffix} truncated to 64 chars, and the truncation cuts the STACK-NAME
+# PORTION mid-word — a live teardown left
+# "/aws/lambda/HelloWorldFrontend-us-eas-CustomS3AutoDeleteObject-…" behind
+# ("us-eas", not "us-east-1"), which no full-stack-name prefix can match.
 _delete-straggler-log-groups:
 	@echo "Sweeping straggler CloudWatch log groups..."
 	@for base in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)"; do \
@@ -281,6 +286,46 @@ _delete-straggler-log-groups:
 		done; \
 	done
 
+# Where the pre-destroy log-group snapshot is written ("<region> <name>" lines).
+# Env+region-scoped filename so concurrent teardowns of different deployments
+# never clobber each other's snapshots.
+LOG_GROUP_SNAPSHOT := /tmp/log-group-snapshot$(ENVSEG)-$(REGION).txt
+
+# Records the exact physical names of every CFN-owned log group in the three
+# stacks BEFORE destroy. This is what makes the truncated-name gap above
+# closeable: prefixes can't reconstruct a mid-word-truncated function name,
+# but CloudFormation knows each group's exact physical ID while the stack
+# still exists. Missing stacks contribute nothing (fresh teardown re-runs are
+# no-ops). The WAF stack is queried in us-east-1 (it always lives there).
+_snapshot-log-groups:
+	@echo "Snapshotting CFN-owned log groups (for the post-destroy exact-name sweep)..."
+	@: > $(LOG_GROUP_SNAPSHOT)
+	@for s in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)"; do \
+		aws cloudformation list-stack-resources --stack-name "$$s" --region $(REGION) \
+			--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
+			--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/$(REGION) /" >> $(LOG_GROUP_SNAPSHOT) || true; \
+	done
+	@aws cloudformation list-stack-resources --stack-name "HelloWorldWaf$(ENVSEG)-$(REGION)" --region us-east-1 \
+		--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
+		--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/us-east-1 /" >> $(LOG_GROUP_SNAPSHOT) || true
+	@echo "  $$(wc -l < $(LOG_GROUP_SNAPSHOT) | tr -d ' ') log group(s) snapshotted"
+
+# Deletes any snapshotted group that exists again after destroy — i.e. the
+# groups async log delivery re-created under their exact pre-destroy names,
+# including the truncated-function-name ones the prefix sweep can't see.
+# Exact names only; cannot touch any other deployment's groups by construction.
+_delete-snapshotted-log-groups:
+	@echo "Sweeping re-created CFN-owned log groups by exact name..."
+	@if [ -s $(LOG_GROUP_SNAPSHOT) ]; then \
+		while read -r region lg; do \
+			[ -n "$$lg" ] || continue; \
+			aws logs delete-log-group --log-group-name "$$lg" --region "$$region" 2>/dev/null \
+				&& echo "  deleting $$lg ($$region)" || true; \
+		done < $(LOG_GROUP_SNAPSHOT); \
+	else \
+		echo "  no snapshot found ($(LOG_GROUP_SNAPSHOT)) — skipping"; \
+	fi
+
 # CloudFront / S3 / CloudTrail log delivery is ASYNCHRONOUS, so a log file can land
 # in the access-log (or CloudTrail) bucket AFTER cdk's auto_delete_objects empties
 # it during teardown — leaving DeleteBucket with a 409 "bucket not empty" and the
@@ -290,14 +335,24 @@ _delete-straggler-log-groups:
 # and retries. After destroy, straggler CloudWatch log groups (re-created by
 # late async log delivery — see _delete-straggler-log-groups) are swept.
 # Re-running the whole target is always safe — every step is idempotent.
+# The retry block invokes make via the shell's $$MAKE (exported by make into
+# every recipe environment), NOT the literal $(MAKE) variable reference. The
+# distinction is load-bearing: make executes any recipe line containing
+# $(MAKE)/$ {MAKE} even under -n, so with the literal form a "dry-run"
+# `make -n destroy-clean` would have REALLY run `cdk destroy` against the
+# live stacks (observed; the recipe line is one shell command, so the destroy
+# rides along with the recursive call). $$MAKE escapes make's recursive-line
+# scan, making -n print this line instead of executing it.
 destroy-clean: ## Empty async-log buckets, destroy all stacks, sweep straggler log groups. REGION=us-east-1 default.
-	@$(MAKE) _empty-frontend-buckets REGION=$(REGION)
+	@$(MAKE) _snapshot-log-groups REGION=$(REGION) ENV=$(ENV)
+	@$(MAKE) _empty-frontend-buckets REGION=$(REGION) ENV=$(ENV)
 	$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION) || { \
 		echo "destroy hit a late-arriving log straggler — emptying again and retrying once..."; \
-		$(MAKE) _empty-frontend-buckets REGION=$(REGION); \
+		"$$MAKE" _empty-frontend-buckets REGION=$(REGION) ENV=$(ENV); \
 		$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION); \
 	}
-	@$(MAKE) _delete-straggler-log-groups REGION=$(REGION)
+	@$(MAKE) _delete-straggler-log-groups REGION=$(REGION) ENV=$(ENV)
+	@$(MAKE) _delete-snapshotted-log-groups REGION=$(REGION) ENV=$(ENV)
 
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files

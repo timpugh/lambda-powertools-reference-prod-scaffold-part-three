@@ -145,8 +145,14 @@ def grant_cloudwatch_alarms_to_key(key: kms.Key, *, account: str, region: str) -
     ``aws:SourceArn`` is deliberately omitted: unlike CloudTrail/GuardDuty
     above, CloudWatch is not documented to set it on the via-SNS KMS calls, and
     an unmatched required condition would deny the publish — recreating the
-    silent-drop failure this grant exists to prevent. Verify alarm→SNS delivery
-    on a live deployment when changing anything in this statement.
+    silent-drop failure this grant exists to prevent.
+
+    Verified on a live deployment (2026-06): forcing an alarm into ALARM via
+    ``set-alarm-state`` recorded "Successfully executed action <topic-arn>" in
+    the alarm history, confirming the publish (including the KMS data-key
+    operation) clears this exact condition set. Re-verify the same way when
+    changing anything in this statement — a KMS denial appears in alarm
+    history as "Failed to execute action", nowhere else.
     """
     key.add_to_resource_policy(
         iam.PolicyStatement(

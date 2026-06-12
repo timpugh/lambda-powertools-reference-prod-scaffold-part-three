@@ -538,6 +538,10 @@ The stack includes a [cdk-monitoring-constructs](https://github.com/cdklabs/cdk-
 
 Two alarms ship with the dashboard: **Lambda p90 latency** (> 3s) and **API Gateway 5xx fault rate** (> 1%), plus an error-log widget that surfaces recent `ERROR`-level Lambda records next to the metrics. In the default `prod` environment every alarm publishes to a **CMK-encrypted SNS topic** (`AlarmTopicName` CfnOutput) — attach email/Chatbot/PagerDuty subscriptions there to make them page. The thresholds are deliberately modest reference-workload values; size them to real traffic in a fork. Three pieces of wiring make the encrypted alarm path actually deliver, all asserted by `tests/cdk/`: the topic policy admits only `cloudwatch.amazonaws.com` for this account's alarms, `enforce_ssl` denies plaintext publishes, and the project CMK grants CloudWatch `kms:Decrypt`/`kms:GenerateDataKey*` via SNS (`grant_cloudwatch_alarms_to_key` in `nag_utils.py` — without it the alarm fires but the notification is silently dropped at KMS).
 
+The encrypted delivery path was **verified against a live deployment**: forcing an alarm into `ALARM` with `aws cloudwatch set-alarm-state` recorded `Successfully executed action <topic-arn>` in the alarm history, confirming the publish clears the CMK's `kms:ViaService` + `aws:SourceAccount` condition set. That history entry is also where a misconfigured key grant shows up (`Failed to execute action`) — CloudWatch surfaces the KMS denial nowhere else, which is why the grant helper's docstring pins this exact re-verification recipe.
+
+One synth-time gotcha worth knowing: `monitor_api_gateway` derives alarm names and widget titles from `api.rest_api_name`, which is an unresolved CDK token when the RestApi physical name is generated at deploy — the token then stringifies into the template as a literal `TokenTOKEN<n>` fragment (e.g. an alarm literally named `...-HelloWorldApi-TokenTOKEN138-Fault-Rate-...`). The facade call passes explicit `human_readable_name` / `alarm_friendly_name` to keep names deterministic; caught in the synthesized template during pre-deploy review.
+
 Ephemeral environments (`ENV=<name>` deploys) keep the dashboard and alarms but skip the SNS topic entirely — a per-branch stack should never page anyone — with the NIST/HIPAA alarm-action rules suppressed for that shape only.
 
 ## Deploy the application
@@ -628,16 +632,18 @@ npx cdk deploy --all -c region=ap-southeast-1
 ### Destroying a deployment
 
 ```bash
-# Recommended: empties the async-log buckets first, destroys, then sweeps
-# straggler CloudWatch log groups re-created by late async log delivery
+# Recommended: snapshots the stacks' log-group names, empties the async-log
+# buckets, destroys, then sweeps straggler CloudWatch log groups re-created
+# by late async log delivery (by prefix AND by exact snapshotted name)
 make destroy-clean
 
 # Or destroy directly (may fail on the access-log bucket, and leaves any
 # log groups that async delivery re-creates — see notes)
 npx cdk destroy --all
 
-# Destroy a specific regional deployment (does not affect other regions)
+# Destroy a specific regional or ephemeral deployment (does not affect others)
 make destroy-clean REGION=ap-southeast-1
+make destroy-clean ENV=alice-feature-x
 npx cdk destroy --all -c region=ap-southeast-1   # equivalent direct form
 ```
 
@@ -659,6 +665,27 @@ npx cdk destroy --all -c region=ap-southeast-1   # equivalent direct form
 > aws s3 rm "s3://<access-log-bucket-name>" --recursive
 > aws cloudformation delete-stack --stack-name HelloWorldFrontend-<region>
 > ```
+
+**Teardown gotcha #2 — truncated Lambda names defeat prefix-based log-group sweeps.** The same
+async delivery race re-creates CloudWatch **log groups** after CloudFormation deletes them
+(provider Lambdas flush their final teardown logs late). `destroy-clean` sweeps those by
+stack-name prefix — but CloudFormation composes Lambda physical names as
+`{stack-name}-{logical-id}-{suffix}` truncated to 64 chars, and the cut lands **mid-way through
+the stack name**. A live teardown left `/aws/lambda/HelloWorldFrontend-us-eas-CustomS3AutoDeleteObject-…`
+behind (`us-eas`, not `us-east-1`) — a name no full-stack-name prefix can match, and one that a
+*broader* prefix can't safely match either without sweeping other deployment environments'
+groups. `destroy-clean` therefore also **snapshots the exact physical names** of every CFN-owned
+log group before destroying (CloudFormation knows them while the stacks still exist) and, after
+the prefix sweep, deletes any snapshotted name that re-appeared. Exact names only — it cannot
+touch another environment's groups by construction.
+
+**Teardown gotcha #3 — never "dry-run" `destroy-clean` with `make -n`.** make executes any recipe
+line containing the literal `$(MAKE)` reference even under `-n`, and `destroy-clean`'s retry block
+shares its shell line with the `cdk destroy` call — so what looks like a dry-run used to really
+destroy the stacks. The retry now invokes make through the shell's `$MAKE` environment variable
+(which make's recursive-line scan does not match), so `-n` prints the destroy line instead of
+running it. The general lesson holds for any Makefile: a `$(MAKE)` embedded in a destructive
+recipe line silently converts `-n` into a live run.
 
 ### Cleanup
 
