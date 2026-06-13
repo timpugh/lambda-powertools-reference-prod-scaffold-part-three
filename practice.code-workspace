@@ -13,6 +13,10 @@
             "path": "tests/unit"
         },
         {
+            "name": "Integration tests",
+            "path": "tests/integration"
+        },
+        {
             "name": "Scripts",
             "path": "scripts"
         }
