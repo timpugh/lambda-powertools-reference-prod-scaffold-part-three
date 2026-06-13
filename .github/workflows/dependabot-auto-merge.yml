@@ -2,13 +2,21 @@ name: Dependabot Auto-merge
 
 on: pull_request
 
+# Least privilege at the top level: the default token is read-only here, and
+# the only job that needs write scopes them itself (below). Keeping write off
+# the top level is what the OpenSSF Scorecard Token-Permissions check rewards,
+# and it means any job added later starts read-only by default.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
+    # Write scopes live on the one job that uses them: contents:write to merge,
+    # pull-requests:write to approve + enable auto-merge.
+    permissions:
+      contents: write
+      pull-requests: write
     # Gate on the PR's *author*, not the latest event's actor. github.actor is
     # whoever triggered the most recent run — when a maintainer pushes a fix to
     # a Dependabot branch (e.g. `make lock` after the lambda/requirements.txt
