@@ -253,6 +253,14 @@ addopts = [
 log_cli = true          # stream log output in real time during the test run
 log_cli_level = "WARNING"  # only show WARNING and above (suppress DEBUG/INFO noise)
 env = [
+    # Required because importing lambda/app.py constructs boto3 clients
+    # (SSM / AppConfig / DynamoDB) at module load, and a boto3 client needs a
+    # region. Declaring it here keeps the unit suite hermetic — no ambient AWS
+    # config required — so every path that runs it (make test, make coverage,
+    # make coverage-badge, and CI, including the docs job's badge step) gets a
+    # region without setting one per-invocation. Unit tests mock all AWS calls,
+    # so the value is never used against a real endpoint.
+    "AWS_DEFAULT_REGION=us-east-1",
     "AWS_BACKEND_STACK_NAME=HelloWorld-us-east-1",
     "AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-us-east-1",
     "POWERTOOLS_IDEMPOTENCY_DISABLED=true",
