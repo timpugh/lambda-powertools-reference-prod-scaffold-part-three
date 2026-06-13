@@ -900,7 +900,7 @@ Tests live in `tests/`. Run via `make test` (unit, in `.venv-lambda`), `make tes
 Unit tests mock all external AWS dependencies so they run locally without credentials or a deployed stack:
 
 - **Shared fixtures** in `tests/conftest.py` (API Gateway event, Lambda context, app module reference). The autouse mock for SSM Parameters and Feature Flags lives in `tests/unit/conftest.py` so it only applies to unit tests.
-- **Env vars centralized** in `pyproject.toml` via pytest-env — Powertools config, mock resource names, and `POWERTOOLS_IDEMPOTENCY_DISABLED=true` (the Powertools-recommended way to skip DynamoDB calls during tests; not set in production).
+- **Env vars centralized** in `pyproject.toml` via pytest-env — Powertools config, mock resource names, `POWERTOOLS_IDEMPOTENCY_DISABLED=true` (the Powertools-recommended way to skip DynamoDB calls during tests; not set in production), and `AWS_DEFAULT_REGION` so the suite is hermetic (boto3 clients are built at import and need a region even when mocked — see [Pytest behavior](#pytest-behavior)).
 - **External calls mocked** via `pytest-mock`'s `mocker.patch.object()` against `get_parameter` and `feature_flags.evaluate`. The Lambda context is a `MagicMock` with realistic attributes.
 - **Import path isolation** — `tests/conftest.py` puts `lambda/` on `sys.path` before the root so `import app` resolves to the Lambda handler (`lambda/app.py`), not the CDK entry point (`app.py`).
 
@@ -949,6 +949,9 @@ All driven by `pyproject.toml`'s `[tool.pytest.ini_options]`:
 | **Coverage** | `--cov=lambda --cov-branch --cov-report=term-missing --cov-report=html --cov-fail-under=100 --no-cov-on-fail`; HTML report at `htmlcov/index.html` |
 | **Parallel** | `-n auto` via pytest-xdist; disable for debugging with `-n0` |
 | **HTML report** | `--html=report.html --self-contained-html` generated on every run |
+| **Hermetic env** | `[tool.pytest.ini_options].env` (pytest-env) supplies every variable the suite needs, including `AWS_DEFAULT_REGION` — so no run depends on ambient AWS config |
+
+**The test suite is hermetic by design — including the AWS region.** Importing `lambda/app.py` constructs boto3 clients (SSM, AppConfig, DynamoDB) at module load, and a boto3 client requires a region even when every call is mocked. `AWS_DEFAULT_REGION=us-east-1` therefore lives in the pytest-env block alongside the Powertools config and mock resource names, so the unit suite passes the same way no matter where it runs — `make test`, `make coverage`, `make coverage-badge`, the CI `test` job, and the docs workflow's coverage-badge step — with no ambient `~/.aws/config` or per-job region. The value is never used against a real endpoint (all AWS calls are mocked). This was added after the docs job's coverage-badge step hit `botocore NoRegionError`: a region had been set per-step in CI but not declared in the suite's own env, so paths that didn't set one failed — declaring it once in the suite's config closes that gap for every path.
 
 ### Linting and static analysis
 
