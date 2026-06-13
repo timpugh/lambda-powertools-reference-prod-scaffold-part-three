@@ -32,17 +32,30 @@ jobs:
       # --locked mirrors ci.yml and the Makefile: without it a stale uv.lock
       # silently re-resolves in the published-Pages build — the one pipeline
       # with no other gate on the dependency set.
-      - name: Install Lambda env (for OpenAPI generation)
+      - name: Install Lambda env (for OpenAPI generation + unit coverage)
         run: UV_PROJECT_ENVIRONMENT=.venv-lambda uv sync --locked --only-group lambda --only-group test
 
-      - name: Install CDK env (for Zensical build)
-        run: uv sync --locked --group cdk --group docs
+      # The `test` group rides into .venv alongside cdk + docs so the combined
+      # coverage badge can run the CDK suite here (it needs pytest under the CDK
+      # interpreter). Zensical (docs group) builds the site; the cdk + test
+      # groups run the construct tests for the coverage number.
+      - name: Install CDK env (for Zensical build + CDK coverage)
+        run: uv sync --locked --group cdk --group docs --group test
 
       - name: Generate OpenAPI spec
         run: UV_PROJECT_ENVIRONMENT=.venv-lambda uv run python scripts/generate_openapi.py
 
       - name: Build docs
         run: uv run zensical build
+
+      # In-house coverage badge: compute the whole-repo combined coverage and
+      # write the shields.io endpoint JSON straight into the built site, so it
+      # deploys to Pages alongside the docs. The README badge reads it from
+      # there via img.shields.io/endpoint — coverage data never leaves our
+      # infrastructure (see the `coverage-badge` target in the Makefile). Runs
+      # after `zensical build` so it lands in the final site/ before upload.
+      - name: Generate coverage badge
+        run: make coverage-badge COVERAGE_BADGE_JSON=site/coverage-badge.json
 
       - name: Prune uv cache
         run: uv cache prune --ci

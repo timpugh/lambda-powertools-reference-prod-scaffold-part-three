@@ -48,7 +48,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
 	deploy destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
-	docs docs-open docs-serve openapi compare-openapi lock upgrade deps-merge clean clean-venvs
+	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -151,6 +151,25 @@ coverage: ## Combined coverage report across both venvs (hello_world/ + lambda/)
 	uv run python -m coverage report
 	uv run python -m coverage html
 	open htmlcov/index.html
+
+# In-house coverage badge — the deliberate alternative to Codecov (a third-party
+# SaaS this repo skips). Runs the same combined cross-venv coverage as `make
+# coverage`, then writes a shields.io "endpoint" JSON ({label, message, color}).
+# The docs workflow publishes that JSON to our own GitHub Pages, and the README
+# badge points img.shields.io/endpoint at it — so coverage DATA never leaves our
+# infrastructure; shields only renders the three fields, exactly as it already
+# does for the Python/Docs/License badges. No new dependency: the percentage
+# comes from coverage.py's built-in JSON report. --override-ini drops the global
+# unit-only flags so this run sets its own --cov targets and isn't gated (the
+# combined ~96% is informational; the 100% lambda/ gate stays in `make test`/CI).
+COVERAGE_BADGE_JSON ?= coverage-badge.json
+coverage-badge: ## Generate the shields-endpoint coverage badge JSON (whole repo: hello_world/ + lambda/)
+	rm -f .coverage .coverage.json
+	uv run pytest tests/cdk --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
+	$(LAMBDA_RUN) pytest tests/unit --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
+	uv run python -m coverage json -o .coverage.json
+	uv run python -c 'import json; t=round(json.load(open(".coverage.json"))["totals"]["percent_covered"]); c="brightgreen" if t>=95 else "green" if t>=90 else "yellow" if t>=75 else "red"; json.dump({"schemaVersion":1,"label":"coverage","message":str(t)+"%","color":c}, open("$(COVERAGE_BADGE_JSON)","w"))'
+	@echo "Wrote $(COVERAGE_BADGE_JSON): $$(cat $(COVERAGE_BADGE_JSON))"
 
 # =============================================================================
 # Code quality
@@ -524,7 +543,7 @@ deps-merge: ## Process Dependabot PRs (rebase + lock + push + arm auto-merge). U
 clean: ## Remove build artifacts, caches, and coverage files (preserves venvs)
 	# .coverage* (glob, not bare .coverage) also catches the ".coverage 2"-style
 	# suffixed files pytest-cov leaves behind when parallel runs race on the name.
-	rm -rf site htmlcov .coverage* report.html .pytest_cache .mypy_cache .ruff_cache cdk.out
+	rm -rf site htmlcov .coverage* report.html coverage-badge.json .pytest_cache .mypy_cache .ruff_cache cdk.out
 	find . -type d -name __pycache__ -exec rm -rf {} +
 
 # Separate from `clean` because re-installing both venvs takes minutes (CDK
