@@ -118,7 +118,12 @@ class TestRetainDataPlumbing:
 
 
 class TestNagCompliance:
-    """Zero unsuppressed cdk-nag findings, asserted per stack without Docker."""
+    """Zero error-level annotations per stack, asserted without Docker.
+
+    Covers both cdk-nag rule-pack findings and the project's
+    ``TemplateConventionChecks`` validation Aspect — both surface as
+    error-level annotations through ``apply_compliance_aspects``.
+    """
 
     @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend"])
     def test_no_unsuppressed_nag_errors(self, prod_stage: HelloWorldStage, stack_attr: str) -> None:

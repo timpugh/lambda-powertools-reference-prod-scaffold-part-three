@@ -1,9 +1,12 @@
 """Shared cdk-nag helpers.
 
 ``apply_compliance_aspects`` applies the full available rule-pack set to a
-stack so every stack exercises the same compliance gauntlet. NIST 800-53 R4
-is intentionally omitted — R5 supersedes it and running both would duplicate
-findings on overlapping controls.
+stack so every stack exercises the same compliance gauntlet, plus this
+project's own ``TemplateConventionChecks`` validation Aspect (log-group
+retention + explicit removal policy on stateful resources — see
+``hello_world.validation_aspects``). NIST 800-53 R4 is intentionally omitted —
+R5 supersedes it and running both would duplicate findings on overlapping
+controls.
 
 ``CDK_LAMBDA_SUPPRESSIONS`` is the canonical suppression list for CDK-managed
 singleton Lambdas (AwsCustomResource provider, BucketDeployment, S3AutoDeleteObjects).
@@ -38,6 +41,8 @@ from cdk_nag import (
 )
 from constructs import Construct, IConstruct
 
+from hello_world.validation_aspects import TemplateConventionChecks
+
 # CDK-managed singleton Lambda construct IDs. Derived from CDK's own source
 # hashes; stable for years and unaffected by rescoping stacks under a cdk.Stage.
 # Shared here so the stacks that suppress these singletons AND attach async DLQs
@@ -48,12 +53,15 @@ BUCKET_DEPLOYMENT_PROVIDER_ID = "Custom::CDKBucketDeployment8693BB64968944B69AAF
 
 
 def apply_compliance_aspects(stack: Stack) -> None:
-    """Attach every cdk-nag rule pack this project runs to ``stack``."""
+    """Attach every cdk-nag rule pack plus this project's validation Aspect to ``stack``."""
     Aspects.of(stack).add(AwsSolutionsChecks(verbose=True))
     Aspects.of(stack).add(ServerlessChecks(verbose=True))
     Aspects.of(stack).add(NIST80053R5Checks(verbose=True))
     Aspects.of(stack).add(HIPAASecurityChecks(verbose=True))
     Aspects.of(stack).add(PCIDSS321Checks(verbose=True))
+    # Project-specific invariants no rule pack covers: log-group retention and
+    # explicit removal policies on stateful resources.
+    Aspects.of(stack).add(TemplateConventionChecks())
 
 
 def grant_logs_service_to_key(key: kms.Key, *, region: str, account: str, partition: str) -> None:
