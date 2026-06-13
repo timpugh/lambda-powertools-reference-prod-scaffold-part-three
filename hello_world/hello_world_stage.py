@@ -1,10 +1,14 @@
-"""HelloWorldStage — groups the WAF, backend, and frontend stacks as one deploy unit.
+"""HelloWorldStage — groups the data, WAF, backend, and frontend stacks as one deploy unit.
 
-The three stacks are always deployed together for a given region, so modelling
+The four stacks are always deployed together for a given region, so modelling
 them as a :class:`cdk.Stage` makes that relationship structural rather than
 conventional. A Stage also scopes the synthesised cloud assembly under its
 own subdirectory (``cdk.out/assembly-{stage}/``), which keeps multi-region
 synths from mixing their templates in the root of ``cdk.out/``.
+
+The data stack holds the stateful resources (the DynamoDB idempotency table
+and its dedicated CMK), kept separate from the stateless compute stack so the
+two can have independent lifecycles — see :mod:`hello_world.hello_world_data_stack`.
 
 This change also paves the way for CDK Pipelines (each Stage is the natural
 deployment unit) and for a future multi-environment layout (dev/staging/prod
@@ -35,6 +39,7 @@ from typing import Any
 import aws_cdk as cdk
 from constructs import Construct
 
+from hello_world.hello_world_data_stack import HelloWorldDataStack
 from hello_world.hello_world_frontend_stack import HelloWorldFrontendStack
 from hello_world.hello_world_stack import HelloWorldStack
 from hello_world.hello_world_waf_stack import HelloWorldWafStack
@@ -94,17 +99,24 @@ def _owner_tag_value() -> str:
 
 
 class HelloWorldStage(cdk.Stage):
-    """All three stacks (WAF, backend, frontend) for a single regional deployment.
+    """All four stacks (data, WAF, backend, frontend) for a single regional deployment.
 
     The WAF stack is always pinned to ``us-east-1`` (CloudFront-scoped WebACLs
-    must live there). The backend and frontend deploy to ``region``. When
-    ``region`` differs from ``us-east-1``, ``cross_region_references=True``
-    on the frontend stack bridges the WAF ARN through SSM automatically.
+    must live there). The data, backend, and frontend stacks deploy to
+    ``region``. When ``region`` differs from ``us-east-1``,
+    ``cross_region_references=True`` on the frontend stack bridges the WAF ARN
+    through SSM automatically.
 
     ``env_name`` selects the deployment environment (see module docstring):
     ``prod`` (default) keeps the legacy stack names and routes alarms to SNS;
     anything else gets env-suffixed, collision-free stack names with alarm
     paging disabled.
+
+    ``retain_data`` is the production switch for the stateful data stack: when
+    ``True`` the idempotency table and its CMK flip to ``RemovalPolicy.RETAIN``
+    with DynamoDB deletion protection and stack termination protection. It
+    defaults to ``False`` so the template (and ephemeral environments) tear
+    down cleanly; production forks set it via ``-c retain_data=true``.
     """
 
     def __init__(
@@ -114,6 +126,7 @@ class HelloWorldStage(cdk.Stage):
         *,
         region: str,
         env_name: str = DEFAULT_ENV_NAME,
+        retain_data: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -126,6 +139,7 @@ class HelloWorldStage(cdk.Stage):
         # own namespaced set of stacks.
         env_segment = "" if is_production_env else f"-{env_name}"
         waf_stack_name = f"HelloWorldWaf{env_segment}-{region}"
+        data_stack_name = f"HelloWorldData{env_segment}-{region}"
         backend_stack_name = f"HelloWorld{env_segment}-{region}"
         frontend_stack_name = f"HelloWorldFrontend{env_segment}-{region}"
 
@@ -151,10 +165,24 @@ class HelloWorldStage(cdk.Stage):
             tags=stack_tags,
         )
 
+        # Stateful data layer (DynamoDB + its own CMK). Created before the
+        # backend so its idempotency table can be handed to the compute stack
+        # cross-stack. retain_data governs RETAIN/DESTROY + deletion/termination
+        # protection (see HelloWorldDataStack).
+        self.data = HelloWorldDataStack(
+            self,
+            data_stack_name,
+            stack_name=data_stack_name,
+            retain_data=retain_data,
+            env=target_env,
+            tags=stack_tags,
+        )
+
         self.backend = HelloWorldStack(
             self,
             backend_stack_name,
             stack_name=backend_stack_name,
+            idempotency_table=self.data.idempotency_table,
             is_production_env=is_production_env,
             env=target_env,
             tags=stack_tags,

@@ -53,11 +53,13 @@ class TestEnvironmentNaming:
     def test_prod_default_keeps_legacy_stack_names(self, prod_stage: HelloWorldStage) -> None:
         # Byte-for-byte: a rename here orphans the deployed prod stacks.
         assert prod_stage.waf.stack_name == "HelloWorldWaf-us-east-1"
+        assert prod_stage.data.stack_name == "HelloWorldData-us-east-1"
         assert prod_stage.backend.stack_name == "HelloWorld-us-east-1"
         assert prod_stage.frontend.stack_name == "HelloWorldFrontend-us-east-1"
 
     def test_ephemeral_env_namespaces_every_stack(self, dev_stage: HelloWorldStage) -> None:
         assert dev_stage.waf.stack_name == "HelloWorldWaf-alice-feature-x-us-east-1"
+        assert dev_stage.data.stack_name == "HelloWorldData-alice-feature-x-us-east-1"
         assert dev_stage.backend.stack_name == "HelloWorld-alice-feature-x-us-east-1"
         assert dev_stage.frontend.stack_name == "HelloWorldFrontend-alice-feature-x-us-east-1"
 
@@ -90,7 +92,7 @@ class TestStackTags:
         # cost allocation and console filtering for free. They live in the
         # deploy-time manifest (not the template body), so assert on the
         # stack's tag manager rather than template properties.
-        for stack in (prod_stage.waf, prod_stage.backend, prod_stage.frontend):
+        for stack in (prod_stage.waf, prod_stage.data, prod_stage.backend, prod_stage.frontend):
             tags = stack.tags.tag_values()
             assert tags.get("service") == "hello-world"
             assert tags.get("environment") == "prod"
@@ -100,10 +102,25 @@ class TestStackTags:
         assert dev_stage.backend.tags.tag_values().get("environment") == "alice-feature-x"
 
 
+class TestRetainDataPlumbing:
+    """The Stage forwards retain_data to the stateful data stack."""
+
+    def test_default_stage_data_table_is_destroyable(self, prod_stage: HelloWorldStage) -> None:
+        # Default stage (retain_data omitted) → DESTROY, so the template tears
+        # down cleanly.
+        Template.from_stack(prod_stage.data).has_resource("AWS::DynamoDB::GlobalTable", {"DeletionPolicy": "Delete"})
+
+    def test_retain_data_stage_data_table_is_retained(self) -> None:
+        # retain_data=True flows Stage → HelloWorldDataStack → RETAIN.
+        app = cdk.App(context=_NO_BUNDLING)
+        stage = HelloWorldStage(app, "HelloWorld-us-east-1-stage", region="us-east-1", retain_data=True)
+        Template.from_stack(stage.data).has_resource("AWS::DynamoDB::GlobalTable", {"DeletionPolicy": "Retain"})
+
+
 class TestNagCompliance:
     """Zero unsuppressed cdk-nag findings, asserted per stack without Docker."""
 
-    @pytest.mark.parametrize("stack_attr", ["waf", "backend", "frontend"])
+    @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend"])
     def test_no_unsuppressed_nag_errors(self, prod_stage: HelloWorldStage, stack_attr: str) -> None:
         stack = getattr(prod_stage, stack_attr)
         errors = Annotations.from_stack(stack).find_error("*", Match.string_like_regexp(".*"))

@@ -4,7 +4,7 @@ Project-level instructions for future Claude Code sessions. Loaded on every sess
 
 ## Project
 
-Reference architecture for serverless AWS Lambda + Powertools applications: three-stack CDK composition, five-rule-pack cdk-nag gating, end-to-end CMK encryption, WAF + CloudFront, CloudTrail data events, browser RUM with X-Ray correlation, Athena access-log analytics, and supply-chain hygiene. Designed to be forked via GitHub's "Use this template" — see the "Forking this template" section at the bottom.
+Reference architecture for serverless AWS Lambda + Powertools applications: four-stack CDK composition (a stateful data stack plus WAF, backend, and frontend), five-rule-pack cdk-nag gating, end-to-end CMK encryption, WAF + CloudFront, CloudTrail data events, browser RUM with X-Ray correlation, Athena access-log analytics, and supply-chain hygiene. Designed to be forked via GitHub's "Use this template" — see the "Forking this template" section at the bottom.
 
 ## Environments — two venvs, never mix
 
@@ -19,7 +19,7 @@ Run `make doctor` after `make install` to verify both venvs picked up the expect
 
 ## `cdk synth` must use `'**'`
 
-All three stacks live inside `HelloWorldStage` (a `cdk.Stage`). Bare `cdk synth` walks only the App's direct children, finds the Stage, doesn't recurse, and emits an empty synthesis that succeeds *without* running cdk-nag against the real stacks. `make cdk-synth` and the CI `cdk-check` job both invoke `cdk synth '**'`. If you run `cdk synth` directly during development, include the glob — otherwise the gate passes silently regardless of what cdk-nag would find.
+All four stacks live inside `HelloWorldStage` (a `cdk.Stage`). Bare `cdk synth` walks only the App's direct children, finds the Stage, doesn't recurse, and emits an empty synthesis that succeeds *without* running cdk-nag against the real stacks. `make cdk-synth` and the CI `cdk-check` job both invoke `cdk synth '**'`. If you run `cdk synth` directly during development, include the glob — otherwise the gate passes silently regardless of what cdk-nag would find.
 
 ## cdk-nag is a hard gate
 
@@ -32,9 +32,13 @@ Five rule packs run on every synth: AwsSolutions, Serverless, NIST 800-53 R5, HI
 
 ## Encryption posture
 
-Every data-bearing resource that supports a per-resource customer-managed key uses the project's CMK: DynamoDB, Lambda env vars, all log groups, the frontend S3 bucket, AppConfig hosted configuration content, SQS DLQs, and CloudTrail trail log files (per-object SSE-KMS into an SSE-S3 bucket). Account/region-wide encryption settings (X-Ray, Glue Data Catalog) are deliberately out of scope — they'd mutate state shared with other apps in the account.
+Every data-bearing resource that supports a per-resource customer-managed key is CMK-encrypted: DynamoDB, Lambda env vars, all log groups, the frontend S3 bucket, AppConfig hosted configuration content, SQS DLQs, and CloudTrail trail log files (per-object SSE-KMS into an SSE-S3 bucket). Keys are scoped per stack rather than shared — the WAF, backend, and frontend stacks each own one CMK, and the **DynamoDB table is encrypted by its own dedicated CMK in `HelloWorldDataStack`** (keeping the key with the stateful data it protects is what makes the `retain_data` switch meaningful — a retained table whose key lived in a destroyable compute stack would be unreadable after teardown; see that module's docstring). Keys are deliberately *not* shared across the stack boundary, so each carries a tighter, least-privilege key policy. Account/region-wide encryption settings (X-Ray, Glue Data Catalog) are deliberately out of scope — they'd mutate state shared with other apps in the account.
 
 Service-principal grants on CMKs must be confused-deputy-guarded with `aws:SourceAccount` + `aws:SourceArn`. See `grant_logs_service_to_key` / `grant_guardduty_service_to_key` in `hello_world/nag_utils.py` for the canonical pattern. One documented exception: `grant_cloudwatch_alarms_to_key` (alarm→SNS publish path) uses `aws:SourceAccount` + `kms:ViaService` and deliberately omits `aws:SourceArn` — CloudWatch is not documented to set it on via-SNS KMS calls, and an unmatched required condition would silently drop alarm notifications. Verify alarm delivery on a live deploy when touching that statement.
+
+## Stateful resources live in their own stack (`retain_data`)
+
+The stateful data layer (the DynamoDB idempotency table + its dedicated CMK) lives in `hello_world/hello_world_data_stack.py`, separate from the stateless compute/backend stack — the CDK best practice "keep stateful resources in their own stack." This is baked in deliberately as production-template preparation: **stack topology is the expensive-to-retrofit decision; `RemovalPolicy.RETAIN` is a one-line flag.** So the *structure* ships now, and a production fork flips exactly one switch — `retain_data` (CDK context `-c retain_data=true`, plumbed `app.py` → `HelloWorldStage` → `HelloWorldDataStack`). `retain_data=True` flips the table and its CMK to `RETAIN`, turns on DynamoDB deletion protection, and enables stack termination protection. The default is `False` so the template and ephemeral environments tear down cleanly. The table is handed to the backend cross-stack (`idempotency_table=`), where the Lambda gets its `IDEMPOTENCY_TABLE_NAME` env var, a scoped read/write grant, and monitoring — the single cross-stack relationship. The `DynamoDBInBackupPlan` nag suppressions live on the data stack (it owns the table); a `retain_data=True` fork should add an AWS Backup plan (see `TODO.md`). The `IdempotencyTableName` CfnOutput moved to the data stack too.
 
 ## Dangling-resource cleanup pattern
 

@@ -89,12 +89,25 @@ class HelloWorldApp(Construct):
     Stack can reference them for CfnOutputs and cross-stack wiring.
     """
 
-    def __init__(self, scope: Construct, construct_id: str, *, is_production_env: bool = True) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        *,
+        idempotency_table: dynamodb.ITableV2,
+        is_production_env: bool = True,
+    ) -> None:
         """Build the application construct.
 
         Args:
             scope: The CDK construct scope.
             construct_id: The scoped construct ID.
+            idempotency_table: The Powertools idempotency table, created in the
+                separate :class:`HelloWorldDataStack` and passed in cross-stack.
+                This construct wires it into the Lambda (the
+                ``IDEMPOTENCY_TABLE_NAME`` env var and a scoped read/write
+                grant) but does not own its lifecycle — see that stack for the
+                stateful-resource separation rationale.
             is_production_env: When True (the default, and what the default
                 ``prod`` deployment environment passes), alarm notifications
                 are routed to a CMK-encrypted SNS topic. Non-production
@@ -106,8 +119,17 @@ class HelloWorldApp(Construct):
 
         stack = Stack.of(self)
 
-        # KMS key shared across CloudWatch log groups, DynamoDB, Lambda env vars,
-        # and AppConfig hosted configuration content in this app.
+        # Stateful data layer lives in its own stack (HelloWorldDataStack); the
+        # table is passed in cross-stack. This construct's own CMK below covers
+        # the compute-side encryption (Lambda env vars, log groups, AppConfig,
+        # SNS) — the table is encrypted by the data stack's separate key.
+        self.idempotency_table = idempotency_table
+
+        # Compute-side KMS key, shared across this stack's CloudWatch log groups,
+        # Lambda env vars, AppConfig hosted configuration content, and the SNS
+        # alarm topic. The DynamoDB table has its own key in the data stack
+        # (see HelloWorldDataStack) — keys are not shared across the stack
+        # boundary, so each carries a tighter, least-privilege key policy.
         # CloudWatch Logs requires the Logs service principal to be granted access
         # so it can encrypt data on behalf of the service.
         # Note: SSM StringParameter cannot use CMK — CloudFormation does not support
@@ -116,7 +138,7 @@ class HelloWorldApp(Construct):
         self.encryption_key = kms.Key(
             self,
             "EncryptionKey",
-            description=f"KMS key for {stack.stack_name} log groups and DynamoDB",
+            description=f"KMS key for {stack.stack_name} log groups, Lambda env, AppConfig, and SNS",
             enable_key_rotation=True,
             # 90 days is a common compliance-aligned cadence (PCI/HIPAA forks
             # default to 90). Rotation is fully managed by AWS — key ID/ARN
@@ -149,48 +171,6 @@ class HelloWorldApp(Construct):
             partition=stack.partition,
         )
 
-        # DynamoDB table for Powertools idempotency.
-        # No table_name set — CDK generates one. Avoids blocking replacement-style
-        # schema changes and two deployments colliding in one account.
-        #
-        # TableV2 (AWS::DynamoDB::GlobalTable) is the current-generation
-        # construct. The construct ID is "IdempotencyTableV2", not
-        # "IdempotencyTable": CloudFormation refuses to change a logical
-        # resource's *type* in place, so the V2 migration must present a new
-        # logical ID — CFN then creates the new table and deletes the old one.
-        # Replacement is an accepted data loss here: the table is a TTL'd
-        # idempotency cache (records expire after 1 hour) with
-        # RemovalPolicy.DESTROY, and the physical names are CDK-generated so
-        # the old and new tables never collide. The logical-ID stability test
-        # in tests/cdk/test_stacks.py was updated in the same commit, per its
-        # own guidance for intentional replacements.
-        self.idempotency_table = dynamodb.TableV2(
-            self,
-            "IdempotencyTableV2",
-            partition_key=dynamodb.Attribute(name="id", type=dynamodb.AttributeType.STRING),
-            time_to_live_attribute="expiration",
-            # On-demand billing — TableV2's equivalent of PAY_PER_REQUEST.
-            billing=dynamodb.Billing.on_demand(),
-            encryption=dynamodb.TableEncryptionV2.customer_managed_key(self.encryption_key),
-            # THROTTLED_KEYS mode records contributor insights only for keys
-            # that experience throttling — the diagnostic signal this cache
-            # actually needs — at a fraction of the cost of full-table
-            # ACCESSED_AND_THROTTLED_KEYS insights.
-            contributor_insights_specification=dynamodb.ContributorInsightsSpecification(
-                enabled=True,
-                mode=dynamodb.ContributorInsightsMode.THROTTLED_KEYS,
-            ),
-            removal_policy=RemovalPolicy.DESTROY,
-            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
-                point_in_time_recovery_enabled=True,
-                # PITR retains the shortest window AWS allows instead of the
-                # 35-day default: every record in this cache expires via TTL
-                # after one hour, so day-old recovery points are already pure
-                # storage cost with nothing meaningful to restore.
-                recovery_period_in_days=1,
-            ),
-        )
-
         # SSM parameter for Powertools Parameters.
         # parameter_name omitted so CDK auto-generates. Lambda reads the value
         # through the GREETING_PARAM_NAME env var, so the name doesn't need to
@@ -221,9 +201,11 @@ class HelloWorldApp(Construct):
         )
 
         # kms_key_identifier CMK-encrypts the hosted configuration content at
-        # rest in AppConfig. Required because the Lambda's CMK already covers
-        # logs/DDB/env-vars; pinning AppConfig to the same key keeps the
-        # auditable encryption surface inside one ARN.
+        # rest in AppConfig. This compute-side CMK already covers the Lambda's
+        # log groups and env vars; pinning AppConfig to the same key keeps the
+        # compute-side auditable encryption surface inside one ARN. (The Lambda
+        # also gets an explicit kms:Decrypt grant on this key below for the
+        # GetLatestConfiguration read path — see the grant near the role policy.)
         #
         # Type is FREEFORM on purpose, not AWS.AppConfig.FeatureFlags: the
         # native flags type stores the authoring format but its data plane
@@ -419,6 +401,15 @@ class HelloWorldApp(Construct):
                 resources=[appconfig_profile_arn],
             )
         )
+        # AppConfig CMK-decrypt grant. The hosted configuration is encrypted at
+        # rest with this stack's CMK (kms_key_identifier on the profile +
+        # deployment above), and AppConfig evaluates kms:Decrypt against the
+        # *caller's* role on GetLatestConfiguration — so the Lambda needs decrypt
+        # on this key. This permission used to ride the DynamoDB grant back when
+        # the table shared this CMK; now that the table has its own key in
+        # HelloWorldDataStack, the AppConfig decrypt path needs an explicit,
+        # scoped grant here (read-only path, so kms:Decrypt only).
+        self.encryption_key.grant_decrypt(self.function)
 
         # Explicit API Gateway access log group with 1-week retention.
         # log_group_name omitted — CDK auto-generates and passes it into the

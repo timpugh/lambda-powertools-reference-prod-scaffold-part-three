@@ -35,7 +35,7 @@ CDK := npx cdk
 
 # Deployment environment for the env-aware targets below. Empty (the default)
 # targets the long-lived prod stacks with their legacy names. Set ENV to spin
-# up/tear down a namespaced, collision-free copy of all three stacks — e.g.
+# up/tear down a namespaced, collision-free copy of all four stacks — e.g.
 # `make deploy ENV=alice-feature-x` — for per-developer or per-branch work in
 # a shared account. Non-prod environments keep dashboards and alarms but skip
 # the SNS alarm topic so an ephemeral stack never pages anyone. See app.py.
@@ -177,7 +177,7 @@ coverage-badge: ## Generate the shields-endpoint coverage badge JSON (whole repo
 
 cdk-synth: ## Synthesize all CDK stacks and validate cdk-nag rules (CDK CLI via `npm ci` / `make install`)
 	# The '**' glob descends into Stage-nested stacks. Without it, `cdk synth`
-	# stops at the Stage manifest, the three nested stacks never synthesize,
+	# stops at the Stage manifest, the four nested stacks never synthesize,
 	# and cdk-nag rules silently don't fire on them — so a "passing" synth
 	# can mask findings that surface later in `cdk deploy`.
 	$(CDK) synth '**' $(CDK_ENV_ARG)
@@ -190,15 +190,15 @@ cdk-deprecations: ## List every deprecated CDK API used by any stack (synth outp
 
 cdk-ls: ## List all CDK stacks (uses '**' to descend into Stage-nested stacks)
 	# Without '**', `cdk ls` stops at the top-level Stage manifest and
-	# prints nothing useful. With it, the three nested stacks (Backend,
-	# WAF, Frontend) are listed — handy as a sanity check after stack-graph
+	# prints nothing useful. With it, the four nested stacks (Data, WAF,
+	# Backend, Frontend) are listed — handy as a sanity check after stack-graph
 	# refactors or when verifying the Stage wiring is intact.
 	$(CDK) ls '**' $(CDK_ENV_ARG)
 
 cdk-diff: ## Preview infra changes against deployed stacks (requires AWS credentials)
 	# Same Stage-nesting trap as cdk-synth and deploy: bare `cdk diff`
 	# walks only the App's direct children and reports no changes for the
-	# three real stacks. Use this as the pre-PR companion to cdk-synth —
+	# four real stacks. Use this as the pre-PR companion to cdk-synth —
 	# synth tells you cdk-nag is happy, diff tells you what would deploy.
 	$(CDK) diff '**' $(CDK_ENV_ARG)
 
@@ -266,8 +266,8 @@ deploy: ## Deploy all stacks to us-east-1 (ENV=<name> for an ephemeral env, -c r
 # command fails outright in non-TTY contexts (CI, background shells)
 # with "terminal is not attached so we are unable to get a confirmation".
 # If you want the confirmation back for a one-off run, invoke cdk
-# directly: `npx cdk destroy '**'`. Three stacks are destroyed independently
-# — frontend first (consumes the WAF ARN), then backend and WAF.
+# directly: `npx cdk destroy '**'`. Four stacks are destroyed independently
+# — frontend first (consumes the WAF ARN), then backend, then data and WAF.
 destroy: ## Destroy all stacks in us-east-1 (ENV=<name> for an ephemeral env, -c region=X for other regions)
 	$(CDK) destroy '**' $(CDK_ENV_ARG) --force
 

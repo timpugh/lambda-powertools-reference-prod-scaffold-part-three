@@ -35,6 +35,7 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipp
 import aws_cdk as cdk
 from aws_cdk.assertions import Match, Template
 
+from hello_world.hello_world_data_stack import HelloWorldDataStack
 from hello_world.hello_world_frontend_stack import HelloWorldFrontendStack
 from hello_world.hello_world_stack import HelloWorldStack
 from hello_world.hello_world_waf_stack import HelloWorldWafStack
@@ -64,10 +65,27 @@ def waf_template() -> Template:
 
 
 @pytest.fixture(scope="module")
+def data_template() -> Template:
+    """Synthesize HelloWorldDataStack (default destroy-friendly shape)."""
+    app = cdk.App(context=_NO_BUNDLING)
+    stack = HelloWorldDataStack(app, "TestDataStack", env=_TEST_ENV)
+    return Template.from_stack(stack)
+
+
+@pytest.fixture(scope="module")
+def data_template_retained() -> Template:
+    """Synthesize HelloWorldDataStack with retain_data=True (production shape)."""
+    app = cdk.App(context=_NO_BUNDLING)
+    stack = HelloWorldDataStack(app, "TestDataStackRetained", retain_data=True, env=_TEST_ENV)
+    return Template.from_stack(stack)
+
+
+@pytest.fixture(scope="module")
 def backend_template() -> Template:
     """Synthesize HelloWorldStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
-    stack = HelloWorldStack(app, "TestBackendStack", env=_TEST_ENV)
+    data = HelloWorldDataStack(app, "TestBackendData", env=_TEST_ENV)
+    stack = HelloWorldStack(app, "TestBackendStack", idempotency_table=data.idempotency_table, env=_TEST_ENV)
     return Template.from_stack(stack)
 
 
@@ -76,7 +94,8 @@ def frontend_template() -> Template:
     """Synthesize HelloWorldFrontendStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
     waf = HelloWorldWafStack(app, "TestFrontendWaf", env=_WAF_ENV)
-    backend = HelloWorldStack(app, "TestFrontendBackend", env=_TEST_ENV)
+    data = HelloWorldDataStack(app, "TestFrontendData", env=_TEST_ENV)
+    backend = HelloWorldStack(app, "TestFrontendBackend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
     stack = HelloWorldFrontendStack(
         app,
         "TestFrontendStack",
@@ -195,16 +214,23 @@ class TestWafStack:
 # ── Backend stack ─────────────────────────────────────────────────────────────
 
 
-class TestBackendStack:
-    def test_kms_key_has_rotation_enabled(self, backend_template: Template) -> None:
-        backend_template.has_resource_properties("AWS::KMS::Key", {"EnableKeyRotation": True})
+class TestDataStack:
+    """Stateful data layer: DynamoDB idempotency table + its dedicated CMK.
 
-    def test_dynamodb_has_pitr_enabled(self, backend_template: Template) -> None:
+    These properties moved out of the backend stack when the stateful
+    resources were isolated into HelloWorldDataStack (CDK best practice:
+    keep stateful resources in their own stack).
+    """
+
+    def test_kms_key_has_rotation_enabled(self, data_template: Template) -> None:
+        data_template.has_resource_properties("AWS::KMS::Key", {"EnableKeyRotation": True})
+
+    def test_dynamodb_has_pitr_enabled(self, data_template: Template) -> None:
         # TableV2 synthesizes AWS::DynamoDB::GlobalTable, where PITR (and the
         # 1-day recovery window — shortest allowed; the cache's records TTL out
         # after an hour, so longer PITR retention is pure storage cost) lives
         # per-replica rather than at the table level.
-        backend_template.has_resource_properties(
+        data_template.has_resource_properties(
             "AWS::DynamoDB::GlobalTable",
             {
                 "Replicas": Match.array_with(
@@ -222,11 +248,11 @@ class TestBackendStack:
             },
         )
 
-    def test_dynamodb_has_kms_encryption(self, backend_template: Template) -> None:
+    def test_dynamodb_has_kms_encryption(self, data_template: Template) -> None:
         # GlobalTable splits encryption across a table-level SSESpecification
         # (algorithm) and a per-replica KMSMasterKeyId (the CMK). Assert both —
         # SSEType KMS alone would also pass with an AWS-owned key.
-        backend_template.has_resource_properties(
+        data_template.has_resource_properties(
             "AWS::DynamoDB::GlobalTable",
             {
                 "SSESpecification": {"SSEEnabled": True, "SSEType": "KMS"},
@@ -236,11 +262,11 @@ class TestBackendStack:
             },
         )
 
-    def test_dynamodb_contributor_insights_throttled_keys_mode(self, backend_template: Template) -> None:
+    def test_dynamodb_contributor_insights_throttled_keys_mode(self, data_template: Template) -> None:
         # THROTTLED_KEYS records insights only for throttled keys — the signal
         # this cache needs — at a fraction of full-table insights cost. Pinned
         # so a refactor back to the bool flag (full mode) is a visible change.
-        backend_template.has_resource_properties(
+        data_template.has_resource_properties(
             "AWS::DynamoDB::GlobalTable",
             {
                 "Replicas": Match.array_with(
@@ -252,6 +278,53 @@ class TestBackendStack:
                 )
             },
         )
+
+    def test_stack_output_exists(self, data_template: Template) -> None:
+        data_template.has_output("IdempotencyTableName", {})
+
+    # ── Default (destroy-friendly) retention posture ─────────────────────────────
+    # The template ships retain_data=False so dev/ephemeral environments tear
+    # down cleanly: table + CMK are DESTROY, deletion protection off.
+
+    def test_default_table_is_destroyable(self, data_template: Template) -> None:
+        data_template.has_resource(
+            "AWS::DynamoDB::GlobalTable",
+            {"DeletionPolicy": "Delete", "UpdateReplacePolicy": "Delete"},
+        )
+
+    def test_default_table_deletion_protection_off(self, data_template: Template) -> None:
+        # DeletionProtectionEnabled lives per-replica on a GlobalTable.
+        data_template.has_resource_properties(
+            "AWS::DynamoDB::GlobalTable",
+            {"Replicas": Match.array_with([Match.object_like({"DeletionProtectionEnabled": False})])},
+        )
+
+    def test_default_key_is_destroyable(self, data_template: Template) -> None:
+        data_template.has_resource("AWS::KMS::Key", {"DeletionPolicy": "Delete"})
+
+    # ── Production (retain_data=True) retention posture ──────────────────────────
+    # A production fork flips one flag; the table + CMK become RETAIN and
+    # DynamoDB deletion protection turns on.
+
+    def test_retained_table_is_retained(self, data_template_retained: Template) -> None:
+        data_template_retained.has_resource(
+            "AWS::DynamoDB::GlobalTable",
+            {"DeletionPolicy": "Retain", "UpdateReplacePolicy": "Retain"},
+        )
+
+    def test_retained_table_deletion_protection_on(self, data_template_retained: Template) -> None:
+        data_template_retained.has_resource_properties(
+            "AWS::DynamoDB::GlobalTable",
+            {"Replicas": Match.array_with([Match.object_like({"DeletionProtectionEnabled": True})])},
+        )
+
+    def test_retained_key_is_retained(self, data_template_retained: Template) -> None:
+        data_template_retained.has_resource("AWS::KMS::Key", {"DeletionPolicy": "Retain"})
+
+
+class TestBackendStack:
+    def test_kms_key_has_rotation_enabled(self, backend_template: Template) -> None:
+        backend_template.has_resource_properties("AWS::KMS::Key", {"EnableKeyRotation": True})
 
     def test_lambda_has_active_tracing(self, backend_template: Template) -> None:
         backend_template.has_resource_properties(
@@ -447,7 +520,14 @@ class TestBackendStack:
         # Ephemeral/dev environments keep the dashboards and alarms but must
         # not create the SNS topic — short-lived stacks never page anyone.
         app = cdk.App(context=_NO_BUNDLING)
-        stack = HelloWorldStack(app, "TestDevBackendStack", is_production_env=False, env=_TEST_ENV)
+        data = HelloWorldDataStack(app, "TestDevBackendData", env=_TEST_ENV)
+        stack = HelloWorldStack(
+            app,
+            "TestDevBackendStack",
+            idempotency_table=data.idempotency_table,
+            is_production_env=False,
+            env=_TEST_ENV,
+        )
         template = Template.from_stack(stack)
         template.resource_count_is("AWS::SNS::Topic", 0)
         assert len(template.find_resources("AWS::CloudWatch::Alarm")) >= 2, (
@@ -552,12 +632,39 @@ class TestBackendStack:
             {"KmsKeyId": Match.any_value(), "RetentionInDays": Match.any_value()},
         )
 
+    def test_lambda_role_can_decrypt_appconfig_cmk(self, backend_template: Template) -> None:
+        # The AppConfig hosted config is CMK-encrypted with the backend key, and
+        # AppConfig evaluates kms:Decrypt against the *caller's* role on
+        # GetLatestConfiguration. This grant used to ride the DynamoDB grant
+        # (table shared the key); now that the table has its own key in the data
+        # stack, the Lambda needs an explicit kms:Decrypt on the backend key.
+        # Without it, GetLatestConfiguration fails at runtime with a KMS error —
+        # which no synth-time check (cdk-nag included) would catch.
+        backend_template.has_resource_properties(
+            "AWS::IAM::Policy",
+            {
+                "PolicyDocument": {
+                    "Statement": Match.array_with(
+                        [
+                            Match.object_like(
+                                {
+                                    "Action": "kms:Decrypt",
+                                    "Effect": "Allow",
+                                    "Resource": {"Fn::GetAtt": ["AppEncryptionKey7F644894", "Arn"]},
+                                }
+                            )
+                        ]
+                    )
+                }
+            },
+        )
+
     def test_stack_outputs_exist(self, backend_template: Template) -> None:
         backend_template.has_output("HelloWorldApiOutput", {})
         backend_template.has_output("HelloWorldFunctionOutput", {})
-        backend_template.has_output("IdempotencyTableName", {})
         backend_template.has_output("GreetingParameterName", {})
         backend_template.has_output("CloudWatchDashboardUrl", {})
+        # IdempotencyTableName now lives on HelloWorldDataStack (the table owner).
 
 
 # ── Frontend stack ────────────────────────────────────────────────────────────
@@ -803,15 +910,19 @@ class TestFrontendStack:
 class TestLogicalIdStability:
     """Lock in logical IDs of stateful resources — changing one replaces the resource."""
 
-    # ── Backend ────────────────────────────────────────────────────────────────
+    # ── Data ───────────────────────────────────────────────────────────────────
+    # The idempotency table and its CMK live in HelloWorldDataStack. Their
+    # logical IDs lost the "App" construct prefix when the table moved out of
+    # the HelloWorldApp construct and into its own stack — a one-time change
+    # captured here (the template ships with no live data, so no migration).
 
-    def test_backend_dynamodb_table_id(self, backend_template: Template) -> None:
-        # Intentional replacement (per this class's docstring guidance): the
-        # TableV2 migration changed the resource type to AWS::DynamoDB::GlobalTable,
-        # and CloudFormation refuses in-place type changes — so the construct ID
-        # moved to IdempotencyTableV2 and the old table is deleted on deploy.
-        # Accepted data loss: TTL'd idempotency cache, RemovalPolicy.DESTROY.
-        assert "AppIdempotencyTableV22138F48F" in backend_template.find_resources("AWS::DynamoDB::GlobalTable")
+    def test_data_dynamodb_table_id(self, data_template: Template) -> None:
+        assert "IdempotencyTableV203A5298E" in data_template.find_resources("AWS::DynamoDB::GlobalTable")
+
+    def test_data_kms_key_id(self, data_template: Template) -> None:
+        assert "DataEncryptionKey101796EE" in data_template.find_resources("AWS::KMS::Key")
+
+    # ── Backend ────────────────────────────────────────────────────────────────
 
     def test_backend_kms_key_id(self, backend_template: Template) -> None:
         assert "AppEncryptionKey7F644894" in backend_template.find_resources("AWS::KMS::Key")

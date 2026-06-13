@@ -1,6 +1,7 @@
 from typing import Any, cast
 
 from aws_cdk import CfnOutput, Stack
+from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_iam as iam
 from cdk_nag import NagSuppressions
 from constructs import Construct
@@ -29,12 +30,23 @@ class HelloWorldStack(Stack):
     expressed on individual resources.
     """
 
-    def __init__(self, scope: Construct, construct_id: str, *, is_production_env: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        *,
+        idempotency_table: dynamodb.ITableV2,
+        is_production_env: bool = True,
+        **kwargs: Any,
+    ) -> None:
         """Compose the application construct into a deployable stack.
 
         Args:
             scope: The CDK construct scope.
             construct_id: The unique identifier for this stack.
+            idempotency_table: The Powertools idempotency table from the
+                separate :class:`HelloWorldDataStack`, forwarded to
+                :class:`HelloWorldApp` for cross-stack wiring (env var + grant).
             is_production_env: Forwarded to :class:`HelloWorldApp` — production
                 environments route alarm notifications to an SNS topic;
                 ephemeral/dev environments skip the topic. Defaults to True so
@@ -46,7 +58,12 @@ class HelloWorldStack(Stack):
 
         apply_compliance_aspects(self)
 
-        self.app = HelloWorldApp(self, "App", is_production_env=is_production_env)
+        self.app = HelloWorldApp(
+            self,
+            "App",
+            idempotency_table=idempotency_table,
+            is_production_env=is_production_env,
+        )
 
         # Expose API URL + ID for consumption by the frontend stack (api_id lets the
         # frontend CSP pin the exact execute-api host instead of a region wildcard).
@@ -70,12 +87,6 @@ class HelloWorldStack(Stack):
             "HelloWorldFunctionIamRoleOutput",
             description="IAM Role created for Hello World function",
             value=cast(iam.IRole, self.app.function.role).role_arn,
-        )
-        CfnOutput(
-            self,
-            "IdempotencyTableName",
-            description="DynamoDB table used for Lambda idempotency",
-            value=self.app.idempotency_table.table_name,
         )
         CfnOutput(
             self,
@@ -171,10 +182,8 @@ class HelloWorldStack(Stack):
                         "stale values across SSM parameter and AppConfig feature-flag changes."
                     ),
                 },
-                {
-                    "id": "NIST.800.53.R5-DynamoDBInBackupPlan",
-                    "reason": "AWS Backup plan not configured for sample app — PITR is enabled for point-in-time recovery",
-                },
+                # DynamoDBInBackupPlan suppressions moved to HelloWorldDataStack —
+                # the idempotency table (and its backup posture) now lives there.
                 # ── HIPAA Security ───────────────────────────────────────────────
                 {
                     "id": "HIPAA.Security-APIGWSSLEnabled",
@@ -186,10 +195,6 @@ class HelloWorldStack(Stack):
                         "API Gateway cache cluster intentionally disabled for cost reasons — "
                         "see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
                     ),
-                },
-                {
-                    "id": "HIPAA.Security-DynamoDBInBackupPlan",
-                    "reason": "AWS Backup plan not configured for sample app — PITR is enabled for point-in-time recovery",
                 },
                 # ── PCI DSS 3.2.1 ────────────────────────────────────────────────
                 # PCI.DSS.321-APIGWAssociatedWithWAF is no longer suppressed —
