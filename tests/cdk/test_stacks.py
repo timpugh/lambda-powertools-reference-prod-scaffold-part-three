@@ -764,6 +764,15 @@ class TestBackendStack:
             {"KmsKeyId": Match.any_value(), "RetentionInDays": Match.any_value()},
         )
 
+    def test_operational_log_groups_retain_90_days(self, backend_template: Template) -> None:
+        # The operational app log groups — Lambda function, API Gateway access,
+        # API Gateway execution — retain 90 days (enough debugging history + a
+        # "3 months immediately available" window). Provider/CDK-singleton groups
+        # stay short. Audit-relevant logs go to S3 for cheap long-term retention.
+        log_groups = backend_template.find_resources("AWS::Logs::LogGroup")
+        ninety_day = [lid for lid, lg in log_groups.items() if lg["Properties"].get("RetentionInDays") == 90]
+        assert len(ninety_day) >= 3, f"expected ≥3 operational log groups at 90-day retention, found {len(ninety_day)}"
+
     def test_lambda_role_can_decrypt_appconfig_cmk(self, backend_template: Template) -> None:
         # The AppConfig hosted config is CMK-encrypted with the backend key, and
         # AppConfig evaluates kms:Decrypt against the *caller's* role on

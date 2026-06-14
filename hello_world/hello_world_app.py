@@ -324,7 +324,12 @@ class HelloWorldApp(Construct):
             self,
             "HelloWorldFunctionLogGroup",
             encryption_key=self.encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
+            # 90 days for operational app logs — enough debugging history and
+            # satisfies a "3 months immediately available" clause without paying
+            # CloudWatch storage for a long tail. Audit-relevant logs (CloudTrail,
+            # access logs) go to S3 for cheaper long-term retention instead — see
+            # README "Audit stack and log retention".
+            retention=logs.RetentionDays.THREE_MONTHS,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -453,7 +458,8 @@ class HelloWorldApp(Construct):
             self,
             "HelloWorldApiAccessLogs",
             encryption_key=self.encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
+            # 90 days — operational retention (see HelloWorldFunctionLogGroup).
+            retention=logs.RetentionDays.THREE_MONTHS,
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -546,7 +552,8 @@ class HelloWorldApp(Construct):
             "HelloWorldApiExecutionLogs",
             log_group_name=f"API-Gateway-Execution-Logs_{self.api.rest_api_id}/Prod",
             encryption_key=self.encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
+            # 90 days — operational retention (see HelloWorldFunctionLogGroup).
+            retention=logs.RetentionDays.THREE_MONTHS,
             removal_policy=RemovalPolicy.DESTROY,
         )
         # Order the stage after the group: if the stage goes live first and a
