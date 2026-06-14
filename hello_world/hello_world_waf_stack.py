@@ -10,9 +10,6 @@ from aws_cdk import (
     aws_kms as kms,
 )
 from aws_cdk import (
-    aws_logs as logs,
-)
-from aws_cdk import (
     aws_wafv2 as wafv2,
 )
 from cdk_nag import NagSuppressions
@@ -21,8 +18,9 @@ from constructs import Construct
 from hello_world.nag_utils import (
     apply_compliance_aspects,
     build_managed_threat_rules,
+    create_auto_delete_objects_log_group,
+    create_waf_logs_bucket,
     grant_logs_service_to_key,
-    waf_log_destination,
 )
 
 
@@ -51,13 +49,13 @@ class HelloWorldWafStack(Stack):
 
         apply_compliance_aspects(self)
 
-        # KMS key for WAF log group encryption.
-        # CloudWatch Logs requires the key policy to grant the Logs service
-        # principal access so it can encrypt log data on write.
+        # KMS key encrypting the S3 auto-delete provider's CloudWatch log group
+        # (the WAF logs themselves go to S3 — see below). CloudWatch Logs requires
+        # the key policy to grant the Logs service principal access.
         waf_encryption_key = kms.Key(
             self,
             "WafEncryptionKey",
-            description=f"KMS key for {self.stack_name} WAF log group encryption",
+            description=f"KMS key for {self.stack_name} provider log group encryption",
             enable_key_rotation=True,
             # See HelloWorldApp.encryption_key for the rationale — automated
             # rotation, no dependent redeploys, 90-day compliance baseline.
@@ -73,17 +71,13 @@ class HelloWorldWafStack(Stack):
             partition=self.partition,
         )
 
-        # WAF log group — name must start with "aws-waf-logs-" (AWS requirement).
-        # WAFv2 uses its service-linked role (AWSServiceRoleForWAFv2Logging) to
-        # write log events; no additional log group resource policy is needed.
-        waf_log_group = logs.LogGroup(
-            self,
-            "WafLogGroup",
-            log_group_name=f"aws-waf-logs-{self.stack_name}",
-            encryption_key=waf_encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
+        # WAF logs go to S3 (cheaper long-term retention, WORM-capable) rather
+        # than CloudWatch — see README "Audit stack and log retention". The
+        # aws-waf-logs-* bucket + its delivery bucket policy are built by the
+        # shared helper. Query the logs via Athena (the CloudWatch Logs Insights
+        # saved queries that previously sat on a WAF log group were retired with
+        # the move — a WAF Glue/Athena table is a documented follow-up in TODO.md).
+        waf_logs_bucket = create_waf_logs_bucket(self, "cf")
 
         web_acl = wafv2.CfnWebACL(
             self,
@@ -127,65 +121,27 @@ class HelloWorldWafStack(Stack):
             ],
         )
 
-        # Enable WAF logging to the CloudWatch Logs log group. The destination
-        # ARN is normalized via waf_log_destination — WAF documents the log-group
-        # ARN without the ":*" suffix that CDK's log_group_arn carries.
-        wafv2.CfnLoggingConfiguration(
+        # Enable WAF logging to the S3 bucket (destination = the bucket ARN).
+        # Order it after the bucket policy so WAF finds the delivery grant already
+        # present and leaves the CDK-managed policy alone (see create_waf_logs_bucket).
+        waf_logging = wafv2.CfnLoggingConfiguration(
             self,
             "WAFLogging",
-            log_destination_configs=[waf_log_destination(waf_log_group)],
+            log_destination_configs=[waf_logs_bucket.bucket_arn],
             resource_arn=web_acl.attr_arn,
         )
+        if waf_logs_bucket.policy is not None:
+            waf_logging.node.add_dependency(waf_logs_bucket.policy)
+
+        # The WAF logs bucket uses auto_delete_objects; give the S3 auto-delete
+        # singleton an explicit CMK log group (the helper also suppresses its
+        # CDK-managed-singleton nag findings).
+        create_auto_delete_objects_log_group(self, waf_encryption_key)
 
         # Exposed for HelloWorldFrontendStack to attach to CloudFront.
         # When the frontend stack is in a different region, CDK bridges this
         # value automatically via SSM (cross_region_references=True on the consumer).
         self.web_acl_arn = web_acl.attr_arn
-
-        # ── CloudWatch Logs Insights saved queries ────────────────────────────
-        logs.QueryDefinition(
-            self,
-            "WafBlockedRequests",
-            query_definition_name=f"{self.stack_name}/WAF/BlockedRequests",
-            query_string=logs.QueryString(
-                fields=[
-                    "@timestamp",
-                    "action",
-                    "httpRequest.clientIp",
-                    "httpRequest.uri",
-                    "httpRequest.httpMethod",
-                    "httpRequest.country",
-                ],
-                filter_statements=["action = 'BLOCK'"],
-                sort="@timestamp desc",
-                limit=50,
-            ),
-            log_groups=[waf_log_group],
-        )
-        logs.QueryDefinition(
-            self,
-            "WafTopBlockedRules",
-            query_definition_name=f"{self.stack_name}/WAF/TopBlockedRules",
-            query_string=logs.QueryString(
-                filter_statements=["action = 'BLOCK'"],
-                stats_statements=["count(*) as blockCount by terminatingRuleId"],
-                sort="blockCount desc",
-                limit=25,
-            ),
-            log_groups=[waf_log_group],
-        )
-        logs.QueryDefinition(
-            self,
-            "WafRateLimited",
-            query_definition_name=f"{self.stack_name}/WAF/RateLimitedIPs",
-            query_string=logs.QueryString(
-                filter_statements=["terminatingRuleId = 'RateLimitPerIP'"],
-                stats_statements=["count(*) as blockCount by httpRequest.clientIp"],
-                sort="blockCount desc",
-                limit=25,
-            ),
-            log_groups=[waf_log_group],
-        )
 
         # Stack-level on purpose: when the frontend stack consumes web_acl_arn
         # from another region (cross_region_references=True), CDK lazily adds a
@@ -221,7 +177,7 @@ class HelloWorldWafStack(Stack):
         )
         CfnOutput(
             self,
-            "WafLogGroupName",
-            description="CloudWatch Logs log group receiving WAF access logs",
-            value=waf_log_group.log_group_name,
+            "WafLogsBucketName",
+            description="S3 bucket receiving WAF (CloudFront-scoped WebACL) access logs",
+            value=waf_logs_bucket.bucket_name,
         )

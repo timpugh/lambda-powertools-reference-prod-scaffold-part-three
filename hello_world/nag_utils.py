@@ -20,6 +20,7 @@ keep working when the stacks are nested under a ``cdk.Stage`` (a path string
 would break on the added Stage prefix).
 """
 
+import hashlib
 from collections.abc import Iterable
 from typing import cast
 
@@ -121,20 +122,6 @@ def grant_cloudtrail_service_to_key(key: kms.Key, *, region: str, account: str, 
             },
         )
     )
-
-
-def waf_log_destination(log_group: logs.LogGroup) -> str:
-    """Return a log group's ARN in the format WAF logging requires (no ``:*`` suffix).
-
-    CloudWatch Logs' ``GetAtt Arn`` (and therefore CDK's ``log_group_arn``)
-    resolves to ``arn:...:log-group:<name>:*``, but the WAF developer guide
-    documents the CloudWatch Logs destination for ``PutLoggingConfiguration``
-    as the plain log-group ARN without the trailing ``:*`` — and WAF has
-    historically rejected the wildcard form with WAFInvalidParameterException
-    (aws/aws-cdk#18253). Both WebACLs in this project route through this helper
-    so neither drifts back to the raw ``GetAtt`` form.
-    """
-    return Fn.select(0, Fn.split(":*", log_group.log_group_arn))
 
 
 def grant_cloudwatch_alarms_to_key(key: kms.Key, *, account: str, region: str) -> None:
@@ -441,6 +428,182 @@ def create_auto_delete_objects_log_group(scope: Stack, encryption_key: kms.Key) 
         # singleton nag findings here so callers don't each repeat the block.
         NagSuppressions.add_resource_suppressions(provider, CDK_LAMBDA_SUPPRESSIONS, apply_to_children=True)
     return provider
+
+
+# Nag rules every SSE-S3 log-sink bucket suppresses: it can't self-log (circular),
+# can't use a KMS-CMK default (delivery services don't support it), and doesn't
+# need versioning/replication for an append-only log sink.
+_LOG_SINK_SUPPRESSION_RULES = (
+    "AwsSolutions-S1",
+    "NIST.800.53.R5-S3BucketLoggingEnabled",
+    "HIPAA.Security-S3BucketLoggingEnabled",
+    "PCI.DSS.321-S3BucketLoggingEnabled",
+    "NIST.800.53.R5-S3DefaultEncryptionKMS",
+    "HIPAA.Security-S3DefaultEncryptionKMS",
+    "PCI.DSS.321-S3DefaultEncryptionKMS",
+    "NIST.800.53.R5-S3BucketVersioningEnabled",
+    "HIPAA.Security-S3BucketVersioningEnabled",
+    "PCI.DSS.321-S3BucketVersioningEnabled",
+    "NIST.800.53.R5-S3BucketReplicationEnabled",
+    "HIPAA.Security-S3BucketReplicationEnabled",
+    "PCI.DSS.321-S3BucketReplicationEnabled",
+)
+
+
+def create_sse_s3_log_bucket(
+    scope: Construct,
+    construct_id: str,
+    *,
+    suppression_reason: str,
+    expiration_days: int,
+    removal_policy: RemovalPolicy,
+    auto_delete: bool,
+    bucket_name: str | None = None,
+    object_ownership: s3.ObjectOwnership | None = None,
+) -> s3.Bucket:
+    """Create a standardized SSE-S3 **log-sink** bucket (+ the log-bucket nag suppressions).
+
+    The three log destinations in this project — the frontend access-log bucket,
+    the CloudTrail-logs bucket, and the WAF-logs bucket — share the same posture:
+    block all public access, SSE-S3 (the S3/CloudTrail/WAF delivery services don't
+    support KMS-CMK destination *buckets*), SSL enforced, no versioning, and a
+    lifecycle that expires objects. Centralizing it keeps them in lockstep (and
+    keeps pylint's R0801 from flagging three near-identical bucket blocks). What
+    varies — name, ACL ownership, lifecycle length, removal policy, auto-delete —
+    is passed in.
+
+    Args:
+        scope: Construct scope to create the bucket under.
+        construct_id: The bucket's construct id.
+        suppression_reason: The reason recorded on the log-bucket nag suppressions.
+        expiration_days: Objects expire after this many days.
+        removal_policy: DESTROY for the destroy-friendly default, RETAIN behind retain_data.
+        auto_delete: Whether to empty the bucket on stack delete (must be False when RETAIN).
+        bucket_name: Explicit name (only where AWS forces it, e.g. WAF's aws-waf-logs- prefix).
+        object_ownership: Set BUCKET_OWNER_PREFERRED where ACL-based log delivery needs it.
+
+    Returns:
+        The created bucket.
+    """
+    bucket = s3.Bucket(
+        scope,
+        construct_id,
+        bucket_name=bucket_name,
+        block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+        encryption=s3.BucketEncryption.S3_MANAGED,
+        enforce_ssl=True,
+        object_ownership=object_ownership,
+        versioned=False,
+        lifecycle_rules=[
+            s3.LifecycleRule(
+                id=f"ExpireAfter{expiration_days}Days",
+                enabled=True,
+                expiration=Duration.days(expiration_days),
+                abort_incomplete_multipart_upload_after=Duration.days(1),
+            ),
+        ],
+        removal_policy=removal_policy,
+        auto_delete_objects=auto_delete,
+    )
+    NagSuppressions.add_resource_suppressions(
+        bucket,
+        [{"id": rule, "reason": suppression_reason} for rule in _LOG_SINK_SUPPRESSION_RULES],
+    )
+    return bucket
+
+
+def create_waf_logs_bucket(scope: Construct, suffix: str) -> s3.Bucket:
+    """Create an ``aws-waf-logs-*`` S3 bucket wired for AWS WAF log delivery.
+
+    AWS WAF requires the destination bucket name to start with ``aws-waf-logs-``
+    (an AWS hard requirement — so this is a pinned name, unlike the auto-named
+    buckets elsewhere). It's account-qualified for S3's global uniqueness plus a
+    short hash of the stack name so multi-env / multi-region deployments in one
+    account never collide on the name.
+
+    **The bucket policy must be complete before logging is enabled.** When WAF
+    logging is turned on it ensures the ``delivery.logs.amazonaws.com`` write +
+    ACL-check grant is on the bucket; if no policy exists yet WAF creates one,
+    which then collides with CDK's own bucket policy (verified on a live deploy:
+    ``The bucket policy already exists``). So this bucket *pre-declares* those
+    exact delivery statements (plus the SSL-deny and the auto-delete grant) in
+    its CDK-managed policy, and the caller orders the ``CfnLoggingConfiguration``
+    *after* that policy (``logging.node.add_dependency(bucket.policy)``) — WAF
+    then finds the grant already present and leaves the policy alone. ACLs are
+    enabled (``BucketOwnerPreferred``) because WAF writes objects with a
+    ``bucket-owner-full-control`` ACL.
+
+    The caller points its ``CfnLoggingConfiguration.log_destination_configs`` at
+    the returned bucket's ARN, adds the policy dependency above, and must call
+    :func:`create_auto_delete_objects_log_group` once in the same stack (the
+    bucket uses ``auto_delete_objects``). SSE-S3 (not CMK) because the WAF/Logs
+    delivery service doesn't support KMS-CMK destination *buckets*.
+
+    Args:
+        scope: Any construct in the target stack (the bucket is created at the
+            owning stack's level so the auto-delete-provider wiring can find it).
+        suffix: Short discriminator for the bucket name (e.g. ``cf`` / ``api``).
+
+    Returns:
+        The created bucket (point WAF logging at ``bucket.bucket_arn``).
+    """
+    stack = Stack.of(scope)
+    # Hash the stack name (which already encodes env + region) into a fixed-width
+    # token so the pinned name stays well under S3's 63-char limit regardless of
+    # how long an ephemeral env name is.
+    name_hash = hashlib.sha256(stack.stack_name.encode()).hexdigest()[:12]
+    waf_bucket_reason = (
+        "WAF log destination bucket — SSE-S3 (delivery doesn't support KMS-CMK buckets), "
+        "no self-logging/versioning/replication for an append-only log sink"
+    )
+    bucket = create_sse_s3_log_bucket(
+        stack,
+        "WafLogsBucket",
+        suppression_reason=waf_bucket_reason,
+        expiration_days=90,
+        removal_policy=RemovalPolicy.DESTROY,
+        auto_delete=True,
+        bucket_name=f"aws-waf-logs-{stack.account}-{name_hash}-{suffix}",
+        # WAF delivers objects with a bucket-owner-full-control ACL, so ACLs must
+        # be enabled (the bucket-owner-enforced default would reject them).
+        object_ownership=s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+    )
+    # Pre-declare the exact delivery grant WAF would otherwise attach itself, so
+    # WAF leaves the CDK-managed policy alone (the caller orders the logging
+    # config after bucket.policy). The WAF→S3 path delivers through the
+    # CloudWatch Logs vended-delivery service, so aws:SourceArn is a logs ARN.
+    log_source_arn = f"arn:{stack.partition}:logs:{stack.region}:{stack.account}:*"
+    bucket.add_to_resource_policy(
+        iam.PolicyStatement(
+            sid="AWSLogDeliveryWrite",
+            effect=iam.Effect.ALLOW,
+            principals=[iam.ServicePrincipal("delivery.logs.amazonaws.com")],
+            actions=["s3:PutObject"],
+            resources=[bucket.arn_for_objects(f"AWSLogs/{stack.account}/*")],
+            conditions={
+                "StringEquals": {
+                    "s3:x-amz-acl": "bucket-owner-full-control",
+                    "aws:SourceAccount": stack.account,
+                },
+                "ArnLike": {"aws:SourceArn": log_source_arn},
+            },
+        )
+    )
+    bucket.add_to_resource_policy(
+        iam.PolicyStatement(
+            sid="AWSLogDeliveryAclCheck",
+            effect=iam.Effect.ALLOW,
+            principals=[iam.ServicePrincipal("delivery.logs.amazonaws.com")],
+            # s3:ListBucket included per the WAF docs to avoid CloudTrail AccessDenied noise.
+            actions=["s3:GetBucketAcl", "s3:ListBucket"],
+            resources=[bucket.bucket_arn],
+            conditions={
+                "StringEquals": {"aws:SourceAccount": stack.account},
+                "ArnLike": {"aws:SourceArn": log_source_arn},
+            },
+        )
+    )
+    return bucket
 
 
 CDK_LAMBDA_SUPPRESSIONS = [

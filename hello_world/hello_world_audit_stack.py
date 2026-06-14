@@ -40,6 +40,7 @@ from constructs import Construct
 from hello_world.nag_utils import (
     apply_compliance_aspects,
     create_auto_delete_objects_log_group,
+    create_sse_s3_log_bucket,
     grant_cloudtrail_service_to_key,
     grant_logs_service_to_key,
 )
@@ -112,79 +113,19 @@ class HelloWorldAuditStack(Stack):
         # SSE-S3 at rest (CloudTrail delivery can't target a KMS-CMK *bucket*),
         # with the trail writing each object SSE-KMS under the audit CMK. 90-day
         # lifecycle bounds storage; a compliance fork extends it (and adds AWS
-        # Backup / Object Lock — see TODO.md).
-        cloudtrail_log_bucket = s3.Bucket(
+        # Backup / Object Lock — see TODO.md). Built via the shared log-sink helper.
+        cloudtrail_log_bucket = create_sse_s3_log_bucket(
             self,
             "CloudTrailLogsBucket",
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            encryption=s3.BucketEncryption.S3_MANAGED,
-            enforce_ssl=True,
-            versioned=False,
-            lifecycle_rules=[
-                s3.LifecycleRule(
-                    id="ExpireAfter90Days",
-                    enabled=True,
-                    expiration=Duration.days(90),
-                    abort_incomplete_multipart_upload_after=Duration.days(1),
-                ),
-            ],
+            suppression_reason=(
+                "CloudTrail log bucket — SSE-S3 (CloudTrail delivery doesn't support KMS-CMK "
+                "destination buckets; trail log files are per-object SSE-KMS), self-logging would "
+                "create circular audit trails, no versioning/replication for an append-only, "
+                "integrity-validated log sink"
+            ),
+            expiration_days=90,
             removal_policy=removal_policy,
-            auto_delete_objects=auto_delete,
-        )
-        bucket_suppressions = [
-            ("AwsSolutions-S1", "CloudTrail log bucket — server access logging would create circular audit trails"),
-            (
-                "NIST.800.53.R5-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "HIPAA.Security-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "PCI.DSS.321-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "NIST.800.53.R5-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "HIPAA.Security-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "PCI.DSS.321-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "NIST.800.53.R5-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "HIPAA.Security-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "PCI.DSS.321-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "NIST.800.53.R5-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-            (
-                "HIPAA.Security-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-            (
-                "PCI.DSS.321-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-        ]
-        NagSuppressions.add_resource_suppressions(
-            cloudtrail_log_bucket,
-            [{"id": rule, "reason": reason} for rule, reason in bucket_suppressions],
+            auto_delete=auto_delete,
         )
 
         cloudtrail_log_group = logs.LogGroup(

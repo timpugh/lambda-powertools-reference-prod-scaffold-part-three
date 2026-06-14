@@ -52,6 +52,7 @@ from hello_world.nag_utils import (
     apply_compliance_aspects,
     attach_async_failure_destination,
     create_auto_delete_objects_log_group,
+    create_sse_s3_log_bucket,
     grant_logs_service_to_key,
     suppress_cdk_singletons,
 )
@@ -119,76 +120,26 @@ class HelloWorldFrontendStack(Stack):
         )
 
         # ── S3 access logging bucket ─────────────────────────────────────────
-        # Receives both S3 server access logs and CloudFront standard access
-        # logs. Must use SSE-S3 (not SSE-KMS) because neither the S3 log
-        # delivery service nor CloudFront standard logging support KMS-encrypted
-        # target buckets. This bucket itself does not need access logging (that
-        # would be circular), versioning, or replication.
-        access_log_bucket = s3.Bucket(
+        # Receives S3 server access logs (asset bucket), CloudFront standard
+        # access logs, and Athena query results. SSE-S3 (not SSE-KMS) because
+        # neither S3 log delivery nor CloudFront standard logging support
+        # KMS-encrypted target buckets. Built via the shared log-sink helper;
+        # object_ownership=BUCKET_OWNER_PREFERRED keeps ACLs usable for CloudFront
+        # standard logging (which delivers via ACL). 7-day lifecycle is tunable —
+        # extend or tier to Glacier for longer retention (see "Audit stack and
+        # log retention" in the README).
+        access_log_bucket = create_sse_s3_log_bucket(
             self,
             "FrontendAccessLogBucket",
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            encryption=s3.BucketEncryption.S3_MANAGED,
-            enforce_ssl=True,
-            # CloudFront standard logging requires ACL-based delivery — the bucket owner
-            # needs FULL_CONTROL on delivered log objects. BUCKET_OWNER_PREFERRED keeps
-            # Object Ownership set so ACLs remain usable for CloudFront log delivery.
-            object_ownership=s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
-            versioned=False,
-            # 7-day expiration cap on every prefix in this bucket (S3 access logs,
-            # CloudFront standard logs, Athena query results). Tunable: extend
-            # the duration, swap to a tiered transition (Standard-IA at 30d,
-            # Glacier Instant Retrieval at 90d, Glacier Deep Archive at 180d),
-            # or layer per-prefix rules if logs and Athena results need
-            # different retention.
-            lifecycle_rules=[
-                s3.LifecycleRule(
-                    id="ExpireAfter7Days",
-                    enabled=True,
-                    expiration=Duration.days(7),
-                    abort_incomplete_multipart_upload_after=Duration.days(1),
-                ),
-            ],
+            suppression_reason=(
+                "Access-log bucket — SSE-S3 (S3/CloudFront log delivery doesn't support "
+                "KMS-CMK target buckets), self-logging would be circular, no versioning/"
+                "replication for append-only transient logs"
+            ),
+            expiration_days=7,
             removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-        access_log_bucket_suppressions = [
-            ("AwsSolutions-S1", "This IS the access log bucket — logging to itself would be circular"),
-            (
-                "NIST.800.53.R5-S3BucketLoggingEnabled",
-                "This IS the access log bucket — logging to itself would be circular",
-            ),
-            (
-                "NIST.800.53.R5-S3DefaultEncryptionKMS",
-                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-            ),
-            (
-                "HIPAA.Security-S3DefaultEncryptionKMS",
-                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-            ),
-            (
-                "PCI.DSS.321-S3DefaultEncryptionKMS",
-                "S3 log delivery service does not support KMS-encrypted target buckets; SSE-S3 is used instead",
-            ),
-            (
-                "NIST.800.53.R5-S3BucketVersioningEnabled",
-                "Versioning not needed for log bucket — logs are append-only and transient",
-            ),
-            (
-                "HIPAA.Security-S3BucketVersioningEnabled",
-                "Versioning not needed for log bucket — logs are append-only and transient",
-            ),
-            (
-                "PCI.DSS.321-S3BucketVersioningEnabled",
-                "Versioning not needed for log bucket — logs are append-only and transient",
-            ),
-            ("NIST.800.53.R5-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
-            ("HIPAA.Security-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
-            ("PCI.DSS.321-S3BucketReplicationEnabled", "Replication not needed for log bucket in sample app"),
-        ]
-        NagSuppressions.add_resource_suppressions(
-            access_log_bucket,
-            [{"id": rule, "reason": reason} for rule, reason in access_log_bucket_suppressions],
+            auto_delete=True,
+            object_ownership=s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
         )
 
         # ── S3 bucket ────────────────────────────────────────────────────────

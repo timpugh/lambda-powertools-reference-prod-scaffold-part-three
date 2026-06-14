@@ -213,30 +213,37 @@ class TestWafStack:
         for acl in waf_template.find_resources("AWS::WAFv2::WebACL").values():
             assert "ForwardedIPConfig" not in json.dumps(acl["Properties"].get("Rules", []), default=str)
 
-    def test_webacl_log_destination_has_no_wildcard_suffix(self, waf_template: Template) -> None:
-        # CDK's log_group_arn resolves to "...:log-group:<name>:*", but the WAF
-        # dev guide documents the CloudWatch Logs destination as the plain
-        # log-group ARN without the trailing ":*". The stack must normalize the
-        # ARN (Fn::Select over Fn::Split on ":*") rather than pass GetAtt raw.
-        configs = waf_template.find_resources("AWS::WAFv2::LoggingConfiguration")
-        assert configs, "expected a WAF LoggingConfiguration"
-        for config in configs.values():
-            destination = json.dumps(config["Properties"]["LogDestinationConfigs"][0], default=str)
-            failure_hint = (
-                "WAF log destination must strip the :* suffix from the log-group ARN "
-                "(Fn::Select 0 of Fn::Split ':*'), not pass the raw GetAtt Arn"
-            )
-            assert "Fn::Select" in destination, failure_hint
-            assert ":*" in destination, failure_hint
-
-    def test_webacl_logging_targets_waf_log_group(self, waf_template: Template) -> None:
-        # The LoggingConfiguration must reference an aws-waf-logs-* group and the WebACL.
+    def test_webacl_logging_targets_s3_bucket(self, waf_template: Template) -> None:
+        # WAF logs go to an aws-waf-logs-* S3 bucket (not CloudWatch). The
+        # LoggingConfiguration destination must be the bucket ARN, and the bucket
+        # must carry the delivery.logs.amazonaws.com write policy.
         waf_template.resource_count_is("AWS::WAFv2::LoggingConfiguration", 1)
+        configs = waf_template.find_resources("AWS::WAFv2::LoggingConfiguration")
+        (config,) = configs.values()
+        destination = json.dumps(config["Properties"]["LogDestinationConfigs"][0], default=str)
+        assert "WafLogsBucket" in destination, "WAF logging destination must be the S3 bucket ARN"
+        # Bucket name must start with aws-waf-logs- (AWS requirement).
+        buckets = waf_template.find_resources("AWS::S3::Bucket")
+        names = json.dumps([b["Properties"].get("BucketName") for b in buckets.values()], default=str)
+        assert "aws-waf-logs-" in names, "WAF log bucket name must start with aws-waf-logs-"
+
+    def test_waf_log_bucket_has_delivery_policy(self, waf_template: Template) -> None:
+        # WAF→S3 needs the delivery service principal granted write + ACL-check.
         waf_template.has_resource_properties(
-            "AWS::WAFv2::LoggingConfiguration",
+            "AWS::S3::BucketPolicy",
             {
-                "LogDestinationConfigs": Match.any_value(),
-                "ResourceArn": Match.any_value(),
+                "PolicyDocument": {
+                    "Statement": Match.array_with(
+                        [
+                            Match.object_like(
+                                {
+                                    "Principal": {"Service": "delivery.logs.amazonaws.com"},
+                                    "Action": "s3:PutObject",
+                                }
+                            )
+                        ]
+                    )
+                }
             },
         )
 
@@ -258,7 +265,7 @@ class TestWafStack:
     def test_stack_outputs_exist(self, waf_template: Template) -> None:
         waf_template.has_output("WebAclArn", {})
         waf_template.has_output("WebAclId", {})
-        waf_template.has_output("WafLogGroupName", {})
+        waf_template.has_output("WafLogsBucketName", {})
 
 
 # ── Backend stack ─────────────────────────────────────────────────────────────
@@ -446,13 +453,24 @@ class TestBackendStack:
         backend_template.has_resource_properties("AWS::WAFv2::WebACL", {"Scope": "REGIONAL"})
         backend_template.resource_count_is("AWS::WAFv2::WebACLAssociation", 1)
 
-    def test_regional_waf_has_logging(self, backend_template: Template) -> None:
-        # WAFv2LoggingEnabled (NIST/HIPAA/PCI) requires logging on the ACL.
-        # The regional ACL writes to a CMK-encrypted aws-waf-logs-* group.
+    def test_regional_waf_logs_to_s3(self, backend_template: Template) -> None:
+        # WAFv2LoggingEnabled (NIST/HIPAA/PCI) requires logging on the ACL. The
+        # regional ACL writes to an aws-waf-logs-* S3 bucket (same-region
+        # requirement → the bucket lives in this stack), with the delivery
+        # service principal granted write on it.
         backend_template.resource_count_is("AWS::WAFv2::LoggingConfiguration", 1)
+        buckets = backend_template.find_resources("AWS::S3::Bucket")
+        names = json.dumps([b["Properties"].get("BucketName") for b in buckets.values()], default=str)
+        assert "aws-waf-logs-" in names, "regional WAF log bucket name must start with aws-waf-logs-"
         backend_template.has_resource_properties(
-            "AWS::Logs::LogGroup",
-            {"LogGroupName": Match.string_like_regexp("^aws-waf-logs-"), "KmsKeyId": Match.any_value()},
+            "AWS::S3::BucketPolicy",
+            {
+                "PolicyDocument": {
+                    "Statement": Match.array_with(
+                        [Match.object_like({"Principal": {"Service": "delivery.logs.amazonaws.com"}})]
+                    )
+                }
+            },
         )
 
     def test_regional_waf_has_managed_rule_sets(self, backend_template: Template) -> None:
@@ -704,18 +722,6 @@ class TestBackendStack:
         assert content["enhanced_greeting"]["default"] is False
         assert "flags" not in content
         assert "values" not in content
-
-    def test_regional_waf_log_destination_has_no_wildcard_suffix(self, backend_template: Template) -> None:
-        # Same contract as the CloudFront ACL's logging config in the WAF stack:
-        # the WAF dev guide documents the CloudWatch Logs destination ARN without
-        # the trailing ":*" that CDK's log_group_arn carries.
-        configs = backend_template.find_resources("AWS::WAFv2::LoggingConfiguration")
-        assert configs, "expected the regional WAF LoggingConfiguration"
-        for config in configs.values():
-            destination = json.dumps(config["Properties"]["LogDestinationConfigs"][0], default=str)
-            failure_hint = "regional WAF log destination must strip the :* suffix from the log-group ARN"
-            assert "Fn::Select" in destination, failure_hint
-            assert ":*" in destination, failure_hint
 
     def test_access_log_format_has_latency_and_no_message_string(self, backend_template: Template) -> None:
         # responseLatency feeds the SlowestRequests saved query (without it the
@@ -1148,9 +1154,6 @@ class TestLogicalIdStability:
 
     def test_waf_kms_key_id(self, waf_template: Template) -> None:
         assert "WafEncryptionKeyB025E51A" in waf_template.find_resources("AWS::KMS::Key")
-
-    def test_waf_log_group_id(self, waf_template: Template) -> None:
-        assert "WafLogGroupDFDE65B0" in waf_template.find_resources("AWS::Logs::LogGroup")
 
     def test_waf_webacl_id(self, waf_template: Template) -> None:
         # L1 CfnWebACL — its logical ID is the construct_id with no hash suffix.

@@ -81,10 +81,11 @@ from constructs import Construct
 
 from hello_world.nag_utils import (
     build_managed_threat_rules,
+    create_auto_delete_objects_log_group,
+    create_waf_logs_bucket,
     grant_cloudwatch_alarms_to_key,
     grant_guardduty_service_to_key,
     grant_logs_service_to_key,
-    waf_log_destination,
 )
 
 
@@ -846,27 +847,25 @@ class HelloWorldApp(Construct):
         )
 
         # WAF logging — required by NIST/HIPAA/PCI WAFv2LoggingEnabled, mirroring
-        # the CloudFront ACL in HelloWorldWafStack. The log-group name must start
-        # with "aws-waf-logs-" (AWS requirement) and is CMK-encrypted with the
-        # backend key (the Logs service principal grant is already on this key via
-        # grant_logs_service_to_key in __init__). WAFv2 writes via its
-        # service-linked role, so no extra log-group resource policy is needed.
-        regional_waf_log_group = logs.LogGroup(
-            self,
-            "ApiRegionalWafLogGroup",
-            log_group_name=f"aws-waf-logs-{stack.stack_name}-api",
-            encryption_key=self.encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        # Destination ARN normalized via waf_log_destination — WAF documents the
-        # log-group ARN without the ":*" suffix that CDK's log_group_arn carries.
-        wafv2.CfnLoggingConfiguration(
+        # the CloudFront ACL in HelloWorldWafStack. Logs go to S3 (cheaper
+        # long-term retention than CloudWatch) via the shared create_waf_logs_bucket
+        # helper, which builds the aws-waf-logs-* bucket + its delivery bucket
+        # policy. The regional bucket lives in this (target-region) stack because
+        # WAF requires the S3 destination in the same region as the ACL.
+        regional_waf_logs_bucket = create_waf_logs_bucket(self, "api")
+        regional_waf_logging = wafv2.CfnLoggingConfiguration(
             self,
             "ApiRegionalWafLogging",
-            log_destination_configs=[waf_log_destination(regional_waf_log_group)],
+            log_destination_configs=[regional_waf_logs_bucket.bucket_arn],
             resource_arn=regional_acl.attr_arn,
         )
+        # Order after the bucket policy so WAF leaves the CDK-managed policy alone.
+        if regional_waf_logs_bucket.policy is not None:
+            regional_waf_logging.node.add_dependency(regional_waf_logs_bucket.policy)
+        # The bucket uses auto_delete_objects; give the S3 auto-delete singleton an
+        # explicit CMK log group (helper also suppresses its singleton nag findings).
+        # The provider + bucket are stack-level, so pass the stack, not the construct.
+        create_auto_delete_objects_log_group(stack, self.encryption_key)
 
         # Associate the ACL with the deployed Prod stage. stage_arn is the
         # resource ARN WAFv2 expects for an API Gateway stage.
