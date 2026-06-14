@@ -2,9 +2,9 @@
 """CDK application entry point.
 
 Synthesizes a :class:`HelloWorldStage` per target region and deployment
-environment. Each Stage groups the four stacks that make up one regional
-deployment (data, WAF, backend, frontend) so ``cdk deploy`` treats them as a
-single unit:
+environment. Each Stage groups the five stacks that make up one regional
+deployment (data, WAF, backend, frontend, audit) so ``cdk deploy`` treats them
+as a single unit:
 
   HelloWorldWaf-{region}      — WAF WebACL, physically in us-east-1
                                 (CloudFront constraint), but named per region
@@ -17,14 +17,19 @@ single unit:
   HelloWorld-{region}         — Lambda, API Gateway, SSM, AppConfig
   HelloWorldFrontend-{region} — S3, CloudFront (references WAF ARN cross-region
                                 via SSM when target region differs from us-east-1)
+  HelloWorldAudit-{region}    — stateful audit layer: the CloudTrail object-level
+                                S3 data-event trail, its log bucket, and a
+                                dedicated CMK. Audits the frontend buckets
+                                one-way (RETAIN/protection togglable via
+                                retain_data).
 
 The target region is controlled by the ``region`` CDK context key.
 Defaults to us-east-1 if not specified.
 
-The stateful data stack's retention posture is controlled by the
-``retain_data`` CDK context key (``-c retain_data=true``). It defaults to
-``false`` so the template tears down cleanly; production forks set it true to
-flip the table and its CMK to RETAIN with deletion/termination protection.
+The stateful stacks' retention posture is controlled by the ``retain_data`` CDK
+context key (``-c retain_data=true``). It defaults to ``false`` so the template
+tears down cleanly; production forks set it true to flip the data and audit
+stacks (tables, buckets, CMKs) to RETAIN with deletion/termination protection.
 
 The deployment environment is controlled by the ``env`` CDK context key,
 falling back to the ``ENVIRONMENT`` variable, defaulting to ``prod``.
@@ -41,7 +46,7 @@ Usage:
     make deploy ENV=alice-feature-x             # same, via the Makefile
 
 Each Stage is fully independent — destroying one does not affect any other.
-All four stacks for a given region+environment are destroyed together:
+All five stacks for a given region+environment are destroyed together:
 
     cdk destroy --all -c region=ap-southeast-1
     cdk destroy --all -c env=alice-feature-x

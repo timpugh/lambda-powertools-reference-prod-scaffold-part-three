@@ -35,7 +35,7 @@ CDK := npx cdk
 
 # Deployment environment for the env-aware targets below. Empty (the default)
 # targets the long-lived prod stacks with their legacy names. Set ENV to spin
-# up/tear down a namespaced, collision-free copy of all four stacks — e.g.
+# up/tear down a namespaced, collision-free copy of all five stacks — e.g.
 # `make deploy ENV=alice-feature-x` — for per-developer or per-branch work in
 # a shared account. Non-prod environments keep dashboards and alarms but skip
 # the SNS alarm topic so an ephemeral stack never pages anyone. See app.py.
@@ -177,7 +177,7 @@ coverage-badge: ## Generate the shields-endpoint coverage badge JSON (whole repo
 
 cdk-synth: ## Synthesize all CDK stacks and validate cdk-nag rules (CDK CLI via `npm ci` / `make install`)
 	# The '**' glob descends into Stage-nested stacks. Without it, `cdk synth`
-	# stops at the Stage manifest, the four nested stacks never synthesize,
+	# stops at the Stage manifest, the five nested stacks never synthesize,
 	# and cdk-nag rules silently don't fire on them — so a "passing" synth
 	# can mask findings that surface later in `cdk deploy`.
 	$(CDK) synth '**' $(CDK_ENV_ARG)
@@ -190,15 +190,15 @@ cdk-deprecations: ## List every deprecated CDK API used by any stack (synth outp
 
 cdk-ls: ## List all CDK stacks (uses '**' to descend into Stage-nested stacks)
 	# Without '**', `cdk ls` stops at the top-level Stage manifest and
-	# prints nothing useful. With it, the four nested stacks (Data, WAF,
-	# Backend, Frontend) are listed — handy as a sanity check after stack-graph
-	# refactors or when verifying the Stage wiring is intact.
+	# prints nothing useful. With it, the five nested stacks (Data, WAF,
+	# Backend, Frontend, Audit) are listed — handy as a sanity check after
+	# stack-graph refactors or when verifying the Stage wiring is intact.
 	$(CDK) ls '**' $(CDK_ENV_ARG)
 
 cdk-diff: ## Preview infra changes against deployed stacks (requires AWS credentials)
 	# Same Stage-nesting trap as cdk-synth and deploy: bare `cdk diff`
 	# walks only the App's direct children and reports no changes for the
-	# four real stacks. Use this as the pre-PR companion to cdk-synth —
+	# five real stacks. Use this as the pre-PR companion to cdk-synth —
 	# synth tells you cdk-nag is happy, diff tells you what would deploy.
 	$(CDK) diff '**' $(CDK_ENV_ARG)
 
@@ -266,8 +266,9 @@ deploy: ## Deploy all stacks to us-east-1 (ENV=<name> for an ephemeral env, -c r
 # command fails outright in non-TTY contexts (CI, background shells)
 # with "terminal is not attached so we are unable to get a confirmation".
 # If you want the confirmation back for a one-off run, invoke cdk
-# directly: `npx cdk destroy '**'`. Four stacks are destroyed independently
-# — frontend first (consumes the WAF ARN), then backend, then data and WAF.
+# directly: `npx cdk destroy '**'`. Five stacks are destroyed independently
+# — audit first (depends on the frontend buckets it audits), then frontend
+# (consumes the WAF ARN), then backend, then data and WAF.
 destroy: ## Destroy all stacks in us-east-1 (ENV=<name> for an ephemeral env, -c region=X for other regions)
 	$(CDK) destroy '**' $(CDK_ENV_ARG) --force
 
@@ -275,19 +276,23 @@ destroy: ## Destroy all stacks in us-east-1 (ENV=<name> for an ephemeral env, -c
 # non-default deploy: `make destroy-clean REGION=ap-southeast-1`.
 REGION ?= us-east-1
 
-# Resolve every S3 bucket in the frontend stack by type (names are CDK-generated,
-# so we can't hardcode them) and empty each. Idempotent: a missing stack or empty
-# bucket is a no-op. Used by destroy-clean below. ENVSEG folds the deployment
-# environment into the stack name (HelloWorldFrontend-<env>-<region>) so an
-# ephemeral env's teardown empties its own buckets, not prod's.
+# Resolve every S3 bucket in the frontend AND audit stacks by type (names are
+# CDK-generated, so we can't hardcode them) and empty each. Idempotent: a missing
+# stack or empty bucket is a no-op. Used by destroy-clean below. ENVSEG folds the
+# deployment environment into the stack name (HelloWorldFrontend-<env>-<region>,
+# HelloWorldAudit-<env>-<region>) so an ephemeral env's teardown empties its own
+# buckets, not prod's. (auto_delete_objects normally empties these on destroy;
+# this is the belt-and-suspenders for a prior failed deploy that left one full.)
 _empty-frontend-buckets:
-	@echo "Emptying frontend-stack S3 buckets in $(REGION)..."
-	@for b in $$(aws cloudformation list-stack-resources \
-		--stack-name HelloWorldFrontend$(ENVSEG)-$(REGION) --region $(REGION) \
-		--query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket'].PhysicalResourceId" \
-		--output text 2>/dev/null); do \
-		echo "  emptying s3://$$b"; \
-		aws s3 rm "s3://$$b" --recursive --region $(REGION) >/dev/null 2>&1 || true; \
+	@echo "Emptying frontend- and audit-stack S3 buckets in $(REGION)..."
+	@for s in "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
+		for b in $$(aws cloudformation list-stack-resources \
+			--stack-name "$$s" --region $(REGION) \
+			--query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket'].PhysicalResourceId" \
+			--output text 2>/dev/null); do \
+			echo "  emptying s3://$$b"; \
+			aws s3 rm "s3://$$b" --recursive --region $(REGION) >/dev/null 2>&1 || true; \
+		done; \
 	done
 
 # CloudWatch log delivery is asynchronous in the same way: the custom-resource
@@ -312,7 +317,7 @@ _empty-frontend-buckets:
 # ("us-eas", not "us-east-1"), which no full-stack-name prefix can match.
 _delete-straggler-log-groups:
 	@echo "Sweeping straggler CloudWatch log groups..."
-	@for base in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)"; do \
+	@for base in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
 		for prefix in "$$base" "/aws/lambda/$$base" "aws-waf-logs-$$base"; do \
 			for lg in $$(aws logs describe-log-groups --log-group-name-prefix "$$prefix" \
 				--region $(REGION) --query "logGroups[].logGroupName" --output text 2>/dev/null); do \
@@ -334,16 +339,16 @@ _delete-straggler-log-groups:
 # never clobber each other's snapshots.
 LOG_GROUP_SNAPSHOT := /tmp/log-group-snapshot$(ENVSEG)-$(REGION).txt
 
-# Records the exact physical names of every CFN-owned log group in the three
-# stacks BEFORE destroy. This is what makes the truncated-name gap above
-# closeable: prefixes can't reconstruct a mid-word-truncated function name,
+# Records the exact physical names of every CFN-owned log group in the
+# target-region stacks BEFORE destroy. This is what makes the truncated-name gap
+# above closeable: prefixes can't reconstruct a mid-word-truncated function name,
 # but CloudFormation knows each group's exact physical ID while the stack
 # still exists. Missing stacks contribute nothing (fresh teardown re-runs are
 # no-ops). The WAF stack is queried in us-east-1 (it always lives there).
 _snapshot-log-groups:
 	@echo "Snapshotting CFN-owned log groups (for the post-destroy exact-name sweep)..."
 	@: > $(LOG_GROUP_SNAPSHOT)
-	@for s in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)"; do \
+	@for s in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
 		aws cloudformation list-stack-resources --stack-name "$$s" --region $(REGION) \
 			--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
 			--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/$(REGION) /" >> $(LOG_GROUP_SNAPSHOT) || true; \

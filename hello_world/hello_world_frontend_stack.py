@@ -1,9 +1,7 @@
 from typing import Any
 
 from aws_cdk import (
-    Annotations,
     CfnOutput,
-    CustomResourceProviderBase,
     Duration,
     Fn,
     RemovalPolicy,
@@ -17,9 +15,6 @@ from aws_cdk import (
 )
 from aws_cdk import (
     aws_cloudfront_origins as origins,
-)
-from aws_cdk import (
-    aws_cloudtrail as cloudtrail,
 )
 from aws_cdk import (
     aws_cognito as cognito,
@@ -54,10 +49,9 @@ from constructs import Construct
 from hello_world.nag_utils import (
     AWS_CUSTOM_RESOURCE_PROVIDER_ID,
     BUCKET_DEPLOYMENT_PROVIDER_ID,
-    CDK_LAMBDA_SUPPRESSIONS,
     apply_compliance_aspects,
     attach_async_failure_destination,
-    grant_cloudtrail_service_to_key,
+    create_auto_delete_objects_log_group,
     grant_logs_service_to_key,
     suppress_cdk_singletons,
 )
@@ -214,7 +208,11 @@ class HelloWorldFrontendStack(Stack):
             auto_delete_objects=True,
         )
 
-        self._create_s3_audit_trail(audited_buckets=[bucket, access_log_bucket], encryption_key=frontend_encryption_key)
+        # Expose the buckets for the audit stack to consume cross-stack — the
+        # CloudTrail trail recording object-level data events on them lives in
+        # HelloWorldAuditStack (a one-way dependency: audit -> frontend).
+        self.bucket = bucket
+        self.access_log_bucket = access_log_bucket
 
         # ── CloudFront response headers ──────────────────────────────────────
         # Custom ResponseHeadersPolicy (replaces the AWS-managed SECURITY_HEADERS)
@@ -537,10 +535,10 @@ class HelloWorldFrontendStack(Stack):
             ],
         )
 
-        # Explicit CMK log group for the CDK auto-delete-objects singleton Lambda
-        # (see _create_auto_delete_log_group). Returns the provider so the
-        # suppression block below can target it.
-        auto_delete_provider = self._create_auto_delete_log_group(frontend_encryption_key)
+        # Explicit CMK log group + singleton nag suppressions for the CDK
+        # auto-delete-objects provider Lambda (see create_auto_delete_objects_log_group
+        # in nag_utils — it owns both, so there's no per-stack block here).
+        create_auto_delete_objects_log_group(self, frontend_encryption_key)
 
         self._create_athena_glue_resources(access_log_bucket, frontend_encryption_key)
 
@@ -593,12 +591,6 @@ class HelloWorldFrontendStack(Stack):
         deploy_frontend = self.node.try_find_child("DeployFrontend")
         if deploy_frontend is not None:
             suppress_cdk_singletons(deploy_frontend, ("CustomResourceHandler",))
-        if auto_delete_provider is not None:
-            NagSuppressions.add_resource_suppressions(
-                auto_delete_provider,
-                CDK_LAMBDA_SUPPRESSIONS,
-                apply_to_children=True,
-            )
 
         # ── Stack-level cdk-nag suppressions (genuinely stack-wide) ─────────────
         replication_reason = "S3 replication not needed for sample app — static assets are redeployable"
@@ -617,61 +609,6 @@ class HelloWorldFrontendStack(Stack):
             self,
             [{"id": rule, "reason": reason} for rule, reason in stack_suppressions],
         )
-
-    def _create_auto_delete_log_group(self, encryption_key: kms.Key) -> CustomResourceProviderBase | None:
-        """Create an explicit CMK log group for the CDK auto-delete-objects singleton.
-
-        CDK creates a singleton Lambda to empty the bucket before deletion. It is a
-        CloudFormation-managed Lambda, but its log group is created implicitly by
-        Lambda and has no retention — it would dangle after ``cdk destroy``. We find
-        the provider via the construct tree and create an explicit log group so
-        CloudFormation owns and deletes it.
-
-        The lookup is type-checked at runtime instead of cast-asserted: if CDK ever
-        swaps the provider out for an incompatible type the explicit isinstance()
-        returns None and the log-group block is skipped, rather than letting a stale
-        cast() lie its way into a service_token attribute access that would crash at
-        synth time. We match ``CustomResourceProviderBase`` (not the narrower
-        ``CustomResourceProvider`` subclass) because CDK 2.248's S3 auto-delete
-        singleton synthesizes as the base type — matching only the subclass silently
-        skipped the log group and let it dangle. Returns the provider (or None) so
-        the caller can attach suppressions to it.
-        """
-        node = self.node.try_find_child("Custom::S3AutoDeleteObjectsCustomResourceProvider")
-        provider = node if isinstance(node, CustomResourceProviderBase) else None
-        # If the node exists but isn't a CustomResourceProvider, a CDK upgrade has
-        # changed the provider's type and the log-group cleanup is silently skipped —
-        # surface that loudly at synth instead of leaving a dangling /aws/lambda/ group.
-        if node is not None and provider is None:
-            Annotations.of(self).add_warning(
-                "S3 auto-delete provider node found but is not a CustomResourceProviderBase — "
-                "its log group will not be created and may dangle after cdk destroy. "
-                "A CDK version bump likely changed the provider type; update AutoDeleteObjectsLogGroup wiring."
-            )
-        if provider is not None:
-            # service_token is the Lambda ARN; index 6 of the colon-split is the function name
-            fn_name = Fn.select(6, Fn.split(":", provider.service_token))
-            log_group = logs.LogGroup(
-                self,
-                "AutoDeleteObjectsLogGroup",
-                log_group_name=Fn.join("", ["/aws/lambda/", fn_name]),
-                encryption_key=encryption_key,
-                retention=logs.RetentionDays.ONE_WEEK,
-                removal_policy=RemovalPolicy.DESTROY,
-            )
-            # The provider logs on its CREATE invocation too (each bucket's
-            # auto-delete custom resource fires it during deploy). Without
-            # explicit ordering, that first invocation can race this LogGroup:
-            # Lambda implicitly creates the group on first write and the
-            # LogGroup CREATE then fails with "already exists". Order every
-            # bucket's auto-delete custom resource after the group so the
-            # CMK-encrypted, retention-bounded group always wins.
-            for child in self.node.children:
-                if isinstance(child, s3.Bucket):
-                    auto_delete_cr = child.node.try_find_child("AutoDeleteObjectsCustomResource")
-                    if auto_delete_cr is not None:
-                        auto_delete_cr.node.add_dependency(log_group)
-        return provider
 
     def _build_response_headers_policy(self) -> cloudfront.ResponseHeadersPolicy:
         """Build the CloudFront ResponseHeadersPolicy (managed SECURITY_HEADERS + HSTS + CSP).
@@ -755,191 +692,6 @@ class HelloWorldFrontendStack(Stack):
                     override=True,
                 ),
             ),
-        )
-
-    def _create_s3_audit_trail(self, audited_buckets: list[s3.Bucket], encryption_key: kms.Key) -> None:
-        """Create a CloudTrail Trail recording S3 object-level data events on the given buckets.
-
-        Captures every Get/Put/Delete API call against the audited buckets. Object-level
-        events aren't recorded by the default management-events trail and aren't
-        reconstructible from S3 server access logs (those only cover successful reads/writes
-        through the bucket interface, not failed authorization or DeleteObject calls).
-        Trail logs are stored in a dedicated bucket so the audit destination isn't itself
-        among the audited resources.
-        """
-        # Confused-deputy-guarded CloudTrail service-principal grant on the CMK.
-        # Shared helper in nag_utils so all service-principal grants on the
-        # project's CMKs (logs, GuardDuty, CloudTrail) live in one module and
-        # stay in lockstep — see ``grant_cloudtrail_service_to_key``.
-        grant_cloudtrail_service_to_key(
-            encryption_key,
-            region=self.region,
-            account=self.account,
-            partition=self.partition,
-        )
-        cloudtrail_log_bucket = s3.Bucket(
-            self,
-            "CloudTrailLogsBucket",
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            encryption=s3.BucketEncryption.S3_MANAGED,
-            enforce_ssl=True,
-            versioned=False,
-            # Bound the audit trail's storage growth. S3 data events fire on
-            # every Get/Put/Delete against the audited buckets and accumulate
-            # forever otherwise. 30 days matches a typical short-retention
-            # forensic window — production forks with compliance scope (HIPAA,
-            # PCI) should extend or replace this with an AWS Backup plan, and
-            # forks running CloudTrail Lake can drop the on-bucket trail
-            # entirely.
-            lifecycle_rules=[
-                s3.LifecycleRule(
-                    id="ExpireAfter30Days",
-                    enabled=True,
-                    expiration=Duration.days(30),
-                    abort_incomplete_multipart_upload_after=Duration.days(1),
-                ),
-            ],
-            removal_policy=RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
-        )
-        # CloudTrail can't write to a bucket that has access logging or KMS-CMK
-        # encryption enabled (delivery service limitations) — same constraints
-        # that apply to access_log_bucket. Suppress the corresponding nag rules.
-        bucket_suppressions = [
-            ("AwsSolutions-S1", "CloudTrail log bucket — server access logging would create circular audit trails"),
-            (
-                "NIST.800.53.R5-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "HIPAA.Security-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "PCI.DSS.321-S3BucketLoggingEnabled",
-                "CloudTrail log bucket — server access logging would create circular audit trails",
-            ),
-            (
-                "NIST.800.53.R5-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "HIPAA.Security-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "PCI.DSS.321-S3DefaultEncryptionKMS",
-                "CloudTrail delivery service does not support KMS-CMK encrypted destination buckets",
-            ),
-            (
-                "NIST.800.53.R5-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "HIPAA.Security-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "PCI.DSS.321-S3BucketVersioningEnabled",
-                "Versioning not needed for CloudTrail log bucket — logs are append-only and integrity-validated by CloudTrail",
-            ),
-            (
-                "NIST.800.53.R5-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-            (
-                "HIPAA.Security-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-            (
-                "PCI.DSS.321-S3BucketReplicationEnabled",
-                "Replication not needed for CloudTrail log bucket in sample app",
-            ),
-        ]
-        NagSuppressions.add_resource_suppressions(
-            cloudtrail_log_bucket,
-            [{"id": rule, "reason": reason} for rule, reason in bucket_suppressions],
-        )
-        cloudtrail_log_group = logs.LogGroup(
-            self,
-            "S3DataEventsTrailLogs",
-            encryption_key=encryption_key,
-            retention=logs.RetentionDays.ONE_WEEK,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        # Pin the trail name so its ARN is known *before* the trail resource is
-        # created — needed to break the dependency cycle that would otherwise
-        # form between the trail (which CDK auto-wires to depend on its bucket
-        # policy) and the confused-deputy Deny statement on the bucket policy
-        # (which references the trail ARN).
-        trail_name = f"{self.stack_name}-S3DataEventsTrail"
-        trail_arn = f"arn:{self.partition}:cloudtrail:{self.region}:{self.account}:trail/{trail_name}"
-
-        # Confused-deputy guard on the CloudTrail bucket policy. CDK 2.248's
-        # cloudtrail.Trail L2 grants the cloudtrail.amazonaws.com principal
-        # s3:GetBucketAcl + s3:PutObject without an aws:SourceArn condition,
-        # so any CloudTrail trail in any AWS account that ever discovered this
-        # bucket name could in principle write to it. Adding two explicit Deny
-        # statements (one per condition key) closes the gap on either mismatch
-        # — if both keys lived in one StringNotEquals block IAM would AND them,
-        # so a malicious trail in the same account with a different name would
-        # match aws:SourceAccount and slip past. Splitting into two Denies gives
-        # the OR semantics we actually want.
-        ct_principals = [iam.ServicePrincipal("cloudtrail.amazonaws.com")]
-        ct_resources = [cloudtrail_log_bucket.bucket_arn, cloudtrail_log_bucket.arn_for_objects("*")]
-        cloudtrail_log_bucket.add_to_resource_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.DENY,
-                actions=["s3:GetBucketAcl", "s3:PutObject"],
-                principals=ct_principals,
-                resources=ct_resources,
-                conditions={"StringNotEquals": {"aws:SourceArn": trail_arn}},
-            )
-        )
-        cloudtrail_log_bucket.add_to_resource_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.DENY,
-                actions=["s3:GetBucketAcl", "s3:PutObject"],
-                principals=ct_principals,
-                resources=ct_resources,
-                conditions={"StringNotEquals": {"aws:SourceAccount": self.account}},
-            )
-        )
-
-        s3_data_events_trail = cloudtrail.Trail(
-            self,
-            "S3DataEventsTrail",
-            trail_name=trail_name,
-            bucket=cloudtrail_log_bucket,
-            send_to_cloud_watch_logs=True,
-            cloud_watch_log_group=cloudtrail_log_group,
-            encryption_key=encryption_key,
-            enable_file_validation=True,
-            include_global_service_events=False,
-            is_multi_region_trail=False,
-        )
-        # include_management_events=False keeps this trail scoped to its stated
-        # purpose: object-level S3 data events. The CDK default (True) would
-        # additionally record EVERY regional management event — a *second copy*
-        # in any account that already has a management trail, billed at
-        # $2/100k events, on every fork of this template. (read_write_type is
-        # left at its default so both data-event reads and writes are captured.)
-        s3_data_events_trail.add_s3_event_selector(
-            [cloudtrail.S3EventSelector(bucket=b) for b in audited_buckets],
-            include_management_events=False,
-        )
-        # CDK creates the trail's CloudWatch Logs delivery role with an inline
-        # default policy — same pattern as the Lambda service role; not
-        # directly configurable.
-        inline_policy_reason = "CDK generates the trail's LogsRole default policy inline — not directly configurable"
-        NagSuppressions.add_resource_suppressions(
-            s3_data_events_trail,
-            [
-                {"id": "NIST.800.53.R5-IAMNoInlinePolicy", "reason": inline_policy_reason},
-                {"id": "HIPAA.Security-IAMNoInlinePolicy", "reason": inline_policy_reason},
-                {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": inline_policy_reason},
-            ],
-            apply_to_children=True,
         )
 
     def _wire_rum_metrics_extras(

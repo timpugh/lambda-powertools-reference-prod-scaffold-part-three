@@ -23,12 +23,13 @@ would break on the added Stage prefix).
 from collections.abc import Iterable
 from typing import cast
 
-from aws_cdk import Aspects, CfnOutput, Duration, Fn, RemovalPolicy, Stack
+from aws_cdk import Annotations, Aspects, CfnOutput, CustomResourceProviderBase, Duration, Fn, RemovalPolicy, Stack
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_lambda_destinations as destinations
 from aws_cdk import aws_logs as logs
+from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_sqs as sqs
 from aws_cdk import aws_wafv2 as wafv2
 from cdk_nag import (
@@ -388,6 +389,58 @@ def suppress_cdk_singletons(scope: IConstruct, singleton_ids: Iterable[str]) -> 
                 CDK_LAMBDA_SUPPRESSIONS,
                 apply_to_children=True,
             )
+
+
+def create_auto_delete_objects_log_group(scope: Stack, encryption_key: kms.Key) -> CustomResourceProviderBase | None:
+    """Create an explicit CMK log group for the CDK S3 auto-delete-objects singleton.
+
+    ``auto_delete_objects=True`` makes CDK synthesize a singleton Lambda that
+    empties a bucket before deletion. That Lambda's log group is created
+    implicitly by Lambda on first write — unencrypted and with no retention — so
+    it dangles after ``cdk destroy``. This pre-creates an explicit CMK-encrypted,
+    retention-bounded log group with the Lambda's exact name so CloudFormation
+    owns and deletes it. Shared by every stack that uses ``auto_delete_objects``
+    (frontend, audit) so the wiring stays in lockstep — pylint's R0801 would
+    otherwise flag the duplicated ~40-line block.
+
+    The provider lookup is type-checked at runtime: if a CDK upgrade swaps the
+    provider for an incompatible type, the ``isinstance`` returns None and the
+    block is skipped (surfaced as a warning) rather than crashing at synth. We
+    match ``CustomResourceProviderBase`` (not the narrower ``CustomResourceProvider``)
+    because CDK 2.248's S3 auto-delete singleton synthesizes as the base type.
+    Returns the provider (or None) so the caller can attach suppressions to it.
+    """
+    node = scope.node.try_find_child("Custom::S3AutoDeleteObjectsCustomResourceProvider")
+    provider = node if isinstance(node, CustomResourceProviderBase) else None
+    if node is not None and provider is None:
+        Annotations.of(scope).add_warning(
+            "S3 auto-delete provider node found but is not a CustomResourceProviderBase — "
+            "its log group will not be created and may dangle after cdk destroy. "
+            "A CDK version bump likely changed the provider type; update AutoDeleteObjectsLogGroup wiring."
+        )
+    if provider is not None:
+        # service_token is the Lambda ARN; index 6 of the colon-split is the function name.
+        fn_name = Fn.select(6, Fn.split(":", provider.service_token))
+        log_group = logs.LogGroup(
+            scope,
+            "AutoDeleteObjectsLogGroup",
+            log_group_name=Fn.join("", ["/aws/lambda/", fn_name]),
+            encryption_key=encryption_key,
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        # The provider logs on its CREATE invocation too; without explicit
+        # ordering that first write races this LogGroup CREATE ("already exists").
+        # Order every bucket's auto-delete custom resource after the group.
+        for child in scope.node.children:
+            if isinstance(child, s3.Bucket):
+                auto_delete_cr = child.node.try_find_child("AutoDeleteObjectsCustomResource")
+                if auto_delete_cr is not None:
+                    auto_delete_cr.node.add_dependency(log_group)
+        # The provider is a CDK-managed singleton Lambda; suppress its standard
+        # singleton nag findings here so callers don't each repeat the block.
+        NagSuppressions.add_resource_suppressions(provider, CDK_LAMBDA_SUPPRESSIONS, apply_to_children=True)
+    return provider
 
 
 CDK_LAMBDA_SUPPRESSIONS = [

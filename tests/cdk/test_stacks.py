@@ -35,6 +35,7 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipp
 import aws_cdk as cdk
 from aws_cdk.assertions import Match, Template
 
+from hello_world.hello_world_audit_stack import HelloWorldAuditStack
 from hello_world.hello_world_data_stack import HelloWorldDataStack
 from hello_world.hello_world_frontend_stack import HelloWorldFrontendStack
 from hello_world.hello_world_stack import HelloWorldStack
@@ -104,6 +105,55 @@ def frontend_template() -> Template:
         waf_acl_arn=waf.web_acl_arn,
         env=_TEST_ENV,
         cross_region_references=True,
+    )
+    return Template.from_stack(stack)
+
+
+def _build_frontend(app: cdk.App, stack_suffix: str) -> HelloWorldFrontendStack:
+    """Build the waf->data->backend->frontend chain and return the frontend stack.
+
+    The audit stack audits the frontend buckets, so its tests need a real
+    frontend whose ``bucket`` / ``access_log_bucket`` they can pass in.
+    """
+    waf = HelloWorldWafStack(app, f"{stack_suffix}Waf", env=_WAF_ENV)
+    data = HelloWorldDataStack(app, f"{stack_suffix}Data", env=_TEST_ENV)
+    backend = HelloWorldStack(app, f"{stack_suffix}Backend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
+    return HelloWorldFrontendStack(
+        app,
+        f"{stack_suffix}Frontend",
+        api_url=backend.api_url,
+        api_id=backend.api_id,
+        waf_acl_arn=waf.web_acl_arn,
+        env=_TEST_ENV,
+        cross_region_references=True,
+    )
+
+
+@pytest.fixture(scope="module")
+def audit_template() -> Template:
+    """Synthesize HelloWorldAuditStack (default destroy-friendly shape)."""
+    app = cdk.App(context=_NO_BUNDLING)
+    frontend = _build_frontend(app, "TestAudit")
+    stack = HelloWorldAuditStack(
+        app,
+        "TestAuditStack",
+        audited_buckets=[frontend.bucket, frontend.access_log_bucket],
+        env=_TEST_ENV,
+    )
+    return Template.from_stack(stack)
+
+
+@pytest.fixture(scope="module")
+def audit_template_retained() -> Template:
+    """Synthesize HelloWorldAuditStack with retain_data=True (production shape)."""
+    app = cdk.App(context=_NO_BUNDLING)
+    frontend = _build_frontend(app, "TestAuditRetained")
+    stack = HelloWorldAuditStack(
+        app,
+        "TestAuditStackRetained",
+        audited_buckets=[frontend.bucket, frontend.access_log_bucket],
+        retain_data=True,
+        env=_TEST_ENV,
     )
     return Template.from_stack(stack)
 
@@ -922,22 +972,6 @@ class TestFrontendStack:
         assert "KmsKeyId" in props
         assert "RetentionInDays" in props
 
-    def test_cloudtrail_records_only_s3_data_events(self, frontend_template: Template) -> None:
-        # The trail exists for object-level S3 data events. CDK's defaults
-        # (Trail.management_events=ALL, add_s3_event_selector include_management_
-        # events=True) would additionally record every regional management event
-        # — a billed second copy in any account that already has a trail.
-        trails = frontend_template.find_resources("AWS::CloudTrail::Trail")
-        assert len(trails) == 1, "expected exactly one CloudTrail trail"
-        (trail,) = trails.values()
-        selectors = trail["Properties"]["EventSelectors"]
-        assert selectors, "expected event selectors on the trail"
-        for selector in selectors:
-            assert selector.get("IncludeManagementEvents") is False, (
-                "trail must not record management events — S3 data events only"
-            )
-        assert any("DataResources" in s for s in selectors), "expected an S3 data-event selector"
-
     def test_async_providers_have_failure_destinations(self, frontend_template: Template) -> None:
         # CFN invokes custom-resource provider Lambdas asynchronously; a crash
         # that exhausts the two automatic retries is silently dropped without an
@@ -966,14 +1000,73 @@ class TestFrontendStack:
                 f"{logical_id} must depend on the auto-delete provider log group"
             )
 
-    def test_three_s3_buckets_exist(self, frontend_template: Template) -> None:
-        # FrontendBucket + FrontendAccessLogBucket + CloudTrailLogsBucket
-        frontend_template.resource_count_is("AWS::S3::Bucket", 3)
+    def test_two_s3_buckets_exist(self, frontend_template: Template) -> None:
+        # FrontendBucket + FrontendAccessLogBucket. The CloudTrail-logs bucket
+        # moved to HelloWorldAuditStack (see TestAuditStack).
+        frontend_template.resource_count_is("AWS::S3::Bucket", 2)
 
     def test_stack_outputs_exist(self, frontend_template: Template) -> None:
         frontend_template.has_output("CloudFrontDomainName", {})
         frontend_template.has_output("CloudFrontDistributionId", {})
         frontend_template.has_output("FrontendBucketName", {})
+
+
+class TestAuditStack:
+    """CloudTrail S3 data-event trail + its log bucket + dedicated CMK (the audit data store)."""
+
+    def test_cloudtrail_records_only_s3_data_events(self, audit_template: Template) -> None:
+        # The trail exists for object-level S3 data events. CDK's defaults
+        # (Trail.management_events=ALL, add_s3_event_selector include_management_
+        # events=True) would additionally record every regional management event
+        # — a billed second copy in any account that already has a trail.
+        trails = audit_template.find_resources("AWS::CloudTrail::Trail")
+        assert len(trails) == 1, "expected exactly one CloudTrail trail"
+        (trail,) = trails.values()
+        selectors = trail["Properties"]["EventSelectors"]
+        assert selectors, "expected event selectors on the trail"
+        for selector in selectors:
+            assert selector.get("IncludeManagementEvents") is False, (
+                "trail must not record management events — S3 data events only"
+            )
+        assert any("DataResources" in s for s in selectors), "expected an S3 data-event selector"
+
+    def test_trail_has_file_validation_and_is_single_region(self, audit_template: Template) -> None:
+        audit_template.has_resource_properties(
+            "AWS::CloudTrail::Trail",
+            {"EnableLogFileValidation": True, "IsMultiRegionTrail": False, "IncludeGlobalServiceEvents": False},
+        )
+
+    def test_cmk_has_rotation_enabled(self, audit_template: Template) -> None:
+        audit_template.has_resource_properties("AWS::KMS::Key", {"EnableKeyRotation": True})
+
+    def test_one_s3_bucket_with_90_day_lifecycle(self, audit_template: Template) -> None:
+        audit_template.resource_count_is("AWS::S3::Bucket", 1)
+        audit_template.has_resource_properties(
+            "AWS::S3::Bucket",
+            {
+                "LifecycleConfiguration": {
+                    "Rules": Match.array_with([Match.object_like({"ExpirationInDays": 90, "Status": "Enabled"})])
+                }
+            },
+        )
+
+    def test_stack_output_exists(self, audit_template: Template) -> None:
+        audit_template.has_output("CloudTrailLogsBucketName", {})
+
+    # ── retention posture by retain_data ─────────────────────────────────────────
+
+    def test_default_bucket_and_key_are_destroyable(self, audit_template: Template) -> None:
+        audit_template.has_resource("AWS::S3::Bucket", {"DeletionPolicy": "Delete"})
+        audit_template.has_resource("AWS::KMS::Key", {"DeletionPolicy": "Delete"})
+
+    def test_retained_bucket_and_key_are_retained(self, audit_template_retained: Template) -> None:
+        audit_template_retained.has_resource("AWS::S3::Bucket", {"DeletionPolicy": "Retain"})
+        audit_template_retained.has_resource("AWS::KMS::Key", {"DeletionPolicy": "Retain"})
+
+    def test_retained_shape_has_no_auto_delete(self, audit_template_retained: Template) -> None:
+        # A retained bucket must not carry the auto-delete custom resource (it
+        # would defeat retention by emptying the bucket on a stack delete).
+        audit_template_retained.resource_count_is("Custom::S3AutoDeleteObjects", 0)
 
 
 # ── Logical ID stability for stateful resources ───────────────────────────────

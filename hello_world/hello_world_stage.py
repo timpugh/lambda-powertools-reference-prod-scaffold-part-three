@@ -1,14 +1,17 @@
-"""HelloWorldStage — groups the data, WAF, backend, and frontend stacks as one deploy unit.
+"""HelloWorldStage — groups the data, WAF, backend, frontend, and audit stacks as one deploy unit.
 
-The four stacks are always deployed together for a given region, so modelling
+The five stacks are always deployed together for a given region, so modelling
 them as a :class:`cdk.Stage` makes that relationship structural rather than
 conventional. A Stage also scopes the synthesised cloud assembly under its
 own subdirectory (``cdk.out/assembly-{stage}/``), which keeps multi-region
 synths from mixing their templates in the root of ``cdk.out/``.
 
-The data stack holds the stateful resources (the DynamoDB idempotency table
-and its dedicated CMK), kept separate from the stateless compute stack so the
-two can have independent lifecycles — see :mod:`hello_world.hello_world_data_stack`.
+Two stacks hold the stateful resources, kept separate from the stateless
+compute so their lifecycles are independent: the **data** stack (the DynamoDB
+idempotency table + its CMK — see :mod:`hello_world.hello_world_data_stack`) and
+the **audit** stack (the CloudTrail data-event trail + its log bucket + a CMK —
+see :mod:`hello_world.hello_world_audit_stack`). The audit stack is created last
+because it *audits* the frontend buckets (a one-way dependency).
 
 This change also paves the way for CDK Pipelines (each Stage is the natural
 deployment unit) and for a future multi-environment layout (dev/staging/prod
@@ -39,6 +42,7 @@ from typing import Any
 import aws_cdk as cdk
 from constructs import Construct
 
+from hello_world.hello_world_audit_stack import HelloWorldAuditStack
 from hello_world.hello_world_data_stack import HelloWorldDataStack
 from hello_world.hello_world_frontend_stack import HelloWorldFrontendStack
 from hello_world.hello_world_stack import HelloWorldStack
@@ -99,10 +103,10 @@ def _owner_tag_value() -> str:
 
 
 class HelloWorldStage(cdk.Stage):
-    """All four stacks (data, WAF, backend, frontend) for a single regional deployment.
+    """All five stacks (data, WAF, backend, frontend, audit) for a single regional deployment.
 
     The WAF stack is always pinned to ``us-east-1`` (CloudFront-scoped WebACLs
-    must live there). The data, backend, and frontend stacks deploy to
+    must live there). The data, backend, frontend, and audit stacks deploy to
     ``region``. When ``region`` differs from ``us-east-1``,
     ``cross_region_references=True`` on the frontend stack bridges the WAF ARN
     through SSM automatically.
@@ -142,6 +146,7 @@ class HelloWorldStage(cdk.Stage):
         data_stack_name = f"HelloWorldData{env_segment}-{region}"
         backend_stack_name = f"HelloWorld{env_segment}-{region}"
         frontend_stack_name = f"HelloWorldFrontend{env_segment}-{region}"
+        audit_stack_name = f"HelloWorldAudit{env_segment}-{region}"
 
         waf_env = cdk.Environment(region="us-east-1")
         target_env = cdk.Environment(region=region)
@@ -202,4 +207,19 @@ class HelloWorldStage(cdk.Stage):
             # When region differs, CDK writes the WAF ARN into SSM in us-east-1
             # and reads it back in the target region — all managed automatically.
             cross_region_references=True,
+        )
+
+        # Audit data store: the CloudTrail object-level S3 data-event trail, its
+        # log bucket, and a dedicated CMK. Created last because it *audits* the
+        # frontend buckets — a one-way dependency (audit -> frontend; the frontend
+        # never references the audit stack). retain_data governs RETAIN/DESTROY +
+        # termination protection (see HelloWorldAuditStack).
+        self.audit = HelloWorldAuditStack(
+            self,
+            audit_stack_name,
+            stack_name=audit_stack_name,
+            audited_buckets=[self.frontend.bucket, self.frontend.access_log_bucket],
+            retain_data=retain_data,
+            env=target_env,
+            tags=stack_tags,
         )

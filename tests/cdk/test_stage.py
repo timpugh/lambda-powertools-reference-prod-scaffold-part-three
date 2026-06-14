@@ -56,12 +56,14 @@ class TestEnvironmentNaming:
         assert prod_stage.data.stack_name == "HelloWorldData-us-east-1"
         assert prod_stage.backend.stack_name == "HelloWorld-us-east-1"
         assert prod_stage.frontend.stack_name == "HelloWorldFrontend-us-east-1"
+        assert prod_stage.audit.stack_name == "HelloWorldAudit-us-east-1"
 
     def test_ephemeral_env_namespaces_every_stack(self, dev_stage: HelloWorldStage) -> None:
         assert dev_stage.waf.stack_name == "HelloWorldWaf-alice-feature-x-us-east-1"
         assert dev_stage.data.stack_name == "HelloWorldData-alice-feature-x-us-east-1"
         assert dev_stage.backend.stack_name == "HelloWorld-alice-feature-x-us-east-1"
         assert dev_stage.frontend.stack_name == "HelloWorldFrontend-alice-feature-x-us-east-1"
+        assert dev_stage.audit.stack_name == "HelloWorldAudit-alice-feature-x-us-east-1"
 
     def test_ephemeral_env_disables_alarm_paging(self, dev_stage: HelloWorldStage) -> None:
         # Non-prod environments must not create the SNS alarm topic — an
@@ -92,7 +94,7 @@ class TestStackTags:
         # cost allocation and console filtering for free. They live in the
         # deploy-time manifest (not the template body), so assert on the
         # stack's tag manager rather than template properties.
-        for stack in (prod_stage.waf, prod_stage.data, prod_stage.backend, prod_stage.frontend):
+        for stack in (prod_stage.waf, prod_stage.data, prod_stage.backend, prod_stage.frontend, prod_stage.audit):
             tags = stack.tags.tag_values()
             assert tags.get("service") == "hello-world"
             assert tags.get("environment") == "prod"
@@ -158,7 +160,7 @@ class TestNagCompliance:
     error-level annotations through ``apply_compliance_aspects``.
     """
 
-    @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend"])
+    @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend", "audit"])
     def test_no_unsuppressed_nag_errors(self, prod_stage: HelloWorldStage, stack_attr: str) -> None:
         stack = getattr(prod_stage, stack_attr)
         errors = Annotations.from_stack(stack).find_error("*", Match.string_like_regexp(".*"))
