@@ -1757,7 +1757,9 @@ This project is a single-developer sample. AWS publishes broader guidance in [Be
 | **cdk-nag with custom Aspects** for org-specific policy enforcement | Five rule packs plus a bespoke `TemplateConventionChecks` Aspect (log-group retention + explicit removal policy), both wired by `apply_compliance_aspects`, see [CDK security checks](#cdk-security-checks) |
 | **cdk-monitoring-constructs** for dashboards and alarms | Wired through `MonitoringFacade` covering Lambda, API Gateway, DynamoDB |
 | **CDK code held to application-code quality standards** | ruff, mypy, pylint, bandit, pip-audit all run via pre-commit and CI |
-| **Automated CI/CD with policy gates** | GitHub Actions runs `cdk synth` (which runs cdk-nag) on every PR, blocks merge on findings |
+| **Automated CI/CD with policy gates** | GitHub Actions runs `cdk synth` (which runs cdk-nag) on every PR, blocks merge on findings; a `cdk-diff` job posts the CloudFormation diff for review |
+| **Reusable constructs that bake in secure defaults** (the post's `MyCompanyBucket` pattern) | The [`nag_utils.py`](hello_world/nag_utils.py) helpers (`create_sse_s3_log_bucket`, `create_waf_logs_bucket`, `grant_*_to_key`, `create_auto_delete_objects_log_group`) and the `HelloWorldApp` construct encode encryption, least-privilege grants, confused-deputy guards, and explicit log retention so every caller inherits them |
+| **Single repository** (infrastructure + application + config + CI/CD + docs together — the post's recommended layout) | `hello_world/` (CDK), `lambda/` (handler), `tests/`, `.github/`, and `docs/` all live in one repo with isolated dependency groups |
 
 #### Already analyzed and skipped
 
@@ -1774,6 +1776,8 @@ These are gaps surfaced by an audit pass against AWS public documentation that I
 - **AppConfig Lambda extension not used.** Per [Using AWS AppConfig Agent with AWS Lambda](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions.html), the agent caches configurations in-process, polls in the background, and serves them via `localhost:2772` — reducing both AppConfig API spend and cold-start latency. Powertools' `AppConfigStore` does in-memory caching too, so the gain is smaller than for raw API users; still the AWS-recommended pattern for high-throughput functions.
 
 - **DynamoDB `deletion_protection_enabled` defaults off, behind one flag.** Per the [DynamoDB deletion-protection docs](https://docs.aws.amazon.com/help-panel/amazondynamodb/latest/console/hp-deletion-protection.html), this is recommended for important tables. The idempotency table defaults to `RemovalPolicy.DESTROY` with deletion protection off because the template ships destroy-friendly — but the production switch is already wired: `-c retain_data=true` flips the table (and its CMK) to `RemovalPolicy.RETAIN`, turns on `deletion_protection`, and enables stack termination protection, all together. See [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data).
+
+- **AWS Backup plan for RTO/RPO data governance.** The post highlights constructs that enforce backup and resilience policies. This template relies on DynamoDB point-in-time recovery (a rolling sub-35-day window); a `retain_data=true` production fork should additionally enroll the table in an AWS Backup plan for long-term and cross-region/cross-account copies — see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [`TODO.md`](TODO.md). The `DynamoDBInBackupPlan` nag suppressions already live on the data stack so the gap is explicit.
 
 - **API Gateway request validation not configured.** `AwsSolutions-APIG2` is suppressed. Powertools' `enable_validation=True` validates at the Lambda layer, so malformed requests still cost a Lambda invocation. Adding API Gateway request models rejects invalid input before it reaches the function.
 
