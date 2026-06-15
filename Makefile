@@ -48,7 +48,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
 	deploy deploy-appconfig-monitor destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
-	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge _cdk-cov-retry lock upgrade deps-merge clean clean-venvs
+	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -144,29 +144,24 @@ test-integration: ## Run integration tests against a deployed stack (uses .venv-
 # excluded: they need a live stack. coverage is invoked via `python -m` so it
 # resolves from each venv's pytest-cov install without relying on a console
 # script on PATH.
-# The CDK suite under coverage instrumentation intermittently trips a known jsii
-# bug — `KeyError: aws-cdk-lib.cloud_assembly_schema.MetadataEntry` (a data_type
-# the JS kernel sometimes returns as an interface-typed object ref, which the
-# resolver looks up in its interface-only registry). It surfaces ONLY with
-# coverage.py's tracer timing — cdk-check runs the same suite without --cov and
-# never hits it. _cdk-cov-retry retries a few times so a flaky failure doesn't
-# fail the docs deploy; a genuinely broken test fails every attempt and surfaces.
-# `rm` between attempts keeps the appended coverage data from the failed run out.
-# Refs: jsii passes structs by-value by design (aws/jsii#376); this is an
-# instance of CDK-under-pytest jsii-kernel flakiness (aws/aws-cdk#3759). See the
-# README "Design decisions and known limitations" entry for the full write-up.
-_CDK_COV = uv run pytest tests/cdk --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
-_cdk-cov-retry:
-	@for attempt in 1 2 3; do \
-		rm -f .coverage; \
-		if $(_CDK_COV); then exit 0; fi; \
-		echo "::warning::CDK coverage run failed (likely flaky jsii MetadataEntry); attempt $$attempt/3 — retrying"; \
-	done; \
-	echo "CDK coverage run still failing after 3 attempts"; exit 1
+# Two validation-aspect tests read a *populated* error annotation
+# (Annotations.find_error returning a hit). That trips a known jsii bug, but ONLY
+# under coverage instrumentation: MetadataEntry is a struct the kernel can return
+# by-reference, and jsii's interface registry then can't resolve it
+# (KeyError: aws-cdk-lib.cloud_assembly_schema.MetadataEntry). Under --cov it is
+# effectively deterministic (all retry attempts failed identically), so those two
+# tests are DESELECTED from the coverage run only. They still run — and gate
+# correctness — in the cdk-check CI job, which runs the full tests/cdk suite
+# without --cov and never hits the bug. Full write-up: README "Design decisions
+# and known limitations". The tradeoff is a negligible dip in the informational
+# badge (the aspect's error-emitting branch isn't exercised under --cov); that
+# branch is still run by cdk-check's full no-coverage suite.
+_CDK_COV_DESELECT = --deselect "tests/cdk/test_validation_aspects.py::TestRemovalPolicyInvariant::test_raw_l1_bucket_without_removal_policy_errors" --deselect "tests/cdk/test_validation_aspects.py::TestLogRetentionInvariant::test_log_group_without_retention_errors"
+_CDK_COV = uv run pytest tests/cdk --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q $(_CDK_COV_DESELECT)
 
 coverage: ## Combined coverage report across both venvs (hello_world/ + lambda/), opens HTML
 	rm -f .coverage
-	@$(MAKE) _cdk-cov-retry
+	$(_CDK_COV)
 	$(LAMBDA_RUN) pytest tests/unit --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
 	uv run python -m coverage report
 	uv run python -m coverage html
@@ -185,7 +180,7 @@ coverage: ## Combined coverage report across both venvs (hello_world/ + lambda/)
 COVERAGE_BADGE_JSON ?= coverage-badge.json
 coverage-badge: ## Generate the shields-endpoint coverage badge JSON (whole repo: hello_world/ + lambda/)
 	rm -f .coverage .coverage.json
-	@$(MAKE) _cdk-cov-retry
+	$(_CDK_COV)
 	$(LAMBDA_RUN) pytest tests/unit --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
 	uv run python -m coverage json -o .coverage.json
 	uv run python -c 'import json; t=round(json.load(open(".coverage.json"))["totals"]["percent_covered"]); c="brightgreen" if t>=95 else "green" if t>=90 else "yellow" if t>=75 else "red"; json.dump({"schemaVersion":1,"label":"coverage","message":str(t)+"%","color":c}, open("$(COVERAGE_BADGE_JSON)","w"))'
