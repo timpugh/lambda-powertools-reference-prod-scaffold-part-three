@@ -148,6 +148,9 @@ known-third-party = ["aws_lambda_powertools", "boto3"]
 "tests/**/*.py" = ["S101", "S106"]
 # E402: imports follow pytest.importorskip() which must come first to skip the module when aws_cdk is absent
 "tests/cdk/*.py" = ["E402"]
+# S603/S607: shells out to the pinned `npx cdk` with a fixed argv (no shell, no
+# untrusted input). Mirrored by `# nosec` for the separate bandit hook.
+"scripts/cdk_pr_diff.py" = ["S603", "S607"]
 
 # =============================================================================
 # Mypy — static type checker

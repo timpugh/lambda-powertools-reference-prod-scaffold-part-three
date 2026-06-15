@@ -183,3 +183,94 @@ jobs:
 
       - name: Prune uv cache
         run: uv cache prune --ci
+
+  cdk-diff:
+    # PR-only infra-change visibility: synthesize the base branch and the PR,
+    # then post a CloudFormation diff (resources added / removed / modified, plus
+    # IAM statement changes) as a sticky PR comment so a reviewer can catch a
+    # destructive change to a stateful resource before merge. Hermetic — it diffs
+    # two locally synthesized templates, so it needs NO AWS account or credentials
+    # (unlike `cdk diff` against deployed stacks, which would need OIDC and break
+    # this repo's credential-free CI). Same native-ARM runner as cdk-check so the
+    # PythonFunction bundling container runs without QEMU emulation.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write  # post/update the diff comment (read-only on fork PRs — summary still carries it)
+
+    steps:
+      - name: Check out the PR
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          path: pr
+
+      - name: Check out the base branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: pr/package-lock.json
+
+      # Synthesize both branches into self-contained cloud assemblies. Each
+      # checkout installs its own pinned deps (uv + the npm CDK CLI), so the diff
+      # is correct even when the PR bumps a CDK version.
+      - name: Synthesize base and PR templates
+        env:
+          CDK_DEFAULT_ACCOUNT: "123456789012"
+          CDK_DEFAULT_REGION: us-east-1
+          AWS_DEFAULT_REGION: us-east-1
+        run: |
+          for dir in base pr; do
+            echo "::group::synth $dir"
+            ( cd "$dir" \
+              && uv sync --locked --group cdk --group test \
+              && npm ci \
+              && npx cdk synth '**' --quiet -o cdk.out )
+            echo "::endgroup::"
+          done
+
+      # Stdlib-only driver (no extra dependency): for each stack it runs
+      # `cdk diff --template <base> --app <pr-assembly>` — no re-synth, no AWS.
+      - name: Render CDK diff
+        run: |
+          python3 pr/scripts/cdk_pr_diff.py \
+            --pr-out pr/cdk.out --base-out base/cdk.out \
+            --base-ref "${{ github.base_ref }}" --output cdk-diff.md
+          cat cdk-diff.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Sticky comment: update the existing bot comment in place (matched by a
+      # hidden marker) instead of stacking a new one per push. Best-effort —
+      # fork PRs hand the workflow a read-only token, so this 403s and the job
+      # summary remains the source of truth.
+      - name: Post or update the diff comment
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          marker='<!-- cdk-pr-diff -->'
+          printf '%s\n%s' "$marker" "$(cat cdk-diff.md)" > body.md
+          existing=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq "map(select(.body | startswith(\"$marker\"))) | .[0].id // empty" | head -n1)
+          if [ -n "$existing" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$existing" -F body=@body.md >/dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@body.md >/dev/null
+          fi
+
+      - name: Prune uv cache
+        if: always()
+        run: uv cache prune --ci

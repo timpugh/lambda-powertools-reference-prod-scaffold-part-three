@@ -837,7 +837,7 @@ Every CDK operation against this project should go through `make`, not bare `cdk
 
 For different regions, invoke the CLI directly with the project's region context flag: `cdk deploy '**' -c region=ap-southeast-1`. The `'**'` glob is still required.
 
-**Drift as a CI signal (future enhancement).** The detect → revert split above also enables a tighter pipeline pattern worth adopting later: run `cdk drift '**'` as a read-only CI step alongside `cdk diff` and surface its output as a pull-request comment, so reviewers see out-of-band changes next to the code diff; then have the deployment pipeline run `make cdk-revert-drift` in place of `make deploy` to close the loop and keep the deployed account converged on the committed code. This isn't wired into the `cdk-check` workflow today because drift detection needs AWS credentials and a live stack (the job only runs `cdk synth` + assertion tests), but it's a natural addition once the pipeline has deploy-time credentials.
+**Drift as a CI signal (future enhancement).** PR-time *template-diff* visibility already ships: the `cdk-diff` job posts a CloudFormation diff (PR vs base branch) as a sticky comment so reviewers see infra changes next to the code diff (see [CI/CD → GitHub Actions](#github-actions)). That job is hermetic and needs no credentials. The remaining, credentials-bound piece is **live drift**: running `cdk drift '**'` as a read-only CI step to surface *out-of-band* console changes, then having the deployment pipeline run `make cdk-revert-drift` in place of `make deploy` to keep the deployed account converged on the committed code. That half isn't wired in because drift detection needs AWS credentials and a live stack — a natural addition once the pipeline has deploy-time credentials.
 
 **Troubleshooting synth warnings.** When `make cdk-synth` surfaces a warning whose origin isn't obvious, re-run with `cdk synth '**' --trace` to print full stack traces for each warning back to the construct that emitted it. This is usually enough to identify which suppression or property to adjust without bisecting the stack graph by hand. `--trace` works on any synth-fronted subcommand (`synth`, `diff`, `ls`, `diagnose`, `drift`, `gc`).
 
@@ -1370,7 +1370,7 @@ Eight workflows are configured:
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| **CI** | Push / PR to `main` | Three jobs: pre-commit hooks + markdownlint (`quality`), pytest unit tests + OpenAPI drift/breaking gates (`test`), CDK synth + stack assertion tests (`cdk-check`) |
+| **CI** | Push / PR to `main` | Four jobs: pre-commit hooks + markdownlint (`quality`), pytest unit tests + OpenAPI drift/breaking gates (`test`), CDK synth + stack assertion tests (`cdk-check`), and a PR-only CloudFormation diff comment (`cdk-diff`) |
 | **Docs** | Push to `main` | Builds Zensical docs, deploys to GitHub Pages |
 | **Dependency Audit** | Every Monday 9am UTC | Runs `pip-audit` against each dependency group exported from `uv.lock` |
 | **Dependabot Auto-merge** | Dependabot PRs | Approves and auto-merges patch/minor `github_actions`, `npm`, `uv`, and `pip` updates when CI passes; majors stay manual. Gated on PR *opener* (not latest pusher) so maintainer pushes via `make deps-merge` don't disarm it |
@@ -1379,13 +1379,14 @@ Eight workflows are configured:
 | **PR Title** | PR opened/edited | Enforces the Conventional Commits prefix grammar on PR titles (squash-merge subjects feed git-cliff) via an inline regex — no third-party action |
 | **Release** | `v*` tag push | Publishes the GitHub Release from the annotated tag (`--notes-from-tag --latest --verify-tag`); skips if already published manually |
 
-All three CI jobs must pass before merge to `main` (branch protection).
+The three gating jobs (`quality`, `test`, `cdk-check`) must pass before merge to `main` (branch protection). `cdk-diff` is **informational** — a PR-only job that posts the infra diff for review; it is not a required check.
 
 Each job uses `uv sync --locked` so it fails loudly if `pyproject.toml` and `uv.lock` are out of sync rather than silently regenerating mid-build:
 
 - **`quality`** — `--group cdk --group test --group lint --group docs` (runs pre-commit hooks covering every tool), plus `npm ci` + markdownlint over README/TODO/docs
 - **`test`** — `--only-group lambda --only-group test` (isolates Powertools `attrs>=26` from CDK `attrs<26`); after the unit suite it regenerates the OpenAPI spec and fails on drift against the committed `docs/openapi.json`, then (PRs only) runs the oasdiff breaking-change gate against the base branch's spec
 - **`cdk-check`** — `--group cdk --group test` + the pinned CDK CLI via `npm ci` / `npx cdk`; runs `cdk synth` (catches unsuppressed cdk-nag findings) then the `tests/cdk/` suite (assertion tests via `aws_cdk.assertions.Template` plus the in-process nag annotations gate). Runs on a native `ubuntu-24.04-arm` runner so the arm64 Lambda bundling container executes without QEMU emulation. Lives under `tests/cdk/` rather than `tests/unit/` so the unit-test autouse fixture doesn't apply — the job intentionally omits Powertools to dodge the `attrs` conflict.
+- **`cdk-diff`** (PRs only, informational) — synthesizes both the base branch and the PR into separate cloud assemblies, then runs [`scripts/cdk_pr_diff.py`](scripts/cdk_pr_diff.py) to post a **CloudFormation diff** (resources added/removed/modified + IAM statement changes) as a sticky PR comment, so a reviewer can catch a destructive change to a stateful resource before merge. It's **hermetic** — the diff is `cdk diff --template <base> --app <pr-assembly>` between two locally synthesized templates, so it needs **no AWS account or credentials** (a `cdk diff` against deployed stacks would need OIDC and break this repo's credential-free CI). Stdlib-only driver, no added dependency. On fork PRs the token is read-only so the comment step no-ops; the diff still appears in the job summary.
 
 Each job ends with `uv cache prune --ci`, which drops pre-built wheels (cheap to redownload) and keeps source distributions (expensive to rebuild), shrinking the `actions/cache` artifact between runs.
 
