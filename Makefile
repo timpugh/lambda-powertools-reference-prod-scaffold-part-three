@@ -152,6 +152,9 @@ test-integration: ## Run integration tests against a deployed stack (uses .venv-
 # never hits it. _cdk-cov-retry retries a few times so a flaky failure doesn't
 # fail the docs deploy; a genuinely broken test fails every attempt and surfaces.
 # `rm` between attempts keeps the appended coverage data from the failed run out.
+# Refs: jsii passes structs by-value by design (aws/jsii#376); this is an
+# instance of CDK-under-pytest jsii-kernel flakiness (aws/aws-cdk#3759). See the
+# README "Design decisions and known limitations" entry for the full write-up.
 _CDK_COV = uv run pytest tests/cdk --override-ini="addopts=" --cov=hello_world --cov=lambda --cov-branch --cov-append -q
 _cdk-cov-retry:
 	@for attempt in 1 2 3; do \
