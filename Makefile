@@ -47,7 +47,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	lint lint-docs format typecheck security check-lock pr \
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
+	deploy deploy-appconfig-monitor destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
 	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
@@ -260,6 +260,31 @@ cdk-rollback: ## Roll deployed stacks back to their last stable state (use after
 # change at synth time. Drop the flag for a manual review of every IAM diff.
 deploy: ## Deploy all stacks to us-east-1 (ENV=<name> for an ephemeral env, -c region=X for other regions)
 	$(CDK) deploy '**' $(CDK_ENV_ARG) --require-approval never
+
+# Enable the opt-in AppConfig gradual rollout + alarm rollback monitor
+# (-c appconfig_monitor=true). This is deliberately a SECOND-deploy operation:
+# the monitor cannot create a cold stack — a fresh alarm starts INSUFFICIENT_DATA,
+# which AppConfig treats as a rollback signal, so it aborts the first deploy (see
+# README "Deployment safety"). The guard below queries CloudFormation and refuses
+# unless the backend stack already exists in an updatable *_COMPLETE state, so
+# this target can never BE the cold deploy. To turn the monitor back off, run a
+# plain `make deploy` (reverts to all-at-once and removes the monitor).
+# ENV=<name> / REGION=<region> select an ephemeral env / non-default region.
+deploy-appconfig-monitor: ## Redeploy with the AppConfig gradual rollout + alarm rollback monitor (run only AFTER a first `make deploy`)
+	@stack="HelloWorld$(if $(ENV),-$(ENV))-$(REGION)"; \
+	status=$$(aws cloudformation describe-stacks --region $(REGION) --stack-name "$$stack" \
+		--query 'Stacks[0].StackStatus' --output text 2>/dev/null); \
+	case "$$status" in \
+		CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE) \
+			echo "Backend stack $$stack is $$status — enabling the AppConfig gradual rollout + monitor."; ;; \
+		"") \
+			echo "ERROR: backend stack $$stack not found in $(REGION). Run 'make deploy' first — the AppConfig monitor cannot create a cold stack (see README 'Deployment safety')."; exit 1; ;; \
+		ROLLBACK_COMPLETE) \
+			echo "ERROR: backend stack $$stack is ROLLBACK_COMPLETE (a failed create). Delete it and run 'make deploy' before enabling the monitor."; exit 1; ;; \
+		*) \
+			echo "ERROR: backend stack $$stack is $$status, not an updatable *_COMPLETE state. Wait for a clean deploy before enabling the monitor."; exit 1; ;; \
+	esac
+	$(CDK) deploy '**' $(CDK_ENV_ARG) -c region=$(REGION) -c appconfig_monitor=true --require-approval never
 
 # --force skips the interactive "are you sure?" prompt, mirroring how
 # the deploy target uses --require-approval never. Without --force, the
