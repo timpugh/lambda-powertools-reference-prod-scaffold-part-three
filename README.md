@@ -40,7 +40,7 @@ This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, 
 ## Table of contents
 
 - [Getting started](#getting-started) — [Prerequisites](#prerequisites) · [Quick start](#quick-start) · [Makefile](#makefile) · [Editor setup (VS Code)](#editor-setup-vs-code)
-- [Architecture](#architecture) — [Lambda Powertools features](#lambda-powertools-features) · [AWS resources provisioned](#aws-resources-provisioned) · [Stack and construct composition](#stack-and-construct-composition) · [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) · [Deployment safety](#deployment-safety-canary-lambda) · [Audit stack and log retention](#audit-stack-and-log-retention) · [Frontend stack](#frontend-stack) · [Monitoring](#monitoring)
+- [Architecture](#architecture) — [CDK best practices](#cdk-best-practices) · [Lambda Powertools features](#lambda-powertools-features) · [AWS resources provisioned](#aws-resources-provisioned) · [Stack and construct composition](#stack-and-construct-composition) · [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) · [Deployment safety](#deployment-safety-canary-lambda) · [Audit stack and log retention](#audit-stack-and-log-retention) · [Frontend stack](#frontend-stack) · [Monitoring](#monitoring)
 - [Deploy the application](#deploy-the-application) — [Recommended order](#recommended-order-for-ongoing-deploys) · [Ephemeral environment](#deploying-an-ephemeral-environment) · [Different region](#deploying-to-a-different-region) · [Destroying](#destroying-a-deployment) · [Cleanup](#cleanup)
 - [Working in the codebase](#working-in-the-codebase) — [Add a resource](#add-a-resource-to-your-application) · [Useful CDK commands](#useful-cdk-commands) · [Synthesize and validate locally](#synthesize-and-validate-locally) · [Debugging the Lambda function](#debugging-the-lambda-function) · [Fetch, tail, and filter logs](#fetch-tail-and-filter-lambda-function-logs) · [Commit message convention](#commit-message-convention) · [Cutting a release](#cutting-a-release) · [Documentation](#documentation)
 - [Quality and security](#quality-and-security) — [Tests](#tests) · [Linting and static analysis](#linting-and-static-analysis) · [Detecting deprecated APIs](#detecting-deprecated-apis) · [Pre-commit hooks](#pre-commit-hooks) · [Security](#security) · [CDK security checks](#cdk-security-checks) · [pyproject.toml configuration](#pyprojecttoml-configuration)
@@ -204,6 +204,26 @@ flowchart LR
 ```
 
 Everything data-bearing is encrypted with the project's customer-managed KMS keys; five cdk-nag rule packs gate every synth. See [AWS resources provisioned](#aws-resources-provisioned) for the full inventory.
+
+### CDK best practices
+
+This template is built to follow the official [AWS CDK best practices](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html) and [security best practices](https://docs.aws.amazon.com/cdk/v2/guide/best-practices-security.html) guides. Each row links to where the practice is realized — and, where it's enforced, the test or gate that keeps it that way.
+
+| Best practice | How this template applies it | Enforced by |
+|---|---|---|
+| **Model with constructs, deploy with stacks** | Domain resources live in `Construct` subclasses; each `Stack` is a thin wrapper composing them ([Stack and construct composition](#stack-and-construct-composition)) | — |
+| **Keep stateful resources in their own stack** | `HelloWorldDataStack` (DynamoDB + CMK) and `HelloWorldAuditStack` (CloudTrail + bucket + CMK) are separate from stateless compute ([Stateful data stack](#stateful-data-stack-and-retain_data)) | — |
+| **Separate infrastructure and application code** | `hello_world/` (CDK) vs `lambda/` (handler) vs `tests/`, with isolated dependency groups | — |
+| **Define retain policies on stateful/critical resources** | `retain_data` flips tables, buckets, and CMKs to `RETAIN` with deletion + termination protection ([retain_data](#stateful-data-stack-and-retain_data)) | — |
+| **Use generated, not physical, resource names** | `table_name` / `parameter_name` / `log_group_name` left unset so CDK derives them — avoids replacement failures and cross-region collisions ([composition](#stack-and-construct-composition)) | — |
+| **Don't change logical IDs of stateful resources** | Logical IDs frozen in a committed list; a renaming refactor (= replacement = data loss) fails at PR time | `TestLogicalIdStability` ([Tests](#tests)) |
+| **Least-privilege IAM; write explicit, scoped policies** | Scoped grants; wildcard IAM only where unavoidable, each with a per-resource justification ([Security](#security)) | cdk-nag `IAM5` |
+| **Security defaults aren't enough — cdk-nag in the synth loop** | Five rule packs (AwsSolutions, Serverless, NIST/HIPAA/PCI) plus a bespoke validation Aspect fail every synth ([CDK security checks](#cdk-security-checks)) | `cdk synth` + `TestNagCompliance` |
+| **No hardcoded secrets; encrypt at rest and in transit** | End-to-end CMK encryption, SSL-enforced buckets/topics, no secrets in code ([Security](#security)) | bandit + cdk-nag |
+| **Model CI/CD stages in code** | `is_production_env` / `env` gate canary-vs-all-at-once rollout, SNS alarm routing, and collision-free stack names ([Deployment safety](#deployment-safety-canary-lambda)) | — |
+| **Back up stateful resources** | DynamoDB point-in-time recovery enabled; AWS Backup documented as a production-fork step ([retain_data](#stateful-data-stack-and-retain_data)) | — |
+| **Test infrastructure at synth time** | Assertion tests pin vital resources and connections; the nag-annotations gate runs in-process ([Tests](#tests)) | `tests/cdk/` |
+| **Surface infrastructure changes on every PR** | The `cdk-diff` job posts a CloudFormation diff (resources + IAM changes) as a PR comment ([GitHub Actions](#github-actions)) | `cdk-diff` CI job |
 
 ### Lambda Powertools features
 
