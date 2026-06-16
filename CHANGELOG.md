@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-06-16
+
+### Added
+
+- Alarm routing, env dimension, committed OpenAPI contract, and toolchain currency
+- Aggregate test coverage across both venvs (panel + make target)
+- Add Integration tests as a Test-panel root on .venv-lambda
+- SLSA Build L3 provenance for the Lambda bundle + earned badge
+- In-house coverage badge (whole-repo), document Codecov as not pursued
+- Least-privilege auto-merge token + add PII-free SECURITY.md
+- Separate stateful data (DynamoDB + CMK) into its own stack with retain_data
+- Add TemplateConventionChecks validation Aspect (retention + removal policy)
+- Progressive delivery — CodeDeploy canary + AppConfig gradual rollback
+- Extract CloudTrail audit trail into a stateful HelloWorldAuditStack
+- Raise operational CloudWatch log retention to 90 days
+- Route WAF logs to S3 (aws-waf-logs-*) instead of CloudWatch
+- Athena Glue tables + named queries for WAF logs (partition-projected)
+- Opt-in AppConfig gradual rollout + alarm rollback monitor
+- Add guarded `make deploy-appconfig-monitor` target
+- PR CloudFormation diff visibility (cdk-diff CI job)
+
+### Documentation
+
+- Document IDE coverage via the Testing panel's Run with Coverage
+- Document code-scoring/attestation checks (current + planned) with score badges
+- Add CodeQL workflow-status badge to the README badge row
+- Document the hermetic test env (AWS_DEFAULT_REGION) for reviewers
+- Record SonarQube as considered-and-not-pursued, note in-house tools used
+- Track CDK Mixins as evaluated, revisit log-delivery mixins at GA
+- Surface retain_data in cdk.json + explain the two production switches
+- Add a CDK best-practices table to the Architecture section
+- Document the flaky jsii MetadataEntry KeyError + upstream refs
+- Complete the CDK-adoption-scaling mapping with the gaps
+- Add deterministic-synthesis row to the CDK best-practices table
+- Steelman the cohesion counter-argument for the stateful-stack split
+- Drop stale waf_log_destination references after the WAF→S3 move
+- Clarify the Lambda ARN CfnOutput description (#83)
+- Capture live deploy/teardown findings (OAC key-policy wildcard, log-group truncation, CMK pending-deletion)
+- Fix five README accuracy nits found in a full read-through
+
+### Fixed
+
+- Resolve 17 pre-merge review findings across WAF, AppConfig, CloudTrail, Lambda, and observability
+- Resolve four bugs found by live deploy/teardown of the review fixes
+- Resolve three issues found by live deploy/teardown verification
+- Run editor mypy from the venv so the pydantic plugin loads
+- Pin pylint and ruff editor extensions to the venv toolchain
+- Make VS Code test discovery collect cleanly under either venv
+- Strip the unit-suite coverage gate from VS Code test discovery
+- Unit tests skip (not error) when run under the CDK venv
+- Make unit suite hermetic on AWS region (fixes docs coverage-badge step)
+- Revert AppConfig to all-at-once; gradual+rollback is a prod add-on
+- Make Athena workgroup recursively deletable so cdk destroy succeeds
+- Run cdk-diff render from the PR checkout so npx uses the pinned CLI
+- Retry CDK coverage run to dodge flaky jsii MetadataEntry KeyError
+- Deselect the two jsii-flaky tests from the coverage run
+
+### Refactored
+
+- Rename the hello_world CDK package to infrastructure
+- Rename HelloWorld* infra identifiers to role-based names
+- Finish de-branding — serverless-app, /greeting endpoint, observability IDs
+
+### Removed
+
+- Remove SLSA provenance — doesn't fit a fork-this template
+
 ## [1.1.0] - 2026-06-09
 
 ### Added
@@ -41,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add cdk-diff/drift/diagnose/gc/rollback/ls targets
 - Bump idna 3.13->3.16 and pymdown-extensions 10.21.2->10.21.3
 - Add cdk-revert-drift target for drift remediation
+- Release v1.1.0
 
 ### Tests
 
@@ -247,6 +315,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add error case unit tests for SSM failure, unknown route, and unsupported method
 - Separate CDK tests from unit tests so cdk-check CI job stops failing
 
+[2.0.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.1.0..v2.0.0
 [1.1.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.0.1..v1.1.0
 [1.0.1]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.0.0..v1.0.1
 [1.0.0]: https://github.com/timpugh/lambda-powertools-reference/tree/v1.0.0
