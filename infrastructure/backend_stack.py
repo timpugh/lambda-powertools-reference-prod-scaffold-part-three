@@ -81,18 +81,18 @@ class BackendStack(Stack):
             self,
             "ApiUrlOutput",
             description="API Gateway endpoint URL for Prod stage",
-            value=f"{self.app.api.url}hello",
+            value=f"{self.app.api.url}greeting",
         )
         CfnOutput(
             self,
             "FunctionArnOutput",
-            description="Hello World Lambda Function ARN",
+            description="Serverless App Lambda Function ARN",
             value=self.app.function.function_arn,
         )
         CfnOutput(
             self,
             "FunctionIamRoleOutput",
-            description="IAM Role created for Hello World function",
+            description="IAM Role created for Serverless App function",
             value=cast(iam.IRole, self.app.function.role).role_arn,
         )
         CfnOutput(
@@ -185,7 +185,7 @@ class BackendStack(Stack):
                     "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
                     "reason": (
                         "API Gateway cache cluster intentionally disabled for cost reasons — the smallest "
-                        "0.5 GB cluster is ~$14/month for a sample app. Caching GET /hello would also serve "
+                        "0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve "
                         "stale values across SSM parameter and AppConfig feature-flag changes."
                     ),
                 },

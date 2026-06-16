@@ -1,4 +1,4 @@
-"""Generate the OpenAPI spec for the Hello World API.
+"""Generate the OpenAPI spec for the Serverless App API.
 
 Imports the Lambda resolver, calls get_openapi_json_schema() on it, and writes
 the result to docs/openapi.json. Runs as a pre-build step for Zensical via
@@ -126,7 +126,7 @@ def main() -> None:
     args = parser.parse_args()
 
     spec = app.get_openapi_json_schema(
-        title="Hello World API",
+        title="Serverless App API",
         version="1.0.0",
         description=DESCRIPTION,
         servers=[

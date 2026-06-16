@@ -169,7 +169,7 @@ LIMIT 25""",
 
 
 class FrontendStack(Stack):
-    """CDK stack for the Hello World frontend.
+    """CDK stack for the Serverless App frontend.
 
     Provisions a private S3 bucket for static assets and a CloudFront
     distribution with OAC, HTTPS-only enforcement, and security response
@@ -734,7 +734,7 @@ class FrontendStack(Stack):
             self,
             "SecurityHeadersPolicy",
             response_headers_policy_name=f"{self.stack_name}-security-headers",
-            comment="Security headers for the Hello World frontend (managed SECURITY_HEADERS + HSTS + CSP)",
+            comment="Security headers for the Serverless App frontend (managed SECURITY_HEADERS + HSTS + CSP)",
             security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
                 content_type_options=cloudfront.ResponseHeadersContentTypeOptions(override=True),
                 frame_options=cloudfront.ResponseHeadersFrameOptions(

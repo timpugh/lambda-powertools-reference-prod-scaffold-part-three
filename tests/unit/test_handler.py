@@ -40,7 +40,7 @@ def test_enhanced_greeting_feature_flag(apigw_event, lambda_context, lambda_app_
 def test_feature_flag_receives_ip_and_user_agent_context(apigw_event, lambda_context, lambda_app_module, mocker):
     """The handler must pass source_ip + user_agent context to feature_flags.evaluate.
 
-    The /hello route documents IP-based gating of enhanced_greeting; without the
+    The /greeting route documents IP-based gating of enhanced_greeting; without the
     context dict the AppConfig rules engine can never see those values, so this
     pins the contract. Dropping the context= arg would otherwise pass the suite.
     """

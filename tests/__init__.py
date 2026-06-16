@@ -1,1 +1,1 @@
-"""Hello World test suite."""
+"""Serverless App test suite."""

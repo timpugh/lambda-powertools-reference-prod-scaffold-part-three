@@ -1,5 +1,5 @@
 [project]
-name = "hello-world"
+name = "serverless-app"
 version = "1.1.0"
 description = "Production-grade AWS CDK reference architecture for Lambda + Powertools serverless applications, with multi-rule-pack cdk-nag, WAF, CloudTrail data events, CMK encryption end-to-end, and supply-chain hygiene."
 requires-python = ">=3.13"
@@ -267,8 +267,8 @@ env = [
     "AWS_BACKEND_STACK_NAME=ServerlessAppBackend-us-east-1",
     "AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1",
     "POWERTOOLS_IDEMPOTENCY_DISABLED=true",
-    "POWERTOOLS_SERVICE_NAME=hello-world",
-    "POWERTOOLS_METRICS_NAMESPACE=HelloWorld",
+    "POWERTOOLS_SERVICE_NAME=serverless-app",
+    "POWERTOOLS_METRICS_NAMESPACE=ServerlessApp",
     "POWERTOOLS_LOG_LEVEL=INFO",
     "IDEMPOTENCY_TABLE_NAME=test-idempotency",
     "GREETING_PARAM_NAME=/test/greeting",

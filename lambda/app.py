@@ -1,4 +1,4 @@
-"""Hello World Lambda function using AWS Lambda Powertools.
+"""Serverless App Lambda function using AWS Lambda Powertools.
 
 This module implements a serverless API endpoint that returns a greeting message.
 It demonstrates the use of Powertools utilities including structured logging,
@@ -167,8 +167,8 @@ ssm_provider = SSMProvider(boto_config=boto_config)
 GREETING_PARAM_NAME = _ENV.GREETING_PARAM_NAME
 
 
-class HelloResponse(BaseModel):
-    """Response body for GET /hello."""
+class GreetingResponse(BaseModel):
+    """Response body for GET /greeting."""
 
     message: str = Field(
         ...,
@@ -195,7 +195,7 @@ class MissingIdempotencyKeyResponse(BaseModel):
 class InternalErrorResponse(BaseModel):
     """Body of the 500 produced by Powertools' ServiceError handling.
 
-    When ``hello`` raises ``InternalServerError`` (e.g. the SSM read fails),
+    When ``get_greeting`` raises ``InternalServerError`` (e.g. the SSM read fails),
     the resolver serialises it as ``{"statusCode": 500, "message": ...}`` —
     documented here so spec consumers see the failure shape, not just the 200.
     """
@@ -205,7 +205,7 @@ class InternalErrorResponse(BaseModel):
 
 
 @app.get(
-    "/hello",
+    "/greeting",
     summary="Return a greeting",
     description=(
         "Returns the greeting string configured in SSM Parameter Store. "
@@ -223,7 +223,7 @@ class InternalErrorResponse(BaseModel):
     responses={
         200: {
             "description": "The resolved greeting.",
-            "content": {"application/json": {"model": HelloResponse}},
+            "content": {"application/json": {"model": GreetingResponse}},
         },
         400: {
             "description": "Missing Idempotency-Key header.",
@@ -236,17 +236,17 @@ class InternalErrorResponse(BaseModel):
     },
 )
 @tracer.capture_method(capture_response=False)
-def hello() -> HelloResponse:
-    """Handle GET /hello requests.
+def get_greeting() -> GreetingResponse:
+    """Handle GET /greeting requests.
 
     Fetches the greeting from SSM Parameter Store, checks the enhanced_greeting
     feature flag, emits a CloudWatch metric, and logs request metadata from
     the API Gateway event.
 
     Returns:
-        HelloResponse: Validated response model with a ``message`` field.
+        GreetingResponse: Validated response model with a ``message`` field.
     """
-    metrics.add_metric(name="HelloRequests", unit=MetricUnit.Count, value=1)
+    metrics.add_metric(name="GreetingRequests", unit=MetricUnit.Count, value=1)
 
     # Access typed event data via Event Source Data Classes
     event: APIGatewayProxyEvent = app.current_event
@@ -307,7 +307,7 @@ def hello() -> HelloResponse:
         # fork wires an AppConfig deployment monitor to (gradual rollout +
         # auto-rollback — a documented add-on, not shipped; see the AppConfig
         # deployment comment in infrastructure/backend_app.py). Lands in the
-        # HelloWorld namespace with the service dimension Powertools adds.
+        # ServerlessApp namespace with the service dimension Powertools adds.
         metrics.add_metric(name="FeatureFlagEvaluationFailure", unit=MetricUnit.Count, value=1)
         enhanced = False
 
@@ -317,7 +317,7 @@ def hello() -> HelloResponse:
     else:
         message = greeting
 
-    return HelloResponse(message=message)
+    return GreetingResponse(message=message)
 
 
 @idempotent(config=idempotency_config, persistence_store=persistence_layer)
@@ -331,14 +331,14 @@ def _resolve_with_idempotency(event: dict[str, Any], context: LambdaContext) -> 
     Caching caveat: @idempotent wraps the whole resolver, and Powertools persists
     whatever this function *returns* (only raised exceptions are not cached). The
     APIGatewayRestResolver returns non-2xx outcomes — 404 (unknown route), 422
-    (validation), and the 500 produced when ``hello`` raises InternalServerError —
+    (validation), and the 500 produced when ``get_greeting`` raises InternalServerError —
     as response dicts rather than exceptions, so those are cached under the
     client's Idempotency-Key for ``expires_after_seconds`` (1 hour). A client that
     reuses the same key after fixing the route/payload would get the stale error
     replayed. This is acceptable for this single-GET reference (the documented
     contract is one key per logical request — see README "Idempotency keys"); a
     fork that wants transient errors retried under the same key should move
-    idempotency onto ``hello`` (the success-bearing function) instead of the
+    idempotency onto ``get_greeting`` (the success-bearing function) instead of the
     resolver — Powertools supports this directly via
     ``@idempotent_function(data_keyword_argument=..., ...)`` with a
     ``PydanticSerializer`` output serializer, so the cached record stores the

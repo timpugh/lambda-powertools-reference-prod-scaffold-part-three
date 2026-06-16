@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="alternate icon" type="image/x-icon" href="/favicon.ico" />
-  <title>Hello World</title>
+  <title>Serverless App</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -131,7 +131,7 @@
 </head>
 <body>
   <div class="card">
-    <h1>Hello World</h1>
+    <h1>Serverless App</h1>
     <p class="subtitle">Serverless reference architecture &mdash; Lambda + API Gateway + CloudFront</p>
     <button id="btn" type="button">Call API</button>
     <div class="spinner" id="spinner" role="progressbar" aria-label="Loading"></div>
@@ -180,7 +180,7 @@
           : Date.now().toString(36) + Math.random().toString(36).slice(2);
         // apiUrl from API Gateway ends in "/", so strip it before joining.
         const base   = apiUrl.replace(/\/$/, "");
-        const res    = await fetch(`${base}/hello`, {
+        const res    = await fetch(`${base}/greeting`, {
           headers: { "Idempotency-Key": key },
         });
         const data   = await res.json();

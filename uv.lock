@@ -6,8 +6,8 @@ resolution-markers = [
     "python_full_version < '3.15'",
 ]
 conflicts = [[
-    { package = "hello-world", group = "cdk" },
-    { package = "hello-world", group = "lambda" },
+    { package = "serverless-app", group = "cdk" },
+    { package = "serverless-app", group = "lambda" },
 ]]
 
 [[package]]
@@ -169,7 +169,7 @@ name = "bandit"
 version = "1.9.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "stevedore" },
@@ -429,7 +429,7 @@ name = "click"
 version = "8.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/9b/98/518d8e5081007684232226f475082b30087d0f585e8457db087298259f49/click-8.4.1.tar.gz", hash = "sha256:918b5633eddf6b41c32d4f454bf0de810065c74e3f7dbf8ee5452f8be88d3e96", size = 353007, upload-time = "2026-05-22T04:08:37.769Z" }
 wheels = [
@@ -678,97 +678,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9d/82/74f4a3310cdabfbb10da554c3a672847f1ed33c6f61dd472681ce7f1fe67/griffelib-2.0.2.tar.gz", hash = "sha256:3cf20b3bc470e83763ffbf236e0076b1211bac1bc67de13daf494640f2de707e", size = 166461, upload-time = "2026-03-27T11:34:51.091Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/11/8c/c9138d881c79aa0ea9ed83cbd58d5ca75624378b38cee225dcf5c42cc91f/griffelib-2.0.2-py3-none-any.whl", hash = "sha256:925c857658fb1ba40c0772c37acbc2ab650bd794d9c1b9726922e36ea4117ea1", size = 142357, upload-time = "2026-03-27T11:34:46.275Z" },
-]
-
-[[package]]
-name = "hello-world"
-version = "1.1.0"
-source = { virtual = "." }
-
-[package.dev-dependencies]
-cdk = [
-    { name = "aws-cdk-aws-lambda-python-alpha" },
-    { name = "aws-cdk-lib" },
-    { name = "cdk-monitoring-constructs" },
-    { name = "cdk-nag" },
-    { name = "constructs" },
-]
-docs = [
-    { name = "mkdocstrings" },
-    { name = "mkdocstrings-python" },
-    { name = "zensical" },
-]
-lambda = [
-    { name = "aws-lambda-powertools", extra = ["all"], marker = "extra == 'group-11-hello-world-lambda'" },
-    { name = "aws-xray-sdk" },
-    { name = "boto3" },
-]
-lint = [
-    { name = "bandit" },
-    { name = "boto3-stubs" },
-    { name = "mypy" },
-    { name = "pip-audit" },
-    { name = "pre-commit" },
-    { name = "pydantic" },
-    { name = "pylint" },
-    { name = "radon" },
-    { name = "ruff" },
-    { name = "xenon" },
-]
-test = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-env" },
-    { name = "pytest-html" },
-    { name = "pytest-mock" },
-    { name = "pytest-randomly" },
-    { name = "pytest-timeout" },
-    { name = "pytest-xdist" },
-    { name = "requests" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-cdk = [
-    { name = "aws-cdk-aws-lambda-python-alpha", specifier = "==2.258.1a0" },
-    { name = "aws-cdk-lib", specifier = "==2.258.1" },
-    { name = "cdk-monitoring-constructs", specifier = "==10.1.0" },
-    { name = "cdk-nag", specifier = "==2.38.2" },
-    { name = "constructs", specifier = "==10.6.0" },
-]
-docs = [
-    { name = "mkdocstrings", specifier = "==1.0.4" },
-    { name = "mkdocstrings-python", specifier = "==2.0.3" },
-    { name = "zensical", specifier = "==0.0.40" },
-]
-lambda = [
-    { name = "aws-lambda-powertools", extras = ["all"], specifier = "==3.29.0" },
-    { name = "aws-xray-sdk", specifier = "==2.15.0" },
-    { name = "boto3", specifier = "==1.43.2" },
-]
-lint = [
-    { name = "bandit", specifier = "==1.9.4" },
-    { name = "boto3-stubs", specifier = "==1.43.5" },
-    { name = "mypy", specifier = "==1.20.2" },
-    { name = "pip-audit", specifier = "==2.10.0" },
-    { name = "pre-commit", specifier = "==4.6.0" },
-    { name = "pydantic", specifier = "==2.13.4" },
-    { name = "pylint", specifier = "==4.0.5" },
-    { name = "radon", specifier = "==6.0.1" },
-    { name = "ruff", specifier = "==0.15.12" },
-    { name = "xenon", specifier = "==0.9.3" },
-]
-test = [
-    { name = "pytest", specifier = "==9.0.3" },
-    { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "pytest-env", specifier = "==1.6.0" },
-    { name = "pytest-html", specifier = "==4.2.0" },
-    { name = "pytest-mock", specifier = "==3.15.1" },
-    { name = "pytest-randomly", specifier = "==4.1.0" },
-    { name = "pytest-timeout", specifier = "==2.4.0" },
-    { name = "pytest-xdist", specifier = "==3.8.0" },
-    { name = "requests", specifier = "==2.33.1" },
 ]
 
 [[package]]
@@ -1031,7 +940,7 @@ version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
     { name = "ghp-import" },
     { name = "jinja2" },
     { name = "markdown" },
@@ -1148,7 +1057,7 @@ name = "mypy"
 version = "1.20.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
     { name = "mypy-extensions" },
     { name = "pathspec" },
     { name = "typing-extensions" },
@@ -1443,7 +1352,7 @@ version = "4.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "astroid" },
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
     { name = "dill" },
     { name = "isort" },
     { name = "mccabe" },
@@ -1482,7 +1391,7 @@ name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-11-hello-world-cdk' and extra == 'group-11-hello-world-lambda')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'group-14-serverless-app-cdk' and extra == 'group-14-serverless-app-lambda')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -1753,6 +1662,97 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/11/b3/bcdc2f58fa92592db511beda154c2c08d28f21f6c4637f06a42a24b10c21/s3transfer-0.17.1.tar.gz", hash = "sha256:042dd5e3b1b512355e35a23f0223e426b7042e80b97830ea2680ddce327fc45e", size = 159439, upload-time = "2026-05-26T19:45:01.714Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/dd/904873250a6554fbae40cddbf9198e3cc37a2f1319d5e1a5ce82fe269c17/s3transfer-0.17.1-py3-none-any.whl", hash = "sha256:5b9827d1044159bbb01b86ef8902760ea39281927f5de31de75e1d657177bf4c", size = 88264, upload-time = "2026-05-26T19:45:00.452Z" },
+]
+
+[[package]]
+name = "serverless-app"
+version = "1.1.0"
+source = { virtual = "." }
+
+[package.dev-dependencies]
+cdk = [
+    { name = "aws-cdk-aws-lambda-python-alpha" },
+    { name = "aws-cdk-lib" },
+    { name = "cdk-monitoring-constructs" },
+    { name = "cdk-nag" },
+    { name = "constructs" },
+]
+docs = [
+    { name = "mkdocstrings" },
+    { name = "mkdocstrings-python" },
+    { name = "zensical" },
+]
+lambda = [
+    { name = "aws-lambda-powertools", extra = ["all"], marker = "extra == 'group-14-serverless-app-lambda'" },
+    { name = "aws-xray-sdk" },
+    { name = "boto3" },
+]
+lint = [
+    { name = "bandit" },
+    { name = "boto3-stubs" },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pre-commit" },
+    { name = "pydantic" },
+    { name = "pylint" },
+    { name = "radon" },
+    { name = "ruff" },
+    { name = "xenon" },
+]
+test = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-env" },
+    { name = "pytest-html" },
+    { name = "pytest-mock" },
+    { name = "pytest-randomly" },
+    { name = "pytest-timeout" },
+    { name = "pytest-xdist" },
+    { name = "requests" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+cdk = [
+    { name = "aws-cdk-aws-lambda-python-alpha", specifier = "==2.258.1a0" },
+    { name = "aws-cdk-lib", specifier = "==2.258.1" },
+    { name = "cdk-monitoring-constructs", specifier = "==10.1.0" },
+    { name = "cdk-nag", specifier = "==2.38.2" },
+    { name = "constructs", specifier = "==10.6.0" },
+]
+docs = [
+    { name = "mkdocstrings", specifier = "==1.0.4" },
+    { name = "mkdocstrings-python", specifier = "==2.0.3" },
+    { name = "zensical", specifier = "==0.0.40" },
+]
+lambda = [
+    { name = "aws-lambda-powertools", extras = ["all"], specifier = "==3.29.0" },
+    { name = "aws-xray-sdk", specifier = "==2.15.0" },
+    { name = "boto3", specifier = "==1.43.2" },
+]
+lint = [
+    { name = "bandit", specifier = "==1.9.4" },
+    { name = "boto3-stubs", specifier = "==1.43.5" },
+    { name = "mypy", specifier = "==1.20.2" },
+    { name = "pip-audit", specifier = "==2.10.0" },
+    { name = "pre-commit", specifier = "==4.6.0" },
+    { name = "pydantic", specifier = "==2.13.4" },
+    { name = "pylint", specifier = "==4.0.5" },
+    { name = "radon", specifier = "==6.0.1" },
+    { name = "ruff", specifier = "==0.15.12" },
+    { name = "xenon", specifier = "==0.9.3" },
+]
+test = [
+    { name = "pytest", specifier = "==9.0.3" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
+    { name = "pytest-env", specifier = "==1.6.0" },
+    { name = "pytest-html", specifier = "==4.2.0" },
+    { name = "pytest-mock", specifier = "==3.15.1" },
+    { name = "pytest-randomly", specifier = "==4.1.0" },
+    { name = "pytest-timeout", specifier = "==2.4.0" },
+    { name = "pytest-xdist", specifier = "==3.8.0" },
+    { name = "requests", specifier = "==2.33.1" },
 ]
 
 [[package]]

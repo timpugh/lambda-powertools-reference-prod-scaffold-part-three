@@ -1,6 +1,6 @@
 """BackendApp construct — the domain-level application.
 
-Encapsulates all resources that make up the Hello World serverless application:
+Encapsulates all resources that make up the backend serverless application:
 KMS key, DynamoDB idempotency table, SSM greeting parameter, AppConfig feature
 flags, Lambda function, API Gateway, Application Insights monitoring, dashboard,
 Logs Insights saved queries, and per-resource cdk-nag suppressions.
@@ -90,7 +90,7 @@ from infrastructure.nag_utils import (
 
 
 class BackendApp(Construct):
-    """Domain-level Hello World application.
+    """Domain-level backend application.
 
     Exposes the top-level resources as public attributes so the enclosing
     Stack can reference them for CfnOutputs and cross-stack wiring.
@@ -383,7 +383,7 @@ class BackendApp(Construct):
             retry_attempts=0,
             # Reserved concurrency caps how much of the account's concurrency pool
             # (default 1000) this one function can consume, so a runaway loop or a
-            # traffic spike on /hello can't starve every other Lambda in the
+            # traffic spike on /greeting can't starve every other Lambda in the
             # account. 100 is a deliberately modest ceiling for a reference
             # workload — size it to real peak traffic in a fork (and note that a
             # reserved value also guarantees that headroom is always available to
@@ -402,8 +402,8 @@ class BackendApp(Construct):
             system_log_level_v2=_lambda.SystemLogLevel.INFO,
             environment_encryption=self.encryption_key,
             environment={
-                "POWERTOOLS_SERVICE_NAME": "hello-world",
-                "POWERTOOLS_METRICS_NAMESPACE": "HelloWorld",
+                "POWERTOOLS_SERVICE_NAME": "serverless-app",
+                "POWERTOOLS_METRICS_NAMESPACE": "ServerlessApp",
                 "POWERTOOLS_LOG_LEVEL": "INFO",
                 "IDEMPOTENCY_TABLE_NAME": self.idempotency_table.table_name,
                 "GREETING_PARAM_NAME": self.greeting_param.parameter_name,
@@ -555,11 +555,11 @@ class BackendApp(Construct):
             ),
         )
 
-        hello_resource = self.api.root.add_resource("hello")
+        greeting_resource = self.api.root.add_resource("greeting")
         # Integrate with the alias (not $LATEST) so CodeDeploy traffic shifting
         # is what actually moves production traffic onto a new version.
-        hello_resource.add_method("GET", apigw.LambdaIntegration(self.alias))
-        hello_resource.add_cors_preflight(
+        greeting_resource.add_method("GET", apigw.LambdaIntegration(self.alias))
+        greeting_resource.add_cors_preflight(
             allow_origins=apigw.Cors.ALL_ORIGINS,
             allow_methods=["GET", "OPTIONS"],
             # X-Amzn-Trace-Id is required for CloudWatch RUM to propagate the
@@ -744,22 +744,22 @@ class BackendApp(Construct):
         monitoring.monitor_dynamo_table(table=self.idempotency_table)
 
         # ── Business KPIs ─────────────────────────────────────────────────────
-        # The handler emits HelloRequests (Powertools EMF) into the HelloWorld
+        # The handler emits GreetingRequests (Powertools EMF) into the ServerlessApp
         # namespace with the service dimension Powertools adds from
         # POWERTOOLS_SERVICE_NAME. Surfacing it here keeps the business signal
         # on the same dashboard as the operational metrics it explains.
         metric_factory = monitoring.create_metric_factory()
-        hello_requests_metric = metric_factory.create_metric(
-            metric_name="HelloRequests",
-            namespace="HelloWorld",
+        greeting_requests_metric = metric_factory.create_metric(
+            metric_name="GreetingRequests",
+            namespace="ServerlessApp",
             statistic=MetricStatistic.SUM,
-            dimensions_map={"service": "hello-world"},
-            label="hello requests",
+            dimensions_map={"service": "serverless-app"},
+            label="greeting requests",
             period=Duration.hours(1),
         )
         monitoring.add_large_header("Business KPIs")
         monitoring.monitor_custom(
-            metric_groups=[CustomMetricGroup(metrics=[hello_requests_metric], title="Hourly hello requests")],
+            metric_groups=[CustomMetricGroup(metrics=[greeting_requests_metric], title="Hourly greeting requests")],
             human_readable_name="Business KPIs",
             alarm_friendly_name="KPIs",
         )
@@ -1002,13 +1002,13 @@ class BackendApp(Construct):
         CDK dependency.
         """
         # Mirror the handler's Powertools EMF emission: POWERTOOLS_METRICS_NAMESPACE
-        # is "HelloWorld" and Powertools adds the service dimension from
-        # POWERTOOLS_SERVICE_NAME ("hello-world"). Addressed by name only — no
+        # is "ServerlessApp" and Powertools adds the service dimension from
+        # POWERTOOLS_SERVICE_NAME ("serverless-app"). Addressed by name only — no
         # reference to the function construct (see the docstring's acyclicity note).
         failure_metric = cloudwatch.Metric(
-            namespace="HelloWorld",
+            namespace="ServerlessApp",
             metric_name="FeatureFlagEvaluationFailure",
-            dimensions_map={"service": "hello-world"},
+            dimensions_map={"service": "serverless-app"},
             statistic="Sum",
             period=Duration.minutes(1),
         )

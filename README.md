@@ -196,7 +196,7 @@ flowchart LR
         ALARMS --> SNS
     end
 
-    CLIENT -- "GET /hello (direct)" --> RWAF
+    CLIENT -- "GET /greeting (direct)" --> RWAF
     FN -. traces/metrics/logs .-> DASH
     APIGW -. metrics .-> ALARMS
     S3 -. object-level events .-> TRAIL
@@ -240,13 +240,13 @@ X-Ray tracing with `@tracer.capture_lambda_handler` on the entry point and `@tra
 
 #### Metrics
 
-CloudWatch Embedded Metric Format (EMF) via `@metrics.log_metrics(capture_cold_start_metric=True)`. The `/hello` route emits a `HelloRequests` count metric, and a `FeatureFlagEvaluationFailure` count metric on the feature-flag fallback path (a bad flag config is caught and degraded gracefully, so this metric is what makes a broken config observable — it's the signal a production fork wires an AppConfig deployment monitor to, to auto-roll-back a bad flag rollout, see [Deployment safety](#deployment-safety-canary-lambda)). Metrics are published under the `HelloWorld` namespace (set via `POWERTOOLS_METRICS_NAMESPACE`).
+CloudWatch Embedded Metric Format (EMF) via `@metrics.log_metrics(capture_cold_start_metric=True)`. The `/greeting` route emits a `GreetingRequests` count metric, and a `FeatureFlagEvaluationFailure` count metric on the feature-flag fallback path (a bad flag config is caught and degraded gracefully, so this metric is what makes a broken config observable — it's the signal a production fork wires an AppConfig deployment monitor to, to auto-roll-back a bad flag rollout, see [Deployment safety](#deployment-safety-canary-lambda)). Metrics are published under the `ServerlessApp` namespace (set via `POWERTOOLS_METRICS_NAMESPACE`).
 
 #### Event Handler
 
-`APIGatewayRestResolver` provides Flask-like routing with `@app.get("/hello")`. It parses the API Gateway event and routes to the correct handler based on HTTP method and path.
+`APIGatewayRestResolver` provides Flask-like routing with `@app.get("/greeting")`. It parses the API Gateway event and routes to the correct handler based on HTTP method and path.
 
-The resolver is constructed with `enable_validation=True`, which turns on Pydantic-based request and response validation driven entirely by function type annotations. The return-type annotation on the `hello()` handler is a `HelloResponse(BaseModel)` — Powertools validates the returned object against that model and serializes it to JSON. Adding request bodies later is the same pattern: declare a Pydantic model as a parameter type and it gets validated and documented automatically.
+The resolver is constructed with `enable_validation=True`, which turns on Pydantic-based request and response validation driven entirely by function type annotations. The return-type annotation on the `get_greeting()` handler is a `GreetingResponse(BaseModel)` — Powertools validates the returned object against that model and serializes it to JSON. Adding request bodies later is the same pattern: declare a Pydantic model as a parameter type and it gets validated and documented automatically.
 
 #### Idempotency
 
@@ -272,7 +272,7 @@ The spec is **committed**, and two CI gates keep it honest: a drift gate regener
 
 The script then runs a post-processor that attaches a uniform `x-amazon-apigateway-integration` (AWS_PROXY) extension to every operation, with literal `{region}` and `{lambdaArn}` placeholders for `aws apigateway import-rest-api`. The deployed API is always built by CDK, so the extensions are **documentation-only**, showing the AWS wiring in context. Per-route customisation would drift from CDK — the actual source of truth.
 
-The injection is automatic: any new route (`@app.post("/greet")`, `@app.delete("/hello/{id}")`) picks up the extension on the next `make docs` run. Only verbs outside the standard set (`get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace`) would be skipped — not realistic for a REST API.
+The injection is automatic: any new route (`@app.post("/greet")`, `@app.delete("/greeting/{id}")`) picks up the extension on the next `make docs` run. Only verbs outside the standard set (`get`, `put`, `post`, `delete`, `options`, `head`, `patch`, `trace`) would be skipped — not realistic for a REST API.
 
 The spec is intentionally **not** exposed at runtime. A public `/openapi.json` hands unauthenticated callers a map of every path and field name. Keeping it a build artifact gives callable-facing docs without leaking the schema. `make docs` regenerates the spec and rebuilds Zensical in one step, so the rendered API reference is always current.
 
@@ -313,11 +313,11 @@ Resources are split across five stacks. By default every resource has `RemovalPo
 | Resource | Purpose |
 |---|---|
 | KMS Key | Encrypts the compute-side resources: log groups, Lambda env vars, AppConfig hosted config, and the SNS alarm topic (the DynamoDB table has its own CMK in `ServerlessAppData-{region}`) |
-| Lambda Function | Runs the hello-world handler (Python 3.14, 256 MB, arm64/Graviton, X-Ray tracing, JSON logging, env vars CMK-encrypted, async retries pinned to 0) |
+| Lambda Function | Runs the serverless-app handler (Python 3.14, 256 MB, arm64/Graviton, X-Ray tracing, JSON logging, env vars CMK-encrypted, async retries pinned to 0) |
 | Lambda Alias (`live`) + Version | Traffic-shifting target for CodeDeploy — the API integrates with the alias so deployments can canary + roll back (see [Deployment safety](#deployment-safety-canary-lambda)) |
 | CodeDeploy Application + Deployment Group | Shifts the alias onto each new version (canary 10%/5min in prod, all-at-once in dev) with automatic rollback on the canary error alarm |
 | CloudWatch Log Group | Lambda log group with 1-week retention, KMS-encrypted |
-| API Gateway REST API | Exposes `GET /hello` (integrated with the Lambda `live` alias) with X-Ray tracing and per-stage throttling (rate 100 / burst 200) |
+| API Gateway REST API | Exposes `GET /greeting` (integrated with the Lambda `live` alias) with X-Ray tracing and per-stage throttling (rate 100 / burst 200) |
 | CloudWatch Log Group (access) | API Gateway access logs (17-field JSON), KMS-encrypted |
 | CloudWatch Log Group (execution) | API Gateway execution logs, KMS-encrypted |
 | WAF WebACL (regional) | REGIONAL WebACL with the 4 shared managed rule groups, associated with the Prod stage to close the `execute-api` CloudFront-bypass window (`_attach_regional_waf`) |
@@ -459,7 +459,7 @@ Browser → CloudFront → S3 (private bucket)
         WAF WebACL (us-east-1, always)
 ```
 
-The browser calls `GET /hello` directly against the API Gateway URL — CloudFront only serves static assets, it does not proxy API requests.
+The browser calls `GET /greeting` directly against the API Gateway URL — CloudFront only serves static assets, it does not proxy API requests.
 
 #### Multi-stack design and cross-region support
 
@@ -654,7 +654,7 @@ Note: CDK creates an internal singleton Lambda to empty the S3 bucket before del
 
 ### Monitoring
 
-The stack includes a [cdk-monitoring-constructs](https://github.com/cdklabs/cdk-monitoring-constructs) MonitoringFacade that creates a CloudWatch dashboard with Lambda, API Gateway, and DynamoDB metrics out of the box, organised into a **Service health** section and a **Business KPIs** section (the `HelloRequests` metric the handler emits via Powertools EMF, charted hourly).
+The stack includes a [cdk-monitoring-constructs](https://github.com/cdklabs/cdk-monitoring-constructs) MonitoringFacade that creates a CloudWatch dashboard with Lambda, API Gateway, and DynamoDB metrics out of the box, organised into a **Service health** section and a **Business KPIs** section (the `GreetingRequests` metric the handler emits via Powertools EMF, charted hourly).
 
 Two alarms ship with the dashboard: **Lambda p90 latency** (> 3s) and **API Gateway 5xx fault rate** (> 1%), plus an error-log widget that surfaces recent `ERROR`-level Lambda records next to the metrics. In the default `prod` environment every alarm publishes to a **CMK-encrypted SNS topic** (`AlarmTopicName` CfnOutput) — attach email/Chatbot/PagerDuty subscriptions there to make them page. The thresholds are deliberately modest reference-workload values; size them to real traffic in a fork. Three pieces of wiring make the encrypted alarm path actually deliver, all asserted by `tests/cdk/`: the topic policy admits only `cloudwatch.amazonaws.com` for this account's alarms, `enforce_ssl` denies plaintext publishes, and the project CMK grants CloudWatch `kms:Decrypt`/`kms:GenerateDataKey*` via SNS (`grant_cloudwatch_alarms_to_key` in `nag_utils.py` — without it the alarm fires but the notification is silently dropped at KMS).
 
@@ -705,7 +705,7 @@ After deployment, each stack exposes these CfnOutputs:
 
 **`ServerlessAppBackend-{region}`:**
 
-- `ApiUrlOutput` — API Gateway endpoint URL (`https://.../Prod/hello`)
+- `ApiUrlOutput` — API Gateway endpoint URL (`https://.../Prod/greeting`)
 - `FunctionArnOutput` — Lambda function ARN
 - `FunctionIamRoleOutput` — Lambda IAM role ARN
 - `GreetingParameterName` — SSM parameter path
@@ -1289,7 +1289,7 @@ Current suppressions across all stacks:
 | `NIST.800.53.R5-LambdaInsideVPC` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambdas — VPC is not configurable |
 | `NIST.800.53.R5-IAMNoInlinePolicy` | Backend, Frontend, WAF, Audit | Per-resource | CDK-generated inline policies on singleton service roles (incl. the CloudTrail trail's LogsRole in the audit stack) — not directly configurable; also suppressed on `RumUnauthenticatedRole` where the single least-privilege `rum:PutRumEvents` policy is tightly bound to the role's one purpose |
 | `NIST.800.53.R5-APIGWSSLEnabled` | Backend | Stack | Client-side SSL certificates not required for sample app |
-| `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` | Backend | Stack | API Gateway cache cluster intentionally disabled — smallest size is ~$14/month for a sample app, and caching `GET /hello` would serve stale values across SSM parameter and AppConfig feature-flag changes |
+| `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` | Backend | Stack | API Gateway cache cluster intentionally disabled — smallest size is ~$14/month for a sample app, and caching `GET /greeting` would serve stale values across SSM parameter and AppConfig feature-flag changes |
 | `NIST.800.53.R5-DynamoDBInBackupPlan` | Data | Stack | AWS Backup plan not configured; PITR is enabled for point-in-time recovery (the table lives in `DataStack`, so its suppression does too) |
 | `NIST.800.53.R5-S3BucketLoggingEnabled` | Frontend, Audit, WAF, Backend | Resource (log buckets) | All log-sink buckets (access-log, CloudTrail, WAF) — logging a log destination to itself would be circular |
 | `NIST.800.53.R5-S3BucketReplicationEnabled` | Frontend | Stack + Resource | Static assets are redeployable; replication not needed |
@@ -1648,7 +1648,7 @@ One hard-won addendum on the non-critical path: **the fallback warning must log 
 
 **Idempotency keys come from a client-supplied `Idempotency-Key` header** — Powertools' `@idempotent` decorator is configured with `event_key_jmespath='headers."idempotency-key"'` and `raise_on_no_idempotency_key=True`. HTTP header names are case-insensitive but JMESPath lookups are exact-match, so the handler lowercases all header keys before the idempotency layer sees the event — any casing the caller sends (`Idempotency-Key`, `IDEMPOTENCY-KEY`, …) matches the single lowercase lookup. A request without the header trips Powertools' `IdempotencyKeyError`, which the outer handler catches and converts to a 400 — making the requirement enforced rather than implicit. Keying on a caller-controlled value is what actually makes the layer deduplicate; the obvious-looking `requestContext.requestId` alternative is regenerated by API Gateway on every retry and would cause every call to write a fresh DynamoDB record without ever short-circuiting. Clients should generate the key as a UUID per logical operation (per the [Powertools Idempotency docs](https://docs.aws.amazon.com/powertools/python/latest/utilities/idempotency/)) and reuse it across retries.
 
-Two consequences of keying purely on the client header are worth understanding before forking. First, the key is **not namespaced by request payload or route** — Powertools prefixes the stored DynamoDB record with the Lambda + decorated-function name, so collisions are confined to this one handler, but within it two callers presenting the *same* key value receive the *same* cached response. That's correct for `GET /hello` because the response is caller-agnostic (the `enhanced_greeting` flag varies it only by source IP/user-agent context); a fork that returns genuinely caller-specific data should fold a payload hash or caller identity into `event_key_jmespath`, or enable `payload_validation_jmespath` so a mismatched payload under a reused key raises instead of silently replaying. Second, because `@idempotent` wraps the whole resolver, **non-2xx responses are cached too** (404/422/500 are returned as dicts, not raised) — a client reusing a key after fixing the route or payload gets the stale error replayed for the 1-hour window. Rotate the key on a non-2xx result, or see the caching caveat in `_resolve_with_idempotency` for the move-onto-`hello` alternative.
+Two consequences of keying purely on the client header are worth understanding before forking. First, the key is **not namespaced by request payload or route** — Powertools prefixes the stored DynamoDB record with the Lambda + decorated-function name, so collisions are confined to this one handler, but within it two callers presenting the *same* key value receive the *same* cached response. That's correct for `GET /greeting` because the response is caller-agnostic (the `enhanced_greeting` flag varies it only by source IP/user-agent context); a fork that returns genuinely caller-specific data should fold a payload hash or caller identity into `event_key_jmespath`, or enable `payload_validation_jmespath` so a mismatched payload under a reused key raises instead of silently replaying. Second, because `@idempotent` wraps the whole resolver, **non-2xx responses are cached too** (404/422/500 are returned as dicts, not raised) — a client reusing a key after fixing the route or payload gets the stale error replayed for the 1-hour window. Rotate the key on a non-2xx result, or see the caching caveat in `_resolve_with_idempotency` for the move-onto-`get_greeting` alternative.
 
 **Async failure destinations on the CDK-managed provider Lambdas** — CloudFormation invokes custom-resource provider Lambdas asynchronously during stack lifecycle events. Without an `on_failure` destination, a provider crash that exhausts Lambda's two automatic async retries is silently dropped — the CFN rollback still surfaces an error, but the *cause* (Python traceback, AWS API error response) is gone unless someone catches it in CloudWatch within the retention window. Both stacks attach SQS DLQs (CMK-encrypted, 14-day retention, SSL-enforced) via `attach_async_failure_destination()` in [infrastructure/nag_utils.py](infrastructure/nag_utils.py), wired to each singleton's underlying Lambda using `configure_async_invoke(on_failure=destinations.SqsDestination(dlq))`: the AwsCustomResource provider in both stacks, plus the BucketDeployment handler in the frontend stack. The failed-event envelope (full request payload + responseContext) lands in the queue for post-mortem. The S3 auto-delete provider is the one exception — it synthesizes as a `CustomResourceProvider`, not a `Function`, so its async config isn't reachable through the L2; that's exactly what its `Serverless-LambdaDLQ` suppression documents.
 
@@ -1702,7 +1702,7 @@ Pre-creating a log group that a service would otherwise create implicitly has a 
 
 **Powertools log level uses one knob, not two** — only `POWERTOOLS_LOG_LEVEL` is set; the legacy `LOG_LEVEL` fallback is intentionally not. Powertools 3.x prefers `POWERTOOLS_LOG_LEVEL` and falls back to `LOG_LEVEL` for backward compat — running both side-by-side hides which knob actually wins, especially during a future deploy where someone updates one but not the other. Keeping a single source of truth means the answer to "why is the log level X?" is always the same env var.
 
-**API Gateway cache cluster intentionally disabled** — the smallest cache cluster (0.5 GB) is ~$14/month for a sample app, and `GET /hello` would return stale values across SSM parameter or AppConfig feature-flag changes for the cache TTL window. The `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` finding is suppressed at the stack level with that rationale. Forks with high read volume on truly cacheable responses can flip it back on — both `cache_cluster_enabled=True` and `cache_data_encrypted=True` are the right defaults to restore together.
+**API Gateway cache cluster intentionally disabled** — the smallest cache cluster (0.5 GB) is ~$14/month for a sample app, and `GET /greeting` would return stale values across SSM parameter or AppConfig feature-flag changes for the cache TTL window. The `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` finding is suppressed at the stack level with that rationale. Forks with high read volume on truly cacheable responses can flip it back on — both `cache_cluster_enabled=True` and `cache_data_encrypted=True` are the right defaults to restore together.
 
 **Athena query results are SSE-KMS-encrypted via per-object override** — the access-log bucket's default encryption is SSE-S3 (because the S3/CloudFront log delivery service can't write to KMS-encrypted buckets), but Athena's `PutObject` calls override the bucket default on a per-object basis to write `athena-results/` objects with SSE-KMS using the frontend CMK. The bucket-default constraint only applies to objects S3 chooses the encryption for, not to objects whose caller specifies it. End result: the noisy log objects use SSE-S3, but every Athena query result file is CMK-encrypted alongside the rest of the project's data.
 
@@ -1739,7 +1739,7 @@ If you fork this and your catalog will hold genuinely sensitive table metadata (
 | Standard rule fee | $1.00 / month | Each managed rule group counts as one of the WebACL's rules |
 | Per-request inspection fee | $0.15 / million requests | On top of the standard $0.60 / million inspection fee |
 
-The other 5 rules in the WebACL (IP Reputation, CRS, Known Bad Inputs, Anonymous IP List, custom rate limit) are all AWS WAF "free-tier" — no entity fee, just $1/month per rule. Only four paid-tier rule groups exist: Bot Control, ATP, ACFP, and AntiDDoSRuleSet. Adding AntiDDoSRuleSet would have raised this stack's fixed WAF cost from $10/month to $31/month — a similar jump in fixed WAF cost for one rule whose effective enforcement (the `DDoSRequests` Block arm) is gated on AWS observing high-confidence DDoS classification, which is unlikely to fire on a Hello World demo's traffic profile. The existing per-IP rate-limit rule already covers crude L7 DDoS at 200 req/5min/forwarded IP. Same conclusion as the Glue catalog encryption entry above: high cost, low value at this scale, document and skip.
+The other 5 rules in the WebACL (IP Reputation, CRS, Known Bad Inputs, Anonymous IP List, custom rate limit) are all AWS WAF "free-tier" — no entity fee, just $1/month per rule. Only four paid-tier rule groups exist: Bot Control, ATP, ACFP, and AntiDDoSRuleSet. Adding AntiDDoSRuleSet would have raised this stack's fixed WAF cost from $10/month to $31/month — a similar jump in fixed WAF cost for one rule whose effective enforcement (the `DDoSRequests` Block arm) is gated on AWS observing high-confidence DDoS classification, which is unlikely to fire on a Serverless App demo's traffic profile. The existing per-IP rate-limit rule already covers crude L7 DDoS at 200 req/5min/forwarded IP. Same conclusion as the Glue catalog encryption entry above: high cost, low value at this scale, document and skip.
 
 If you fork this for a workload with real traffic and a realistic DDoS threat model, the rule group is genuinely useful — but treat the $20/month entity fee plus the exempt-URI-list requirement as planning items rather than drop-in additions.
 

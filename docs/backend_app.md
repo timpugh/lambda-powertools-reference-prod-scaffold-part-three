@@ -1,4 +1,4 @@
-# Hello World Application Construct
+# Serverless App Application Construct
 
 The `infrastructure.backend_app` module hosts the domain construct
 (`BackendApp`) that owns every backend resource — the KMS key, DynamoDB

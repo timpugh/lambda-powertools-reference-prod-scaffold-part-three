@@ -1,4 +1,4 @@
-"""Shared test fixtures for the Hello World project."""
+"""Shared test fixtures for the Serverless App project."""
 
 import importlib.util
 import os
@@ -16,18 +16,18 @@ LAMBDA_APP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", 
 
 @pytest.fixture
 def apigw_event():
-    """Generates API GW Event for GET /hello."""
+    """Generates API GW Event for GET /greeting."""
     return {
         "body": None,
-        "resource": "/hello",
-        "path": "/hello",
+        "resource": "/greeting",
+        "path": "/greeting",
         "httpMethod": "GET",
         "isBase64Encoded": False,
         "queryStringParameters": {"foo": "bar"},
         "requestContext": {
             "resourceId": "123456",
             "apiId": "1234567890",
-            "resourcePath": "/hello",
+            "resourcePath": "/greeting",
             "httpMethod": "GET",
             "requestId": "c6af9ac6-7b61-11e6-9a41-93e8deadbeef",
             "accountId": "123456789012",

@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Hello World API",
+    "title": "Serverless App API",
     "description": "Reference serverless API built on AWS Lambda Powertools, deployed behind\nAPI Gateway, CloudFront, and AWS WAF.\n\nThe spec on this page is generated at documentation-build time from the\nlive Pydantic models and route decorators in `lambda/app.py`. Any change\nto a route, a request body model, or a return-type annotation appears\nhere on the next `make docs` run.\n\nEach operation carries an `x-amazon-apigateway-integration` block showing\nthe AWS_PROXY integration with Lambda that the CDK stack provisions. The\nURI uses literal `{region}` and `{lambdaArn}` placeholders \u2014 the deployed\nAPI is built by CDK, not imported from this file, so readers can substitute\nthose if they want to `aws apigateway import-rest-api` the spec elsewhere.\n",
     "version": "1.0.0"
   },
@@ -12,14 +12,14 @@
     }
   ],
   "paths": {
-    "/hello": {
+    "/greeting": {
       "get": {
         "tags": [
           "Greeting"
         ],
         "summary": "Return a greeting",
         "description": "Returns the greeting string configured in SSM Parameter Store. When the `enhanced_greeting` AppConfig feature flag is enabled for the caller's source IP, the response includes the feature flag's configured suffix. Requires an `Idempotency-Key` header; requests without one are rejected with 400 before this route runs.",
-        "operationId": "hello_hello_get",
+        "operationId": "get_greeting_greeting_get",
         "responses": {
           "422": {
             "description": "Validation Error",
@@ -36,7 +36,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HelloResponse"
+                  "$ref": "#/components/schemas/GreetingResponse"
                 }
               }
             }
@@ -73,20 +73,7 @@
   },
   "components": {
     "schemas": {
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "HelloResponse": {
+      "GreetingResponse": {
         "properties": {
           "message": {
             "type": "string",
@@ -102,8 +89,21 @@
         "required": [
           "message"
         ],
-        "title": "HelloResponse",
-        "description": "Response body for GET /hello."
+        "title": "GreetingResponse",
+        "description": "Response body for GET /greeting."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "InternalErrorResponse": {
         "properties": {
@@ -127,7 +127,7 @@
           "message"
         ],
         "title": "InternalErrorResponse",
-        "description": "Body of the 500 produced by Powertools' ServiceError handling.\n\nWhen ``hello`` raises ``InternalServerError`` (e.g. the SSM read fails),\nthe resolver serialises it as ``{\"statusCode\": 500, \"message\": ...}`` \u2014\ndocumented here so spec consumers see the failure shape, not just the 200."
+        "description": "Body of the 500 produced by Powertools' ServiceError handling.\n\nWhen ``get_greeting`` raises ``InternalServerError`` (e.g. the SSM read fails),\nthe resolver serialises it as ``{\"statusCode\": 500, \"message\": ...}`` \u2014\ndocumented here so spec consumers see the failure shape, not just the 200."
       },
       "MissingIdempotencyKeyResponse": {
         "properties": {

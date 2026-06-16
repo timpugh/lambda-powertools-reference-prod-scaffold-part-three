@@ -98,7 +98,7 @@ class TestStackTags:
         # stack's tag manager rather than template properties.
         for stack in (prod_stage.waf, prod_stage.data, prod_stage.backend, prod_stage.frontend, prod_stage.audit):
             tags = stack.tags.tag_values()
-            assert tags.get("service") == "hello-world"
+            assert tags.get("service") == "serverless-app"
             assert tags.get("environment") == "prod"
             assert tags.get("owner"), "owner tag must be non-empty (username or ci fallback)"
 

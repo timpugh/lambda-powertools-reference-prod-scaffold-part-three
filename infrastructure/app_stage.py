@@ -167,7 +167,7 @@ class AppStage(cdk.Stage):
         # Tags.of() aspect) to match the @aws-cdk/core:explicitStackTags flag
         # enabled in cdk.json.
         stack_tags = {
-            "service": "hello-world",
+            "service": "serverless-app",
             "environment": env_name,
             "owner": _owner_tag_value(),
         }
