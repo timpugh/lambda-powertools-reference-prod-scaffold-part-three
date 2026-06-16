@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """CDK application entry point.
 
-Synthesizes a :class:`HelloWorldStage` per target region and deployment
+Synthesizes a :class:`AppStage` per target region and deployment
 environment. Each Stage groups the five stacks that make up one regional
 deployment (data, WAF, backend, frontend, audit) so ``cdk deploy`` treats them
 as a single unit:
 
-  HelloWorldWaf-{region}      — WAF WebACL, physically in us-east-1
+  ServerlessAppWaf-{region}      — WAF WebACL, physically in us-east-1
                                 (CloudFront constraint), but named per region
                                 so each Stage is fully independent and can
                                 be destroyed separately.
-  HelloWorldData-{region}     — stateful layer: DynamoDB idempotency table and
+  ServerlessAppData-{region}     — stateful layer: DynamoDB idempotency table and
                                 its dedicated CMK, isolated so its lifecycle is
                                 independent of the stateless compute stack
                                 (RETAIN/protection togglable via retain_data).
-  HelloWorld-{region}         — Lambda, API Gateway, SSM, AppConfig
-  HelloWorldFrontend-{region} — S3, CloudFront (references WAF ARN cross-region
+  ServerlessAppBackend-{region}         — Lambda, API Gateway, SSM, AppConfig
+  ServerlessAppFrontend-{region} — S3, CloudFront (references WAF ARN cross-region
                                 via SSM when target region differs from us-east-1)
-  HelloWorldAudit-{region}    — stateful audit layer: the CloudTrail object-level
+  ServerlessAppAudit-{region}    — stateful audit layer: the CloudTrail object-level
                                 S3 data-event trail, its log bucket, and a
                                 dedicated CMK. Audits the frontend buckets
                                 one-way (RETAIN/protection togglable via
@@ -41,7 +41,7 @@ The deployment environment is controlled by the ``env`` CDK context key,
 falling back to the ``ENVIRONMENT`` variable, defaulting to ``prod``.
 ``prod`` keeps the un-suffixed stack names above (so the long-lived
 deployment is unaffected) and routes alarms to the SNS topic. Any other
-value namespaces every stack (``HelloWorld-{env}-{region}``), which makes
+value namespaces every stack (``ServerlessAppBackend-{env}-{region}``), which makes
 ephemeral per-developer or per-branch deployments collision-free in a
 shared account, and disables alarm paging for them.
 
@@ -62,7 +62,7 @@ import os
 
 import aws_cdk as cdk
 
-from infrastructure.hello_world_stage import DEFAULT_ENV_NAME, HelloWorldStage, stage_id
+from infrastructure.app_stage import DEFAULT_ENV_NAME, AppStage, stage_id
 
 app = cdk.App()
 
@@ -85,16 +85,16 @@ retain_data: bool = _retain_ctx if isinstance(_retain_ctx, bool) else str(_retai
 # Opt-in AppConfig gradual rollout + alarm rollback monitor (`-c appconfig_monitor=true`).
 # Default False so the cold/first deploy always succeeds: a CFN-managed AppConfig
 # deployment with a monitor rolls back when its alarm is INSUFFICIENT_DATA, which a
-# fresh stack's metric always is — see hello_world_app._attach_appconfig_rollback_monitor
+# fresh stack's metric always is — see backend_app._attach_appconfig_rollback_monitor
 # and README "Deployment safety". Turn it on only AFTER a first all-at-once deploy has
 # produced metric data, to protect ongoing flag changes.
 _monitor_ctx = app.node.try_get_context("appconfig_monitor")
 appconfig_monitor: bool = _monitor_ctx if isinstance(_monitor_ctx, bool) else str(_monitor_ctx).lower() == "true"
 
-# Stage id composition lives next to the Stage (hello_world_stage.stage_id):
+# Stage id composition lives next to the Stage (app_stage.stage_id):
 # prod keeps the legacy id so existing cdk.out assembly paths and tooling
 # keyed on the stage name stay stable; other envs get their own id.
-HelloWorldStage(
+AppStage(
     app,
     stage_id(env_name, target_region),
     region=target_region,

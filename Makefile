@@ -286,7 +286,7 @@ deploy: ## Deploy all stacks to us-east-1 (ENV=<name> for an ephemeral env, -c r
 # plain `make deploy` (reverts to all-at-once and removes the monitor).
 # ENV=<name> / REGION=<region> select an ephemeral env / non-default region.
 deploy-appconfig-monitor: ## Redeploy with the AppConfig gradual rollout + alarm rollback monitor (run only AFTER a first `make deploy`)
-	@stack="HelloWorld$(if $(ENV),-$(ENV))-$(REGION)"; \
+	@stack="ServerlessAppBackend$(if $(ENV),-$(ENV))-$(REGION)"; \
 	status=$$(aws cloudformation describe-stacks --region $(REGION) --stack-name "$$stack" \
 		--query 'Stacks[0].StackStatus' --output text 2>/dev/null); \
 	case "$$status" in \
@@ -319,13 +319,13 @@ REGION ?= us-east-1
 # Resolve every S3 bucket in the frontend AND audit stacks by type (names are
 # CDK-generated, so we can't hardcode them) and empty each. Idempotent: a missing
 # stack or empty bucket is a no-op. Used by destroy-clean below. ENVSEG folds the
-# deployment environment into the stack name (HelloWorldFrontend-<env>-<region>,
-# HelloWorldAudit-<env>-<region>) so an ephemeral env's teardown empties its own
+# deployment environment into the stack name (ServerlessAppFrontend-<env>-<region>,
+# ServerlessAppAudit-<env>-<region>) so an ephemeral env's teardown empties its own
 # buckets, not prod's. (auto_delete_objects normally empties these on destroy;
 # this is the belt-and-suspenders for a prior failed deploy that left one full.)
 _empty-frontend-buckets:
 	@echo "Emptying frontend- and audit-stack S3 buckets in $(REGION)..."
-	@for s in "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
+	@for s in "ServerlessAppFrontend$(ENVSEG)-$(REGION)" "ServerlessAppAudit$(ENVSEG)-$(REGION)"; do \
 		for b in $$(aws cloudformation list-stack-resources \
 			--stack-name "$$s" --region $(REGION) \
 			--query "StackResourceSummaries[?ResourceType=='AWS::S3::Bucket'].PhysicalResourceId" \
@@ -341,10 +341,10 @@ _empty-frontend-buckets:
 # re-creates the configured group on delivery — leaving unencrypted,
 # retention-less groups dangling after an otherwise-clean destroy (observed on a
 # live teardown). Prefixes are scoped to the FULL stack names of the deployment
-# being torn down — "HelloWorld$(ENVSEG)-$(REGION)" etc. for stack-named groups,
+# being torn down — "ServerlessAppBackend$(ENVSEG)-$(REGION)" etc. for stack-named groups,
 # "/aws/lambda/<stack-name>" for function groups, and "aws-waf-logs-<stack-name>"
 # for WAF groups. The env segment in the prefix is what keeps multi-environment
-# accounts safe: a bare "HelloWorld" prefix would also sweep the log groups of
+# accounts safe: a bare "ServerlessApp" prefix would also sweep the log groups of
 # every OTHER deployment environment still running in the account.
 # WAF-stack-derived groups are swept in us-east-1 too because the WAF stack
 # always lives there regardless of REGION. Idempotent; missing groups are no-ops.
@@ -353,11 +353,11 @@ _empty-frontend-buckets:
 # CloudFormation composes Lambda physical names as {stack-name}-{logical-id}-
 # {suffix} truncated to 64 chars, and the truncation cuts the STACK-NAME
 # PORTION mid-word — a live teardown left
-# "/aws/lambda/HelloWorldFrontend-us-eas-CustomS3AutoDeleteObject-…" behind
+# "/aws/lambda/ServerlessAppFrontend-us-eas-CustomS3AutoDeleteObject-…" behind
 # ("us-eas", not "us-east-1"), which no full-stack-name prefix can match.
 _delete-straggler-log-groups:
 	@echo "Sweeping straggler CloudWatch log groups..."
-	@for base in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
+	@for base in "ServerlessAppBackend$(ENVSEG)-$(REGION)" "ServerlessAppFrontend$(ENVSEG)-$(REGION)" "ServerlessAppAudit$(ENVSEG)-$(REGION)"; do \
 		for prefix in "$$base" "/aws/lambda/$$base" "aws-waf-logs-$$base"; do \
 			for lg in $$(aws logs describe-log-groups --log-group-name-prefix "$$prefix" \
 				--region $(REGION) --query "logGroups[].logGroupName" --output text 2>/dev/null); do \
@@ -366,7 +366,7 @@ _delete-straggler-log-groups:
 			done; \
 		done; \
 	done
-	@for prefix in "HelloWorldWaf$(ENVSEG)-$(REGION)" "/aws/lambda/HelloWorldWaf$(ENVSEG)-$(REGION)" "aws-waf-logs-HelloWorldWaf$(ENVSEG)-$(REGION)"; do \
+	@for prefix in "ServerlessAppWaf$(ENVSEG)-$(REGION)" "/aws/lambda/ServerlessAppWaf$(ENVSEG)-$(REGION)" "aws-waf-logs-ServerlessAppWaf$(ENVSEG)-$(REGION)"; do \
 		for lg in $$(aws logs describe-log-groups --log-group-name-prefix "$$prefix" \
 			--region us-east-1 --query "logGroups[].logGroupName" --output text 2>/dev/null); do \
 			echo "  deleting $$lg (us-east-1)"; \
@@ -388,12 +388,12 @@ LOG_GROUP_SNAPSHOT := /tmp/log-group-snapshot$(ENVSEG)-$(REGION).txt
 _snapshot-log-groups:
 	@echo "Snapshotting CFN-owned log groups (for the post-destroy exact-name sweep)..."
 	@: > $(LOG_GROUP_SNAPSHOT)
-	@for s in "HelloWorld$(ENVSEG)-$(REGION)" "HelloWorldFrontend$(ENVSEG)-$(REGION)" "HelloWorldAudit$(ENVSEG)-$(REGION)"; do \
+	@for s in "ServerlessAppBackend$(ENVSEG)-$(REGION)" "ServerlessAppFrontend$(ENVSEG)-$(REGION)" "ServerlessAppAudit$(ENVSEG)-$(REGION)"; do \
 		aws cloudformation list-stack-resources --stack-name "$$s" --region $(REGION) \
 			--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
 			--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/$(REGION) /" >> $(LOG_GROUP_SNAPSHOT) || true; \
 	done
-	@aws cloudformation list-stack-resources --stack-name "HelloWorldWaf$(ENVSEG)-$(REGION)" --region us-east-1 \
+	@aws cloudformation list-stack-resources --stack-name "ServerlessAppWaf$(ENVSEG)-$(REGION)" --region us-east-1 \
 		--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
 		--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/us-east-1 /" >> $(LOG_GROUP_SNAPSHOT) || true
 	@echo "  $$(wc -l < $(LOG_GROUP_SNAPSHOT) | tr -d ' ') log group(s) snapshotted"

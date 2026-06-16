@@ -1,4 +1,4 @@
-"""HelloWorldAuditStack — the audit-trail data store (CloudTrail + its bucket + CMK).
+"""AuditStack — the audit-trail data store (CloudTrail + its bucket + CMK).
 
 Holds the stateful, compliance-relevant audit data — the CloudTrail object-level
 S3 data-event trail, the S3 bucket its log files land in, and a dedicated CMK —
@@ -46,7 +46,7 @@ from infrastructure.nag_utils import (
 )
 
 
-class HelloWorldAuditStack(Stack):
+class AuditStack(Stack):
     """CloudTrail S3 data-event trail + its log bucket + a dedicated CMK.
 
     Exposes nothing for cross-stack consumption — it is a leaf that *depends on*

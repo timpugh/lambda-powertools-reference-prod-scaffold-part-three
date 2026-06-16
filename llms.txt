@@ -35,10 +35,10 @@ Key facts for agents working in this repo:
 
 - [lambda/app.py](lambda/app.py): the Lambda handler — Powertools logger,
   tracer, metrics, idempotency, feature flags, validated env vars, OpenAPI
-- [infrastructure/hello_world_app.py](infrastructure/hello_world_app.py): the main
+- [infrastructure/backend_app.py](infrastructure/backend_app.py): the main
   application construct (KMS, DynamoDB, SSM, AppConfig, Lambda, API Gateway,
   regional WAF, monitoring + alarms)
-- [infrastructure/hello_world_stage.py](infrastructure/hello_world_stage.py): the
+- [infrastructure/app_stage.py](infrastructure/app_stage.py): the
   Stage grouping all three stacks; environment naming lives here
 - [infrastructure/nag_utils.py](infrastructure/nag_utils.py): shared cdk-nag aspects
   and confused-deputy-guarded KMS service grants

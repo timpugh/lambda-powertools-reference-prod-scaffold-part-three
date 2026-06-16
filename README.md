@@ -14,12 +14,12 @@ This project contains source code and supporting files for a serverless applicat
 
 - `app.py` - CDK entry point; instantiates the data, WAF, backend, frontend, and audit stacks and calls `app.synth()`
 - `lambda/` - Code for the application's Lambda function
-- `infrastructure/hello_world_data_stack.py` - The stateful data stack — DynamoDB idempotency table + its dedicated CMK, with the `retain_data` retention switch
-- `infrastructure/hello_world_stack.py` - The backend CDK stack — a thin wrapper that composes `HelloWorldApp`, applies cdk-nag Aspects, and wires CfnOutputs
-- `infrastructure/hello_world_app.py` - `HelloWorldApp` construct — owns the compute domain resources (Lambda, API Gateway, SSM, AppConfig, monitoring); consumes the idempotency table from the data stack
-- `infrastructure/hello_world_waf_stack.py` - The WAF stack (CloudFront-scoped WebACL, always in `us-east-1`)
-- `infrastructure/hello_world_frontend_stack.py` - The frontend stack (S3 + CloudFront, access-log bucket, Glue/Athena log analytics)
-- `infrastructure/hello_world_audit_stack.py` - The stateful audit stack — CloudTrail object-level S3 data-event trail + its log bucket + a dedicated CMK, `retain_data`-gated (audits the frontend buckets one-way)
+- `infrastructure/data_stack.py` - The stateful data stack — DynamoDB idempotency table + its dedicated CMK, with the `retain_data` retention switch
+- `infrastructure/backend_stack.py` - The backend CDK stack — a thin wrapper that composes `BackendApp`, applies cdk-nag Aspects, and wires CfnOutputs
+- `infrastructure/backend_app.py` - `BackendApp` construct — owns the compute domain resources (Lambda, API Gateway, SSM, AppConfig, monitoring); consumes the idempotency table from the data stack
+- `infrastructure/waf_stack.py` - The WAF stack (CloudFront-scoped WebACL, always in `us-east-1`)
+- `infrastructure/frontend_stack.py` - The frontend stack (S3 + CloudFront, access-log bucket, Glue/Athena log analytics)
+- `infrastructure/audit_stack.py` - The stateful audit stack — CloudTrail object-level S3 data-event trail + its log bucket + a dedicated CMK, `retain_data`-gated (audits the frontend buckets one-way)
 - `infrastructure/nag_utils.py` - Shared cdk-nag rule-pack helper (`apply_compliance_aspects`), the `TemplateConventionChecks` validation Aspect, and shared KMS-grant / log-group / suppression helpers
 - `frontend/` - Static assets (`index.html`) deployed to the frontend S3 bucket
 - `tests/` - Unit and integration tests
@@ -35,7 +35,7 @@ This project contains source code and supporting files for a serverless applicat
 - `LICENSE` - Apache 2.0 license
 - `TODO.md` - Outstanding work and deferred items
 
-This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, AppConfig, CloudFront (S3-backed), WAF, and a CloudTrail audit trail — split across five stack files in `infrastructure/` (`hello_world_data_stack.py` for the stateful DynamoDB table + its CMK, `hello_world_stack.py` for the backend compute, `hello_world_waf_stack.py` for WAF, `hello_world_frontend_stack.py` for S3/CloudFront, `hello_world_audit_stack.py` for the stateful CloudTrail audit trail + its bucket + CMK). The Lambda function uses [AWS Lambda Powertools](https://docs.powertools.aws.dev/lambda/python/latest/) for logging, tracing, metrics, routing, idempotency, parameters, and feature flags — see [Lambda Powertools features](#lambda-powertools-features). Note that Powertools Tracer currently depends on `aws-xray-sdk`, which is approaching deprecation; there's an [open RFC](https://github.com/aws-powertools/powertools-lambda/discussions/90) to migrate to OpenTelemetry.
+This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, AppConfig, CloudFront (S3-backed), WAF, and a CloudTrail audit trail — split across five stack files in `infrastructure/` (`data_stack.py` for the stateful DynamoDB table + its CMK, `backend_stack.py` for the backend compute, `waf_stack.py` for WAF, `frontend_stack.py` for S3/CloudFront, `audit_stack.py` for the stateful CloudTrail audit trail + its bucket + CMK). The Lambda function uses [AWS Lambda Powertools](https://docs.powertools.aws.dev/lambda/python/latest/) for logging, tracing, metrics, routing, idempotency, parameters, and feature flags — see [Lambda Powertools features](#lambda-powertools-features). Note that Powertools Tracer currently depends on `aws-xray-sdk`, which is approaching deprecation; there's an [open RFC](https://github.com/aws-powertools/powertools-lambda/discussions/90) to migrate to OpenTelemetry.
 
 ## Table of contents
 
@@ -165,7 +165,7 @@ The same architecture as a text-diffable Mermaid diagram (renders inline on GitH
 flowchart LR
     CLIENT((Browser)) --> CF
 
-    subgraph Edge["Edge (HelloWorldFrontend + HelloWorldWaf stacks)"]
+    subgraph Edge["Edge (ServerlessAppFrontend + ServerlessAppWaf stacks)"]
         CF["CloudFront<br/>HSTS + CSP headers"]
         CFWAF["WAF WebACL<br/>CLOUDFRONT scope, us-east-1<br/>4 managed rule sets + rate limit"]
         S3[("S3 frontend bucket<br/>CMK-encrypted, private")]
@@ -173,7 +173,7 @@ flowchart LR
         CF --> S3
     end
 
-    subgraph Backend["Backend (HelloWorld stack)"]
+    subgraph Backend["Backend (ServerlessAppBackend stack)"]
         RWAF["WAF WebACL<br/>REGIONAL scope<br/>same 4 managed rule sets"]
         APIGW["API Gateway REST<br/>Prod stage, throttled,<br/>access + execution logs"]
         FN["Lambda (Python 3.14, arm64)<br/>Powertools: logger/tracer/metrics,<br/>idempotency, feature flags, validation"]
@@ -212,7 +212,7 @@ This template is built to follow the official [AWS CDK best practices](https://d
 | Best practice | How this template applies it | Enforced by |
 |---|---|---|
 | **Model with constructs, deploy with stacks** | Domain resources live in `Construct` subclasses; each `Stack` is a thin wrapper composing them ([Stack and construct composition](#stack-and-construct-composition)) | — |
-| **Keep stateful resources in their own stack** | `HelloWorldDataStack` (DynamoDB + CMK) and `HelloWorldAuditStack` (CloudTrail + bucket + CMK) are separate from stateless compute ([Stateful data stack](#stateful-data-stack-and-retain_data)) | — |
+| **Keep stateful resources in their own stack** | `DataStack` (DynamoDB + CMK) and `AuditStack` (CloudTrail + bucket + CMK) are separate from stateless compute ([Stateful data stack](#stateful-data-stack-and-retain_data)) | — |
 | **Separate infrastructure and application code** | `infrastructure/` (CDK) vs `lambda/` (handler) vs `tests/`, with isolated dependency groups | — |
 | **Define retain policies on stateful/critical resources** | `retain_data` flips tables, buckets, and CMKs to `RETAIN` with deletion + termination protection ([retain_data](#stateful-data-stack-and-retain_data)) | — |
 | **Use generated, not physical, resource names** | `table_name` / `parameter_name` / `log_group_name` left unset so CDK derives them — avoids replacement failures and cross-region collisions ([composition](#stack-and-construct-composition)) | — |
@@ -250,7 +250,7 @@ The resolver is constructed with `enable_validation=True`, which turns on Pydant
 
 #### Idempotency
 
-The `@idempotent` decorator uses a DynamoDB table to prevent duplicate processing of the same request. It keys on a client-supplied `Idempotency-Key` header (see the idempotency-keying design note under [Design decisions and known limitations](#design-decisions-and-known-limitations)) and records expire after 1 hour. The `HelloWorldDataStack` provisions the DynamoDB table with on-demand billing and a TTL attribute.
+The `@idempotent` decorator uses a DynamoDB table to prevent duplicate processing of the same request. It keys on a client-supplied `Idempotency-Key` header (see the idempotency-keying design note under [Design decisions and known limitations](#design-decisions-and-known-limitations)) and records expire after 1 hour. The `DataStack` provisions the DynamoDB table with on-demand billing and a TTL attribute.
 
 #### Parameters
 
@@ -293,14 +293,14 @@ These are available from `aws_lambda_powertools.utilities.data_classes` and requ
 
 Resources are split across five stacks. By default every resource has `RemovalPolicy.DESTROY` so `cdk destroy` leaves nothing behind — the exceptions are the two **stateful** stacks (data and audit), whose tables, buckets, and CMKs flip to `RETAIN` (with deletion/termination protection) when a production fork sets `retain_data=true` (see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [Deployment safety](#deployment-safety-canary-lambda)).
 
-**`HelloWorldData-{region}`** (stateful data layer, target region):
+**`ServerlessAppData-{region}`** (stateful data layer, target region):
 
 | Resource | Purpose |
 |---|---|
 | KMS Key | Dedicated CMK encrypting the DynamoDB table — kept with the data it protects so the `retain_data` switch is meaningful (a retained table whose key lived in a destroyable stack would be unreadable after teardown) |
 | DynamoDB Table (`TableV2`) | Idempotency records (TTL, on-demand billing, 1-day PITR — shortest allowed; records expire after an hour — KMS-encrypted, Contributor Insights in THROTTLED_KEYS mode). Handed to the backend cross-stack for the Lambda's env var + read/write grant |
 
-**`HelloWorldWaf-{region}`** (always in `us-east-1`):
+**`ServerlessAppWaf-{region}`** (always in `us-east-1`):
 
 | Resource | Purpose |
 |---|---|
@@ -308,11 +308,11 @@ Resources are split across five stacks. By default every resource has `RemovalPo
 | KMS Key | Encrypts the S3 auto-delete provider's CloudWatch log group (the WAF logs themselves are SSE-S3 in the bucket below) |
 | S3 Bucket (`aws-waf-logs-*`) | Receives the CloudFront WebACL's access logs (SSE-S3, 90-day lifecycle). WAF delivers directly to S3 and owns the bucket policy; queryable via Athena |
 
-**`HelloWorld-{region}`** (backend, target region):
+**`ServerlessAppBackend-{region}`** (backend, target region):
 
 | Resource | Purpose |
 |---|---|
-| KMS Key | Encrypts the compute-side resources: log groups, Lambda env vars, AppConfig hosted config, and the SNS alarm topic (the DynamoDB table has its own CMK in `HelloWorldData-{region}`) |
+| KMS Key | Encrypts the compute-side resources: log groups, Lambda env vars, AppConfig hosted config, and the SNS alarm topic (the DynamoDB table has its own CMK in `ServerlessAppData-{region}`) |
 | Lambda Function | Runs the hello-world handler (Python 3.14, 256 MB, arm64/Graviton, X-Ray tracing, JSON logging, env vars CMK-encrypted, async retries pinned to 0) |
 | Lambda Alias (`live`) + Version | Traffic-shifting target for CodeDeploy — the API integrates with the alias so deployments can canary + roll back (see [Deployment safety](#deployment-safety-canary-lambda)) |
 | CodeDeploy Application + Deployment Group | Shifts the alias onto each new version (canary 10%/5min in prod, all-at-once in dev) with automatic rollback on the canary error alarm |
@@ -335,7 +335,7 @@ Resources are split across five stacks. By default every resource has `RemovalPo
 | CloudWatch Dashboard | Lambda, API GW, DynamoDB metrics via cdk-monitoring-constructs |
 | Custom Resource (`AppInsightsDashboardCleanup`) | Deletes the Application Insights auto-created dashboard on destroy |
 
-**`HelloWorldFrontend-{region}`** (frontend, target region):
+**`ServerlessAppFrontend-{region}`** (frontend, target region):
 
 | Resource | Purpose |
 |---|---|
@@ -355,7 +355,7 @@ Resources are split across five stacks. By default every resource has `RemovalPo
 | IAM Role (RUM guest) | Assumed by the identity pool; scoped to `rum:PutRumEvents` on this app monitor only |
 | SQS Queue (DLQ ×2) | Capture failed async invocations of the AwsCustomResource provider Lambda and the BucketDeployment handler Lambda (CMK-encrypted, 14-day retention, SSL-enforced) |
 
-**`HelloWorldAudit-{region}`** (stateful audit layer, target region):
+**`ServerlessAppAudit-{region}`** (stateful audit layer, target region):
 
 | Resource | Purpose |
 |---|---|
@@ -368,14 +368,14 @@ Resources are split across five stacks. By default every resource has `RemovalPo
 
 The project follows the CDK best practice ["model with constructs, deploy with stacks"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html): domain resources live inside reusable `Construct` subclasses, each `Stack` is a thin wrapper composing them and applying stack-wide concerns (Aspects, CfnOutputs, nag suppressions).
 
-- [`HelloWorldDataStack`](infrastructure/hello_world_data_stack.py) (`Stack`) owns the stateful layer — the DynamoDB idempotency table and its dedicated CMK — kept separate from the stateless compute so the two have independent lifecycles (see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data)).
-- [`HelloWorldApp`](infrastructure/hello_world_app.py) (`Construct`) owns the compute-side KMS key, SSM parameter, AppConfig app, Lambda function, API Gateway, Application Insights, dashboard, Logs Insights saved queries, and per-resource cdk-nag suppressions. The idempotency table is passed in from the data stack (`idempotency_table=`) rather than created here.
-- [`HelloWorldStack`](infrastructure/hello_world_stack.py) (`Stack`) instantiates `HelloWorldApp(self, "App", idempotency_table=...)`, calls `apply_compliance_aspects(self)`, wires CfnOutputs, attaches stack-level and singleton-scoped suppressions.
-- [`HelloWorldAuditStack`](infrastructure/hello_world_audit_stack.py) (`Stack`) owns the second stateful layer — the CloudTrail object-level S3 data-event trail, its log bucket, and a dedicated CMK. It audits the frontend asset + access-log buckets via a one-way import (`audited_buckets=`; audit → frontend, never the reverse) — see [Audit stack and log retention](#audit-stack-and-log-retention).
+- [`DataStack`](infrastructure/data_stack.py) (`Stack`) owns the stateful layer — the DynamoDB idempotency table and its dedicated CMK — kept separate from the stateless compute so the two have independent lifecycles (see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data)).
+- [`BackendApp`](infrastructure/backend_app.py) (`Construct`) owns the compute-side KMS key, SSM parameter, AppConfig app, Lambda function, API Gateway, Application Insights, dashboard, Logs Insights saved queries, and per-resource cdk-nag suppressions. The idempotency table is passed in from the data stack (`idempotency_table=`) rather than created here.
+- [`BackendStack`](infrastructure/backend_stack.py) (`Stack`) instantiates `BackendApp(self, "App", idempotency_table=...)`, calls `apply_compliance_aspects(self)`, wires CfnOutputs, attaches stack-level and singleton-scoped suppressions.
+- [`AuditStack`](infrastructure/audit_stack.py) (`Stack`) owns the second stateful layer — the CloudTrail object-level S3 data-event trail, its log bucket, and a dedicated CMK. It audits the frontend asset + access-log buckets via a one-way import (`audited_buckets=`; audit → frontend, never the reverse) — see [Audit stack and log retention](#audit-stack-and-log-retention).
 
 The data, WAF, and frontend stacks are small enough (single logical unit each) to keep their resources inline — the construct-extraction pattern is demonstrated on the backend as the reference example.
 
-The five stacks are then composed into [`HelloWorldStage`](infrastructure/hello_world_stage.py), a [`cdk.Stage`](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html). A Stage groups stacks always deployed together, scopes synthesis under `cdk.out/assembly-{stage}/`, and is the natural boundary for CDK Pipelines. `stack_name=` is set explicitly inside the Stage so CloudFormation names stay as `HelloWorld-{region}` — without the override, the Stage ID would be prepended.
+The five stacks are then composed into [`AppStage`](infrastructure/app_stage.py), a [`cdk.Stage`](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html). A Stage groups stacks always deployed together, scopes synthesis under `cdk.out/assembly-{stage}/`, and is the natural boundary for CDK Pipelines. `stack_name=` is set explicitly inside the Stage so CloudFormation names stay as `ServerlessAppBackend-{region}` — without the override, the Stage ID would be prepended.
 
 **Generated vs. physical resource names.** Following the ["use generated resource names"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html) best practice, `table_name`, `parameter_name`, and `log_group_name` are left unset on the DynamoDB table, SSM parameter, Lambda log group, and API Gateway access log group — CDK auto-generates unique names from the construct path. This prevents (1) replacement-style schema-change failures from pinned physical names and (2) regional-deployment name collisions. Explicit names are retained only where AWS requires them: the API Gateway execution log group (`API-Gateway-Execution-Logs_{api-id}/{stage}` is service-fixed), the WAF log **buckets** (`aws-waf-logs-*` prefix is enforced — account+region+hash qualified for global uniqueness), and the AppConfig L1 constructs (no auto-generation option via CDK).
 
@@ -383,7 +383,7 @@ Failure (1) is not hypothetical — it happened in this repo, live. Changing the
 
 ### Stateful data stack and `retain_data`
 
-The stateful data layer — the DynamoDB idempotency table and its dedicated CMK — lives in its own stack, [`HelloWorldDataStack`](infrastructure/hello_world_data_stack.py), separate from the stateless compute in `HelloWorldStack`. This follows the CDK best practice ["keep stateful resources in their own stack"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html), and the split is deliberately baked into the template even though it ships destroy-friendly.
+The stateful data layer — the DynamoDB idempotency table and its dedicated CMK — lives in its own stack, [`DataStack`](infrastructure/data_stack.py), separate from the stateless compute in `BackendStack`. This follows the CDK best practice ["keep stateful resources in their own stack"](https://docs.aws.amazon.com/cdk/v2/guide/best-practices.html), and the split is deliberately baked into the template even though it ships destroy-friendly.
 
 **Why structure now, retention later.** Stack topology is the expensive-to-retrofit decision — moving a live, data-bearing resource between stacks means an export/import dance or a migration with downtime. `RemovalPolicy.RETAIN` is a one-line flag. So the *structure* (a dedicated data stack) is in place from day one, and the only thing a production fork must change is one switch:
 
@@ -391,7 +391,7 @@ The stateful data layer — the DynamoDB idempotency table and its dedicated CMK
 npx cdk deploy --all -c retain_data=true     # or make deploy with the same -c flag
 ```
 
-`retain_data` is plumbed `app.py` → `HelloWorldStage` → `HelloWorldDataStack`. The default is `false`, which keeps the table and its CMK at `RemovalPolicy.DESTROY` with deletion protection off — the right default for a reference template and for ephemeral per-developer/per-branch environments, which must tear down cleanly. Setting it `true` flips three things at once:
+`retain_data` is plumbed `app.py` → `AppStage` → `DataStack`. The default is `false`, which keeps the table and its CMK at `RemovalPolicy.DESTROY` with deletion protection off — the right default for a reference template and for ephemeral per-developer/per-branch environments, which must tear down cleanly. Setting it `true` flips three things at once:
 
 | Setting | `retain_data=false` (default) | `retain_data=true` (production) |
 |---|---|---|
@@ -425,7 +425,7 @@ The two switches differ in one critical way — **when they're safe to enable**:
 
 ### Deployment safety (canary Lambda)
 
-A bad **code** deploy gets a progressive-delivery mechanism with automatic, alarm-driven rollback, wired in [`hello_world_app.py`](infrastructure/hello_world_app.py). Like the alarm-routing split, its *aggressiveness* is environment-gated: canary in prod, fast in dev. The machinery (alias, deployment group, alarm) exists in both shapes — only the rollout speed differs, so dev and prod stay structurally identical.
+A bad **code** deploy gets a progressive-delivery mechanism with automatic, alarm-driven rollback, wired in [`backend_app.py`](infrastructure/backend_app.py). Like the alarm-routing split, its *aggressiveness* is environment-gated: canary in prod, fast in dev. The machinery (alias, deployment group, alarm) exists in both shapes — only the rollout speed differs, so dev and prod stay structurally identical.
 
 **Code: CodeDeploy traffic shifting on a Lambda alias.** The function publishes a new version on every change, and the API Gateway integration targets a `live` **alias** rather than `$LATEST` — so what actually moves production traffic is a CodeDeploy deployment, not a raw function update. In prod the alias shifts **canary 10% for 5 minutes, then the remainder** (`CANARY_10PERCENT_5MINUTES`); in dev it shifts all-at-once. A CloudWatch alarm on the alias error count is wired into the deployment group with `DEPLOYMENT_STOP_ON_ALARM` auto-rollback, so a new version that starts erroring during the shift rolls the alias back to the previous version automatically (`_attach_canary_deployment`).
 
@@ -439,7 +439,7 @@ The default is off because of a hard constraint on CloudFormation-managed deploy
 
 ### Audit stack and log retention
 
-The second stateful stack, [`HelloWorldAuditStack`](infrastructure/hello_world_audit_stack.py), holds the compliance-relevant audit data — the **CloudTrail object-level S3 data-event trail, its log bucket, and a dedicated CMK** — separate from the stateless frontend that *produces* the events. It mirrors the data-stack pattern: the *trail + bucket + key* is the stateful unit and lives here; the buckets it merely **audits** (the frontend asset + access-log buckets) stay in the frontend stack and are passed in via `audited_buckets=`.
+The second stateful stack, [`AuditStack`](infrastructure/audit_stack.py), holds the compliance-relevant audit data — the **CloudTrail object-level S3 data-event trail, its log bucket, and a dedicated CMK** — separate from the stateless frontend that *produces* the events. It mirrors the data-stack pattern: the *trail + bucket + key* is the stateful unit and lives here; the buckets it merely **audits** (the frontend asset + access-log buckets) stay in the frontend stack and are passed in via `audited_buckets=`.
 
 **Why this boundary (and not a bigger audit stack).** A CloudTrail trail and its log bucket are inseparable — the bucket policy references the trail's ARN — so they live together. The access-log bucket *can't* leave the frontend stack: CloudFront and the asset bucket write to it, and combined with the trail auditing the frontend asset bucket, any other split forms a dependency cycle. Keeping the trail+bucket+CMK here, auditing the frontend buckets via a **one-way** import (audit → frontend; the frontend never references the audit stack), is the only cycle-free boundary that doesn't require pinning bucket names (which would forfeit replacement-safety). The dedicated CMK matters for the same reason as the data stack's: retaining audit logs in production retains the *audit* key, not the frontend key (which also encrypts the destroy-friendly asset bucket). `retain_data=true` flips the trail bucket and CMK to `RETAIN` with stack termination protection; the default keeps them `DESTROY` + auto-delete for clean teardown.
 
@@ -451,7 +451,7 @@ The second stateful stack, [`HelloWorldAuditStack`](infrastructure/hello_world_a
 
 ### Frontend stack
 
-The frontend is split across `HelloWorldWafStack` and `HelloWorldFrontendStack`, decoupled from the backend so it can be deployed and destroyed independently — and to demonstrate the standard CDK multi-stack and cross-region reference patterns.
+The frontend is split across `WafStack` and `FrontendStack`, decoupled from the backend so it can be deployed and destroyed independently — and to demonstrate the standard CDK multi-stack and cross-region reference patterns.
 
 ```text
 Browser → CloudFront → S3 (private bucket)
@@ -467,11 +467,11 @@ WAF lives in its own stack because CloudFront-scoped WAF WebACLs are an AWS hard
 
 | Stack | Region | Contents |
 |-------|--------|----------|
-| `HelloWorldWaf-{region}` | Always `us-east-1` | WAF WebACL with all rules |
-| `HelloWorldData-{region}` | Configurable | DynamoDB idempotency table + its dedicated CMK |
-| `HelloWorld-{region}` | Configurable | Lambda, API Gateway, SSM, AppConfig (consumes the data stack's table) |
-| `HelloWorldFrontend-{region}` | Configurable | S3, CloudFront (references WAF ARN) |
-| `HelloWorldAudit-{region}` | Configurable | CloudTrail data-event trail + its log bucket + dedicated CMK (audits the frontend buckets) |
+| `ServerlessAppWaf-{region}` | Always `us-east-1` | WAF WebACL with all rules |
+| `ServerlessAppData-{region}` | Configurable | DynamoDB idempotency table + its dedicated CMK |
+| `ServerlessAppBackend-{region}` | Configurable | Lambda, API Gateway, SSM, AppConfig (consumes the data stack's table) |
+| `ServerlessAppFrontend-{region}` | Configurable | S3, CloudFront (references WAF ARN) |
+| `ServerlessAppAudit-{region}` | Configurable | CloudTrail data-event trail + its log bucket + dedicated CMK (audits the frontend buckets) |
 
 ```bash
 npx cdk deploy --all                             # us-east-1 (default)
@@ -481,7 +481,7 @@ npx cdk destroy --all -c region=ap-southeast-1   # tears down only the Singapore
 
 CDK wires the WAF ARN across regions automatically; other regional deployments are unaffected.
 
-> **WAF cost note.** Each regional deployment provisions *two* independently-billed WebACLs: the CloudFront-scoped one in `HelloWorldWaf-{region}` (~$5/month) and a REGIONAL one on the API Gateway stage (`HelloWorldApp._attach_regional_waf`, closing the execute-api bypass — see [WAF rules](#waf-rules)), so fixed WAF cost is roughly double a single-WebACL estimate. For a reference architecture, deployment independence is the right default. A production setup with multiple long-lived environments could share one `HelloWorldWaf` stack and pass its ARN to each frontend stack — intentionally deferred here.
+> **WAF cost note.** Each regional deployment provisions *two* independently-billed WebACLs: the CloudFront-scoped one in `ServerlessAppWaf-{region}` (~$5/month) and a REGIONAL one on the API Gateway stage (`BackendApp._attach_regional_waf`, closing the execute-api bypass — see [WAF rules](#waf-rules)), so fixed WAF cost is roughly double a single-WebACL estimate. For a reference architecture, deployment independence is the right default. A production setup with multiple long-lived environments could share one `ServerlessAppWaf` stack and pass its ARN to each frontend stack — intentionally deferred here.
 
 #### How cross-region references work
 
@@ -503,7 +503,7 @@ The bucket is fully private — no public access of any kind. CloudFront reaches
 
 The access log bucket itself uses SSE-S3 rather than SSE-KMS — neither the S3 log delivery service nor CloudFront standard logging support writing to KMS-encrypted target buckets. The bucket is organized by prefix: `cloudfront/` for CloudFront standard logs, `s3-access-logs/` for S3 server access logs, and `athena-results/` for Athena query output. Glue catalog tables point at the log prefixes so Athena can query them directly with SQL. Athena's `PutObject` calls override the bucket-level SSE-S3 default on a per-object basis to write query results under `athena-results/` with SSE-KMS using the frontend CMK; the bucket-default constraint only applies to objects S3 chooses the encryption for, not to objects whose caller specifies it.
 
-A **7-day expiration lifecycle rule** is applied uniformly to every prefix in the access log bucket — appropriate for a sample app where the value of an individual log entry decays quickly. The duration is intentionally short to keep storage cost bounded; tune it for your workload by editing the `lifecycle_rules` block in [hello_world_frontend_stack.py](infrastructure/hello_world_frontend_stack.py). Common alternatives: extend the expiration to 30/90/365 days, or replace the flat expiration with a tiered transition — Standard → S3 Standard-IA at 30 days → Glacier Instant Retrieval at 90 days → Glacier Deep Archive at 180 days → expire at 7 years. Per-prefix rules are also supported if logs and Athena results need different retention.
+A **7-day expiration lifecycle rule** is applied uniformly to every prefix in the access log bucket — appropriate for a sample app where the value of an individual log entry decays quickly. The duration is intentionally short to keep storage cost bounded; tune it for your workload by editing the `lifecycle_rules` block in [frontend_stack.py](infrastructure/frontend_stack.py). Common alternatives: extend the expiration to 30/90/365 days, or replace the flat expiration with a tiered transition — Standard → S3 Standard-IA at 30 days → Glacier Instant Retrieval at 90 days → Glacier Deep Archive at 180 days → expire at 7 years. Per-prefix rules are also supported if logs and Athena results need different retention.
 
 #### CloudTrail object-level data events
 
@@ -511,7 +511,7 @@ A dedicated [CloudTrail Trail](https://docs.aws.amazon.com/awscloudtrail/latest/
 
 Management events are **explicitly excluded** (`include_management_events=False` on the event selector). CDK's defaults would silently include them, and in any account that already has a management trail — nearly all — that's a *second copy* billed at $2 per 100k events, on every fork of this template, recording nothing the account doesn't already capture. The trail's scope is exactly its name: S3 data events.
 
-The trail and its bucket live in their own stack, [`HelloWorldAuditStack`](infrastructure/hello_world_audit_stack.py) — see [Audit stack and log retention](#audit-stack-and-log-retention) for why (the trail + bucket are inseparable, and isolating the audit data gives it its own CMK + `retain_data` lifecycle). The trail writes to a dedicated bucket (`CloudTrailLogsBucket`) so the audit destination isn't itself among the audited resources — placing trail logs inside an audited bucket would create a feedback loop where every audit write generates another audit event. The trail is also wired to a CloudWatch Log Group and its log files are SSE-KMS-encrypted with the **audit stack's** dedicated customer-managed key. File integrity validation is enabled, so CloudTrail publishes signed digest files that let you detect after-the-fact tampering with log entries.
+The trail and its bucket live in their own stack, [`AuditStack`](infrastructure/audit_stack.py) — see [Audit stack and log retention](#audit-stack-and-log-retention) for why (the trail + bucket are inseparable, and isolating the audit data gives it its own CMK + `retain_data` lifecycle). The trail writes to a dedicated bucket (`CloudTrailLogsBucket`) so the audit destination isn't itself among the audited resources — placing trail logs inside an audited bucket would create a feedback loop where every audit write generates another audit event. The trail is also wired to a CloudWatch Log Group and its log files are SSE-KMS-encrypted with the **audit stack's** dedicated customer-managed key. File integrity validation is enabled, so CloudTrail publishes signed digest files that let you detect after-the-fact tampering with log entries.
 
 *Cost/value note — this is the most expensive item in the recent hardening pass.* Honest read: the audited buckets in *this* sample contain a static SPA (`index.html`) and access-log files. Neither is sensitive customer data. The realistic security gain over what S3 server access logs already provide is modest. The reason the Trail is wired in anyway is **pedagogical**: getting object-level CloudTrail right is non-trivial — separate destination bucket to avoid feedback loops, KMS encryption, CloudWatch Logs delivery, file integrity validation, the cdk-nag suppressions on the auto-generated LogsRole — and the pattern transfers cleanly to forks where the audited buckets *do* hold sensitive data. The dollar cost at zero/sample traffic is also near zero (CloudTrail data events are billed per call: $0.10 per 100,000 events). Watch the *CloudTrail data event* line item in Cost Explorer if you fork into a high-traffic context — the price scales linearly with S3 API call volume and a busy production fork can easily generate $50–$200/month. If you fork this for a workload where the audited buckets aren't sensitive, removing the Trail is a clean deletion of the audit stack.
 
@@ -542,9 +542,9 @@ The WebACL sits in front of CloudFront and inspects every request before it reac
 
 The rate-limit rule uses `aggregate_key_type="IP"`. A CLOUDFRONT-scoped WebACL inspects the *viewer* request at the edge — the source IP it sees is already the real client's, because CloudFront only appends `X-Forwarded-For` later, on the origin-facing request. A `FORWARDED_IP` aggregation here would make the rule a no-op: browsers don't send `X-Forwarded-For` themselves, and per the [WAF forwarded-IP docs](https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-forwarded-ip-address.html) a request that is *missing* the configured header skips the rule entirely (fallback behavior only fires for headers that are present but invalid). `FORWARDED_IP` is the right tool on a REGIONAL ACL *behind* a proxy/CDN — which is why the regional ACL on API Gateway, where every request arrives from a CloudFront edge IP, deliberately carries no rate rule at all (origin volume is bounded by stage throttling and reserved concurrency instead).
 
-All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $10/month for this CloudFront WebACL, plus $0.60 per million inspected requests. A **second** REGIONAL WebACL is associated with the API Gateway stage (`HelloWorldApp._attach_regional_waf`, closing the execute-api bypass described in [Design decisions](#design-decisions-and-known-limitations)); it carries the same four managed rule groups (the rate-based rule is deliberately omitted there — see that section), so it adds roughly another $5 base + $4 rules + its own per-request inspection, putting real fixed WAF cost per deployment at roughly twice the $10 figure above. The four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layer $10–20/month entity fees on top — see the AntiDDoS write-up in [Design decisions](#design-decisions-and-known-limitations).
+All rules are AWS WAF "free-tier" — no per-rule-group entity activation fee. Total fixed cost is $5/month (WebACL) + $1/month per rule = $10/month for this CloudFront WebACL, plus $0.60 per million inspected requests. A **second** REGIONAL WebACL is associated with the API Gateway stage (`BackendApp._attach_regional_waf`, closing the execute-api bypass described in [Design decisions](#design-decisions-and-known-limitations)); it carries the same four managed rule groups (the rate-based rule is deliberately omitted there — see that section), so it adds roughly another $5 base + $4 rules + its own per-request inspection, putting real fixed WAF cost per deployment at roughly twice the $10 figure above. The four paid-tier managed rule groups (Bot Control, ATP, ACFP, AntiDDoSRuleSet) layer $10–20/month entity fees on top — see the AntiDDoS write-up in [Design decisions](#design-decisions-and-known-limitations).
 
-Every rule emits CloudWatch metrics and sampled requests. WAF access logs go to an **S3 bucket** named `aws-waf-logs-{account}-{hash}-cf` (the `aws-waf-logs-` prefix is an AWS requirement), SSE-S3, 90-day lifecycle — cheaper long-term retention than CloudWatch and queryable via Athena (see [Audit stack and log retention](#audit-stack-and-log-retention)). WAF delivers directly to S3 and **manages the bucket policy itself**: the stack pre-declares the exact `delivery.logs.amazonaws.com` grant and orders the logging config after the bucket policy, so WAF finds the grant present and leaves the CDK-managed policy alone (verified on a live deploy — without that ordering, WAF's auto-attached policy collides with CDK's: `The bucket policy already exists`). The WebACL lives in `HelloWorldWafStack`, always pinned to `us-east-1` per AWS's CloudFront constraint — the cross-region reference pattern above wires the ARN to CloudFront automatically.
+Every rule emits CloudWatch metrics and sampled requests. WAF access logs go to an **S3 bucket** named `aws-waf-logs-{account}-{hash}-cf` (the `aws-waf-logs-` prefix is an AWS requirement), SSE-S3, 90-day lifecycle — cheaper long-term retention than CloudWatch and queryable via Athena (see [Audit stack and log retention](#audit-stack-and-log-retention)). WAF delivers directly to S3 and **manages the bucket policy itself**: the stack pre-declares the exact `delivery.logs.amazonaws.com` grant and orders the logging config after the bucket policy, so WAF finds the grant present and leaves the CDK-managed policy alone (verified on a live deploy — without that ordering, WAF's auto-attached policy collides with CDK's: `The bucket policy already exists`). The WebACL lives in `WafStack`, always pinned to `us-east-1` per AWS's CloudFront constraint — the cross-region reference pattern above wires the ARN to CloudFront automatically.
 
 #### Observability
 
@@ -578,7 +578,7 @@ The `http` telemetry is written as a `[name, config]` tuple — `["http", { addX
 
 There is no native CloudFormation resource for RUM metric destinations or definitions — both are managed via the RUM API only — so the stack uses two `AwsCustomResource` constructs to call `PutRumMetricsDestination` and `BatchCreateRumMetricDefinitions` at deploy time. Several operational notes worth knowing if you change this code:
 
-- **Each definition needs an `EventPattern`.** The AWS docs imply you can register a vended metric (`JsErrorCount`, `Http4xxCount`, etc.) with just `Name` and `DimensionKeys` and let RUM supply the `ValueKey` internally. This isn't true: the API requires an `EventPattern` that filters to the right RUM event type AND existence-checks every dimension key. Without one, the API returns `200 OK` with an `Errors[]` body — which `AwsCustomResource` treats as success — so the definitions silently never get created. The patterns in [infrastructure/hello_world_frontend_stack.py](infrastructure/hello_world_frontend_stack.py) match `event_type` (`com.amazon.rum.js_error_event`, `com.amazon.rum.http_event`, `com.amazon.rum.page_view_event`) plus `{"exists":true}` checks on each dimension key.
+- **Each definition needs an `EventPattern`.** The AWS docs imply you can register a vended metric (`JsErrorCount`, `Http4xxCount`, etc.) with just `Name` and `DimensionKeys` and let RUM supply the `ValueKey` internally. This isn't true: the API requires an `EventPattern` that filters to the right RUM event type AND existence-checks every dimension key. Without one, the API returns `200 OK` with an `Errors[]` body — which `AwsCustomResource` treats as success — so the definitions silently never get created. The patterns in [infrastructure/frontend_stack.py](infrastructure/frontend_stack.py) match `event_type` (`com.amazon.rum.js_error_event`, `com.amazon.rum.http_event`, `com.amazon.rum.page_view_event`) plus `{"exists":true}` checks on each dimension key.
 - **Http5xxCount has a vended-metric quirk.** Adding an explicit numeric range filter on `event_details.response.status` works for `Http4xxCount` but is rejected for `Http5xxCount` ("Value … for metric field event detail is not valid"). RUM applies the 5xx filter internally for that metric, so the EventPattern must omit the status range; for Http4xx the range is required. The two patterns are deliberately not symmetric.
 - **`PerformanceNavigationDuration` is left out.** With our dimension shape RUM rejected it as "Value `event_details.duration` for metric field value key is not valid". A working configuration is possible but requires a different vended-metric or custom-metric form than the others; not worth the complexity for the reference architecture.
 - **`on_create` and `on_update` reference the same call.** `AwsCustomResource` no-ops on CloudFormation UPDATE events when `on_update` is omitted. Without it, edits to the metric-definitions list never propagate to AWS — the deploy succeeds, the AppMonitor is unchanged, no error is reported.
@@ -643,7 +643,7 @@ To run queries, open the Athena console, select the workgroup from the stack out
 
 #### Resource cleanup
 
-Every resource in `HelloWorldWafStack` and `HelloWorldFrontendStack` has `RemovalPolicy.DESTROY`, including all CloudWatch log groups, so a successful `cdk destroy --all` leaves nothing behind in any region. Two asynchronous-delivery races complicate that in practice — both observed on a live teardown, both handled by `make destroy-clean` (see [Destroying a deployment](#destroying-a-deployment)):
+Every resource in `WafStack` and `FrontendStack` has `RemovalPolicy.DESTROY`, including all CloudWatch log groups, so a successful `cdk destroy --all` leaves nothing behind in any region. Two asynchronous-delivery races complicate that in practice — both observed on a live teardown, both handled by `make destroy-clean` (see [Destroying a deployment](#destroying-a-deployment)):
 
 1. **S3 access-log race** — a late CloudFront/S3 log can repopulate the access-log bucket after `auto_delete_objects` empties it, blocking `DeleteBucket` with a 409. `destroy-clean` empties first, destroys, and on failure empties again and retries once.
 2. **CloudWatch log-group race** — the custom-resource provider and BucketDeployment Lambdas flush their final teardown logs *after* CloudFormation deleted their CMK-encrypted log groups, and the Lambda service re-creates the configured group on delivery — leaving unencrypted, retention-less groups dangling. `destroy-clean` finishes with a `_delete-straggler-log-groups` sweep over the template's log-group prefixes.
@@ -660,7 +660,7 @@ Two alarms ship with the dashboard: **Lambda p90 latency** (> 3s) and **API Gate
 
 The encrypted delivery path was **verified against a live deployment**: forcing an alarm into `ALARM` with `aws cloudwatch set-alarm-state` recorded `Successfully executed action <topic-arn>` in the alarm history, confirming the publish clears the CMK's `kms:ViaService` + `aws:SourceAccount` condition set. That history entry is also where a misconfigured key grant shows up (`Failed to execute action`) — CloudWatch surfaces the KMS denial nowhere else, which is why the grant helper's docstring pins this exact re-verification recipe.
 
-One synth-time gotcha worth knowing: `monitor_api_gateway` derives alarm names and widget titles from `api.rest_api_name`, which is an unresolved CDK token when the RestApi physical name is generated at deploy — the token then stringifies into the template as a literal `TokenTOKEN<n>` fragment (e.g. an alarm literally named `...-HelloWorldApi-TokenTOKEN138-Fault-Rate-...`). The facade call passes explicit `human_readable_name` / `alarm_friendly_name` to keep names deterministic; caught in the synthesized template during pre-deploy review.
+One synth-time gotcha worth knowing: `monitor_api_gateway` derives alarm names and widget titles from `api.rest_api_name`, which is an unresolved CDK token when the RestApi physical name is generated at deploy — the token then stringifies into the template as a literal `TokenTOKEN<n>` fragment (e.g. an alarm literally named `...-RestApi-TokenTOKEN138-Fault-Rate-...`). The facade call passes explicit `human_readable_name` / `alarm_friendly_name` to keep names deterministic; caught in the synthesized template during pre-deploy review.
 
 Ephemeral environments (`ENV=<name>` deploys) keep the dashboard and alarms but skip the SNS topic entirely — a per-branch stack should never page anyone — with the NIST/HIPAA alarm-action rules suppressed for that shape only.
 
@@ -686,35 +686,35 @@ make cdk-synth                                            # 1. synth + cdk-nag (
 make test-cdk                                             # 2. CDK assertion tests (resource counts, properties, suppression coverage, in-process nag gate)
 npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1         # 3. one-time per account+region; idempotent if already done
 npx cdk deploy --all --require-approval never             # 4. --require-approval never since cdk-nag already gated IAM diffs in step 1
-                                                          # 5. CfnOutputs (CloudFrontDomainName, HelloWorldApiOutput, RumAppMonitorId, CloudWatchDashboardUrl) print at the end
+                                                          # 5. CfnOutputs (CloudFrontDomainName, ApiUrlOutput, RumAppMonitorId, CloudWatchDashboardUrl) print at the end
 ```
 
 Skip a step only when you don't need that gate: skip 1 if just synthesized in another shell, skip 2 if iterating on a resource the assertion tests don't cover, skip 3 once the region is bootstrapped. Steps 4 and 5 are not optional.
 
 After deployment, each stack exposes these CfnOutputs:
 
-**`HelloWorldWaf-{region}`:**
+**`ServerlessAppWaf-{region}`:**
 
 - `WebAclArn` — WAF WebACL ARN (also used internally by the frontend stack)
 - `WebAclId` — WAF WebACL logical ID
 - `WafLogsBucketName` — S3 bucket receiving the CloudFront WebACL's WAF access logs
 
-**`HelloWorldData-{region}`:**
+**`ServerlessAppData-{region}`:**
 
 - `IdempotencyTableName` — DynamoDB idempotency table name
 
-**`HelloWorld-{region}`:**
+**`ServerlessAppBackend-{region}`:**
 
-- `HelloWorldApiOutput` — API Gateway endpoint URL (`https://.../Prod/hello`)
-- `HelloWorldFunctionOutput` — Lambda function ARN
-- `HelloWorldFunctionIamRoleOutput` — Lambda IAM role ARN
+- `ApiUrlOutput` — API Gateway endpoint URL (`https://.../Prod/hello`)
+- `FunctionArnOutput` — Lambda function ARN
+- `FunctionIamRoleOutput` — Lambda IAM role ARN
 - `GreetingParameterName` — SSM parameter path
 - `AppConfigAppName` — AppConfig application name
 - `CloudWatchDashboardUrl` — Direct link to the CloudWatch monitoring dashboard
 - `AlarmTopicName` — SNS topic that CloudWatch alarms publish to; attach email/Chatbot/PagerDuty subscriptions here (prod environments only)
 - `AwsCustomResourceProviderDlqUrl` — SQS DLQ capturing failed async invocations of the AwsCustomResource provider Lambda
 
-**`HelloWorldFrontend-{region}`:**
+**`ServerlessAppFrontend-{region}`:**
 
 - `CloudFrontDomainName` — `https://` URL to open in a browser
 - `CloudFrontDistributionId` — Distribution ID for manual cache invalidations
@@ -726,16 +726,16 @@ After deployment, each stack exposes these CfnOutputs:
 - `AwsCustomResourceProviderDlqUrl` — SQS DLQ capturing failed async invocations of the AwsCustomResource provider Lambda
 - `BucketDeploymentProviderDlqUrl` — SQS DLQ capturing failed async invocations of the BucketDeployment handler Lambda
 
-**`HelloWorldAudit-{region}`:**
+**`ServerlessAppAudit-{region}`:**
 
 - `CloudTrailLogsBucketName` — S3 bucket storing the CloudTrail object-level data-event logs
 
 ### Deploying an ephemeral environment
 
-Stack names carry a deployment-environment dimension on top of the region dimension. The default environment, `prod`, keeps the legacy names (`HelloWorld-us-east-1` etc.) so the long-lived deployment is untouched. Any other value namespaces all five stacks, which makes per-developer or per-branch deployments **collision-free in a shared account**:
+Stack names carry a deployment-environment dimension on top of the region dimension. The default environment, `prod`, keeps the legacy names (`ServerlessAppBackend-us-east-1` etc.) so the long-lived deployment is untouched. Any other value namespaces all five stacks, which makes per-developer or per-branch deployments **collision-free in a shared account**:
 
 ```bash
-# Spin up a personal copy of the whole architecture (stacks named HelloWorld-alice-feature-x-us-east-1 etc.)
+# Spin up a personal copy of the whole architecture (stacks named ServerlessAppBackend-alice-feature-x-us-east-1 etc.)
 make deploy ENV=alice-feature-x        # or: npx cdk deploy --all -c env=alice-feature-x
 
 # Tear it down without touching prod (env-scoped bucket emptying + log-group sweep included)
@@ -790,7 +790,7 @@ npx cdk destroy --all -c region=ap-southeast-1   # equivalent direct form
 >
 > ```bash
 > aws s3 rm "s3://<access-log-bucket-name>" --recursive
-> aws cloudformation delete-stack --stack-name HelloWorldFrontend-<region>
+> aws cloudformation delete-stack --stack-name ServerlessAppFrontend-<region>
 > ```
 
 **Teardown gotcha #2 — truncated Lambda names defeat prefix-based log-group sweeps.** The same
@@ -798,7 +798,7 @@ async delivery race re-creates CloudWatch **log groups** after CloudFormation de
 (provider Lambdas flush their final teardown logs late). `destroy-clean` sweeps those by
 stack-name prefix — but CloudFormation composes Lambda physical names as
 `{stack-name}-{logical-id}-{suffix}` truncated to 64 chars, and the cut lands **mid-way through
-the stack name**. A live teardown left `/aws/lambda/HelloWorldFrontend-us-eas-CustomS3AutoDeleteObject-…`
+the stack name**. A live teardown left `/aws/lambda/ServerlessAppFrontend-us-eas-CustomS3AutoDeleteObject-…`
 behind (`us-eas`, not `us-east-1`) — a name no full-stack-name prefix can match, and one that a
 *broader* prefix can't safely match either without sweeping other deployment environments'
 groups. `destroy-clean` therefore also **snapshots the exact physical names** of every CFN-owned
@@ -831,14 +831,14 @@ CloudFront log doesn't leave the frontend stack stuck in `DELETE_FAILED`.
 
 Define new constructs in the appropriate file under `infrastructure/`:
 
-- **Backend domain resources** (Lambda, API Gateway, DynamoDB, SSM, AppConfig — anything the Lambda talks to) go in `hello_world_app.py` inside the `HelloWorldApp` construct.
-- **Frontend resources** (S3, CloudFront) go in `hello_world_frontend_stack.py`.
-- **WAF rules** go in `hello_world_waf_stack.py`.
-- `hello_world_stack.py` stays lean — only add things that are genuinely stack-wide (CfnOutput, Aspect, stack-level nag suppression).
+- **Backend domain resources** (Lambda, API Gateway, DynamoDB, SSM, AppConfig — anything the Lambda talks to) go in `backend_app.py` inside the `BackendApp` construct.
+- **Frontend resources** (S3, CloudFront) go in `frontend_stack.py`.
+- **WAF rules** go in `waf_stack.py`.
+- `backend_stack.py` stays lean — only add things that are genuinely stack-wide (CfnOutput, Aspect, stack-level nag suppression).
 
 Browse [AWS CDK API Reference](https://docs.aws.amazon.com/cdk/api/v2/python/) for high-level constructs. For resources without one, drop down to [CloudFormation resource types](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) via `CfnResource`.
 
-**Where the runtime code lives — and organizing it as the service count grows.** The Lambda *runtime* source is separate from the `infrastructure/` constructs above: today the single service's handler is [lambda/app.py](lambda/app.py), bundled into the function by `PythonFunction(entry="lambda", …)` in `HelloWorldApp`. That flat layout is correct for one function. As soon as a second Lambda/service appears, organize the runtime tree *by service* rather than piling handlers into one `lambda/`:
+**Where the runtime code lives — and organizing it as the service count grows.** The Lambda *runtime* source is separate from the `infrastructure/` constructs above: today the single service's handler is [lambda/app.py](lambda/app.py), bundled into the function by `PythonFunction(entry="lambda", …)` in `BackendApp`. That flat layout is correct for one function. As soon as a second Lambda/service appears, organize the runtime tree *by service* rather than piling handlers into one `lambda/`:
 
 ```text
 services/
@@ -850,7 +850,7 @@ services/
     requirements.txt
 ```
 
-Each service then gets its own construct (mirroring `HelloWorldApp`) whose `PythonFunction(entry="services/service_a", …)` points at that directory — so per-service runtime dependencies stay isolated and the `check-lock` / `compare-openapi` drift gates extend per service. Keep the single-`lambda/` layout while there's exactly one function; the split only earns its keep at the second. Tracked in [`TODO.md`](TODO.md).
+Each service then gets its own construct (mirroring `BackendApp`) whose `PythonFunction(entry="services/service_a", …)` points at that directory — so per-service runtime dependencies stay isolated and the `check-lock` / `compare-openapi` drift gates extend per service. Keep the single-`lambda/` layout while there's exactly one function; the split only earns its keep at the second. Tracked in [`TODO.md`](TODO.md).
 
 ### Useful CDK commands
 
@@ -921,14 +921,14 @@ The AWS CLI `logs tail` command streams a CloudWatch log group directly — no S
 
 ```bash
 # Tail the live stream (Ctrl+C to stop)
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow
+aws logs tail /aws/lambda/ServerlessAppBackend-us-east-1-AppApiFunction... --follow
 
 # Filter for errors only
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
+aws logs tail /aws/lambda/ServerlessAppBackend-us-east-1-AppApiFunction... --follow \
     --filter-pattern '{ $.level = "ERROR" }'
 
 # Tail with a JMESPath filter, picking out one structured field per line
-aws logs tail /aws/lambda/HelloWorld-us-east-1-AppHelloWorldFunction... --follow \
+aws logs tail /aws/lambda/ServerlessAppBackend-us-east-1-AppApiFunction... --follow \
     --format short \
     --filter-pattern '{ $.correlation_id = "abc-123" }'
 ```
@@ -1010,7 +1010,7 @@ A few non-obvious details:
 
 The docs site is built by [Zensical](https://zensical.org/) (MkDocs-Material's successor, same maintainer) with the [mkdocstrings](https://mkdocstrings.github.io/) Python handler. It covers two audiences:
 
-- **Code reference (for developers)** — autodoc pages for `lambda/app.py`, `infrastructure/hello_world_stack.py`, `infrastructure/hello_world_app.py`, `infrastructure/hello_world_waf_stack.py`, `infrastructure/hello_world_frontend_stack.py`, and `infrastructure/nag_utils.py`. Generated from Google-style docstrings via `::: module.path` directives.
+- **Code reference (for developers)** — autodoc pages for `lambda/app.py`, `infrastructure/backend_stack.py`, `infrastructure/backend_app.py`, `infrastructure/waf_stack.py`, `infrastructure/frontend_stack.py`, and `infrastructure/nag_utils.py`. Generated from Google-style docstrings via `::: module.path` directives.
 - **HTTP API reference (for callers)** — a [Scalar](https://github.com/scalar/scalar) page at `/api.html` rendering `/openapi.json`. Both files are pre-built by `scripts/generate_openapi.py` (imports the Lambda resolver, serializes its schema) and copied into the site verbatim by Zensical. `make docs` regenerates the spec before invoking Zensical, so the API page always matches live code. Scalar's OSS bundle includes a request sandbox — unlike Redoc, where "Try it out" requires Redocly's paid tier.
 
 The Scalar bundle is loaded from jsdelivr with a **pinned version + SRI hash** (not `@latest`). The browser verifies integrity on every load; CDN tampering fails closed. Upgrade is two lines in `docs/api.html` (the file has an `openssl` recipe in its comments). Scalar's code-sample panel defaults to **Python + `requests`** via `defaultHttpClient` since callers of this API are overwhelmingly writing Python; other languages stay one click away.
@@ -1061,11 +1061,11 @@ Two suites verify the live deployment:
 - **API Gateway** (`tests/integration/test_api_gateway.py`) — calls the endpoint, asserts response body, content type, and < 10s response time (covers cold starts with SSM + AppConfig init).
 - **CloudFront / S3** (`tests/integration/test_frontend.py`) — fetches the distribution URL from stack outputs, asserts index page served, `config.json` contains the injected API URL, HTTPS enforced, security headers present, unknown paths fall back to `index.html` (SPA routing).
 
-Stack names default to `HelloWorld-us-east-1` / `HelloWorldFrontend-us-east-1` (from `pyproject.toml`'s pytest-env block). Override for other regions:
+Stack names default to `ServerlessAppBackend-us-east-1` / `ServerlessAppFrontend-us-east-1` (from `pyproject.toml`'s pytest-env block). Override for other regions:
 
 ```bash
-AWS_BACKEND_STACK_NAME=HelloWorld-ap-southeast-1 \
-AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-ap-southeast-1 \
+AWS_BACKEND_STACK_NAME=ServerlessAppBackend-ap-southeast-1 \
+AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-ap-southeast-1 \
 pytest tests/integration/
 # Or: make test-integration
 ```
@@ -1255,11 +1255,11 @@ For a serverless reference architecture already invested in the cdk-nag suppress
 
 Suppressions live in the stack file via `NagSuppressions.add_stack_suppressions` (stack-wide) or `add_resource_suppressions`/`add_resource_suppressions_by_path` (targeted). Each entry has a `reason` explaining why it was suppressed rather than fixed.
 
-Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g. no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius small. CDK-managed singleton Lambdas (BucketDeployment provider, S3AutoDeleteObjects, AwsCustomResource) share a common list in `infrastructure/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`), applied via the `suppress_cdk_singletons` helper. It resolves each singleton by stable construct ID through `node.try_find_child` + `add_resource_suppressions(..., apply_to_children=True)` rather than `add_resource_suppressions_by_path` — absolute-path suppression is intentionally avoided because the path prefix changes when the stacks are nested under a `cdk.Stage`. `AwsSolutions-IAM5` suppressions on `HelloWorldFunction` use `applies_to` to scope to specific wildcard actions rather than suppressing all IAM5 findings.
+Stack-level suppressions are reserved for findings that are genuinely stack-wide (e.g. no custom domain, no VPC by design). Everything else is suppressed at the resource level to keep the blast radius small. CDK-managed singleton Lambdas (BucketDeployment provider, S3AutoDeleteObjects, AwsCustomResource) share a common list in `infrastructure/nag_utils.py` (`CDK_LAMBDA_SUPPRESSIONS`), applied via the `suppress_cdk_singletons` helper. It resolves each singleton by stable construct ID through `node.try_find_child` + `add_resource_suppressions(..., apply_to_children=True)` rather than `add_resource_suppressions_by_path` — absolute-path suppression is intentionally avoided because the path prefix changes when the stacks are nested under a `cdk.Stage`. `AwsSolutions-IAM5` suppressions on `ApiFunction` use `applies_to` to scope to specific wildcard actions rather than suppressing all IAM5 findings.
 
 Every log group — including singleton Lambdas' — is pre-created in CDK and passed via `log_group=` instead of the legacy `log_retention=` path (which creates an unencrypted group through the `LogRetention` singleton). This closes the `*-CloudWatchLogGroupEncrypted` finding without an Aspect-level suppression.
 
-**CMK encryption boundary.** All CloudWatch log groups (Lambda, API Gateway access/execution, auto-delete Lambda, BucketDeployment provider, AwsCustomResource provider, CloudTrail delivery) use customer-managed KMS keys with 90-day rotation. (WAF access logs are SSE-S3 in an `aws-waf-logs-*` bucket, not a CloudWatch log group — the WAF CMK encrypts only that stack's auto-delete provider log group.) Keys are scoped per stack rather than shared across stack boundaries: the WAF, backend, and frontend stacks each own one CMK; the **DynamoDB table is encrypted by its own dedicated CMK in `HelloWorldDataStack`**; and the **CloudTrail audit logs by their own dedicated CMK in `HelloWorldAuditStack`** (each kept with the data it protects so the `retain_data` switch is meaningful — see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [Audit stack and log retention](#audit-stack-and-log-retention)). The backend CMK covers the compute-side resources: Lambda environment variables (`environment_encryption=`, so the boundary stays in one key rather than splitting to the AWS-managed default), the backend's log groups, AppConfig hosted configuration content (`kms_key_identifier=` on the profile + deployment; the Lambda gets a scoped `kms:Decrypt` grant on this key for the `GetLatestConfiguration` read path), and the SNS alarm topic. The frontend CMK covers the frontend S3 bucket and its log group; the audit CMK covers the CloudTrail log files (per-object SSE-KMS) and the trail's CloudWatch log group. Athena query results in `athena-results/` use SSE-KMS via per-object override on the SSE-S3 bucket. The access-log and CloudTrail buckets themselves use SSE-S3 because the S3 log / CloudTrail delivery services don't support KMS-encrypted target buckets. SSM parameters can't use CMK (CFN doesn't support SecureString creation).
+**CMK encryption boundary.** All CloudWatch log groups (Lambda, API Gateway access/execution, auto-delete Lambda, BucketDeployment provider, AwsCustomResource provider, CloudTrail delivery) use customer-managed KMS keys with 90-day rotation. (WAF access logs are SSE-S3 in an `aws-waf-logs-*` bucket, not a CloudWatch log group — the WAF CMK encrypts only that stack's auto-delete provider log group.) Keys are scoped per stack rather than shared across stack boundaries: the WAF, backend, and frontend stacks each own one CMK; the **DynamoDB table is encrypted by its own dedicated CMK in `DataStack`**; and the **CloudTrail audit logs by their own dedicated CMK in `AuditStack`** (each kept with the data it protects so the `retain_data` switch is meaningful — see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [Audit stack and log retention](#audit-stack-and-log-retention)). The backend CMK covers the compute-side resources: Lambda environment variables (`environment_encryption=`, so the boundary stays in one key rather than splitting to the AWS-managed default), the backend's log groups, AppConfig hosted configuration content (`kms_key_identifier=` on the profile + deployment; the Lambda gets a scoped `kms:Decrypt` grant on this key for the `GetLatestConfiguration` read path), and the SNS alarm topic. The frontend CMK covers the frontend S3 bucket and its log group; the audit CMK covers the CloudTrail log files (per-object SSE-KMS) and the trail's CloudWatch log group. Athena query results in `athena-results/` use SSE-KMS via per-object override on the SSE-S3 bucket. The access-log and CloudTrail buckets themselves use SSE-S3 because the S3 log / CloudTrail delivery services don't support KMS-encrypted target buckets. SSM parameters can't use CMK (CFN doesn't support SecureString creation).
 
 Current suppressions across all stacks:
 
@@ -1269,28 +1269,28 @@ Current suppressions across all stacks:
 | `AwsSolutions-APIG4` | Backend | Stack | No authorizer — auth is out of scope for this sample |
 | `AwsSolutions-COG4` | Backend | Stack | No Cognito authorizer — same as APIG4 |
 | `AwsSolutions-COG7` | Frontend | Resource (`RumIdentityPool`) | RUM requires unauthenticated guest credentials — anonymous visitors have no prior identity |
-| `AwsSolutions-IAM4` | Backend, Frontend | Per-resource (CDK singletons + HelloWorldFunction + CodeDeploy deployment group) | CDK-managed roles use AWS managed policies (the CodeDeploy group uses `AWSCodeDeployRoleForLambdaLimited`); not configurable by the caller |
+| `AwsSolutions-IAM4` | Backend, Frontend | Per-resource (CDK singletons + ApiFunction + CodeDeploy deployment group) | CDK-managed roles use AWS managed policies (the CodeDeploy group uses `AWSCodeDeployRoleForLambdaLimited`); not configurable by the caller |
 | `AwsSolutions-IAM5` | Backend, Frontend, WAF | Per-resource (with `applies_to`) | Wildcard permissions scoped to specific actions/resources — X-Ray, KMS `GenerateDataKey*`/`ReEncrypt*`, CDK custom resource `Resource::*`, and (only with `appconfig_monitor=true`) the monitor role's `cloudwatch:DescribeAlarms` (`Resource::*` — the action has no resource-level scoping) |
-| `AwsSolutions-L1` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambda runtimes are not configurable. The suppression on `HelloWorldFunction` itself was retired when the runtime moved to Python 3.14, which the pinned cdk-nag recognizes as latest |
+| `AwsSolutions-L1` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambda runtimes are not configurable. The suppression on `ApiFunction` itself was retired when the runtime moved to Python 3.14, which the pinned cdk-nag recognizes as latest |
 | `AwsSolutions-S1` | Frontend, Audit, WAF, Backend | Resource (log buckets) | The access-log bucket (frontend), CloudTrail-logs bucket (audit), and `aws-waf-logs-*` buckets (WAF + backend regional WAF) — server access logging on a log destination would be circular. All share the `create_sse_s3_log_bucket` helper |
 | `AwsSolutions-CFR1` | Frontend | Stack | Geo restriction not required for sample app |
 | `AwsSolutions-CFR4` | Frontend | Stack | Default CloudFront certificate — no custom domain for sample app |
-| `Serverless-LambdaDLQ` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed Lambdas — DLQ is not configurable; `HelloWorldFunction` is synchronously invoked via API Gateway |
-| `Serverless-LambdaDefaultMemorySize` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambdas — memory is not configurable; `HelloWorldFunction` uses explicit 256 MB |
-| `Serverless-LambdaLatestVersion` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambda runtimes are not configurable. The suppression on `HelloWorldFunction` itself was retired when the runtime moved to Python 3.14 |
-| `Serverless-LambdaAsyncFailureDestination` | Backend | Per-resource (`HelloWorldFunction`) | Invoked synchronously via API Gateway — no async event source exists; the EventInvokeConfig that trips the rule exists only to pin `retry_attempts=0` explicitly |
+| `Serverless-LambdaDLQ` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed Lambdas — DLQ is not configurable; `ApiFunction` is synchronously invoked via API Gateway |
+| `Serverless-LambdaDefaultMemorySize` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambdas — memory is not configurable; `ApiFunction` uses explicit 256 MB |
+| `Serverless-LambdaLatestVersion` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambda runtimes are not configurable. The suppression on `ApiFunction` itself was retired when the runtime moved to Python 3.14 |
+| `Serverless-LambdaAsyncFailureDestination` | Backend | Per-resource (`ApiFunction`) | Invoked synchronously via API Gateway — no async event source exists; the EventInvokeConfig that trips the rule exists only to pin `retry_attempts=0` explicitly |
 | `NIST.800.53.R5-CloudWatchAlarmAction`, `HIPAA.Security-CloudWatchAlarmAction` | Backend | Monitoring subtree, **non-prod environments only** | Ephemeral/dev stacks deliberately have no notification channel (no SNS topic — they must never page anyone); alarms remain as dashboard signals. The prod shape routes every alarm to SNS and needs no suppression |
 | `NIST.800.53.R5-CloudWatchAlarmAction`, `HIPAA.Security-CloudWatchAlarmAction` | Backend | Per-resource (deployment-control alarms, **all environments**) | The canary alias-errors alarm (always) and the AppConfig rollback alarm (only with `appconfig_monitor=true`) are polled by a deployment service (CodeDeploy / AppConfig) to decide on rollback — not a paging channel, so they carry no SNS action by design (distinct from the operational alarms above, which DO route to SNS in prod) |
 | `NIST.800.53.R5-IAMNoInlinePolicy` (+ HIPAA/PCI) | Backend | Per-resource (Lambda service role, AppInsights cleanup CR, and — with `appconfig_monitor=true` — the AppConfig monitor role) | CDK generates these roles' default/inline policies — not directly configurable |
-| `Serverless-LambdaTracing` | Backend, Frontend | Per-resource (CDK singletons only) | CDK-managed provider Lambdas do not expose tracing config; `HelloWorldFunction` passes natively |
+| `Serverless-LambdaTracing` | Backend, Frontend | Per-resource (CDK singletons only) | CDK-managed provider Lambdas do not expose tracing config; `ApiFunction` passes natively |
 | `CdkNagValidationFailure` | Backend | Stack | Intrinsic function reference prevents `Serverless-APIGWStructuredLogging` from validating |
 | `NIST.800.53.R5-LambdaConcurrency` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambdas — concurrency is not configurable |
-| `NIST.800.53.R5-LambdaDLQ` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed Lambdas — DLQ is not configurable; `HelloWorldFunction` is synchronously invoked |
+| `NIST.800.53.R5-LambdaDLQ` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed Lambdas — DLQ is not configurable; `ApiFunction` is synchronously invoked |
 | `NIST.800.53.R5-LambdaInsideVPC` | Backend, Frontend | Per-resource (CDK singletons) | CDK-managed singleton Lambdas — VPC is not configurable |
 | `NIST.800.53.R5-IAMNoInlinePolicy` | Backend, Frontend, WAF, Audit | Per-resource | CDK-generated inline policies on singleton service roles (incl. the CloudTrail trail's LogsRole in the audit stack) — not directly configurable; also suppressed on `RumUnauthenticatedRole` where the single least-privilege `rum:PutRumEvents` policy is tightly bound to the role's one purpose |
 | `NIST.800.53.R5-APIGWSSLEnabled` | Backend | Stack | Client-side SSL certificates not required for sample app |
 | `NIST.800.53.R5-APIGWCacheEnabledAndEncrypted` | Backend | Stack | API Gateway cache cluster intentionally disabled — smallest size is ~$14/month for a sample app, and caching `GET /hello` would serve stale values across SSM parameter and AppConfig feature-flag changes |
-| `NIST.800.53.R5-DynamoDBInBackupPlan` | Data | Stack | AWS Backup plan not configured; PITR is enabled for point-in-time recovery (the table lives in `HelloWorldDataStack`, so its suppression does too) |
+| `NIST.800.53.R5-DynamoDBInBackupPlan` | Data | Stack | AWS Backup plan not configured; PITR is enabled for point-in-time recovery (the table lives in `DataStack`, so its suppression does too) |
 | `NIST.800.53.R5-S3BucketLoggingEnabled` | Frontend, Audit, WAF, Backend | Resource (log buckets) | All log-sink buckets (access-log, CloudTrail, WAF) — logging a log destination to itself would be circular |
 | `NIST.800.53.R5-S3BucketReplicationEnabled` | Frontend | Stack + Resource | Static assets are redeployable; replication not needed |
 | `NIST.800.53.R5-S3BucketVersioningEnabled` | Frontend | Stack + Resource | Static assets are redeployable via `cdk deploy`; versioning not needed |
@@ -1632,13 +1632,13 @@ make upgrade COOLDOWN_DAYS=0             # disable cooldown
 
 **`cdk.out/` is not committed** — this directory contains the synthesized CloudFormation template and bundled Lambda assets generated by `cdk synth`. It is gitignored because it is always reproducible from source and can be large. Run `cdk synth` locally to regenerate it before deploying or invoking locally with SAM.
 
-**`cdk synth` must use `'**'` to descend into Stage-nested stacks** — all five stacks live inside `HelloWorldStage` (a `cdk.Stage`), so bare `cdk synth` walks only the App's direct children, finds the Stage, does not recurse, and emits an empty synthesis that succeeds without ever running cdk-nag against the data/WAF/backend/frontend/audit stacks. `'**'` is the CDK glob pattern for "every stack at every depth"; both `make cdk-synth` and the CI `cdk-check` job use it. If you run `cdk synth` directly during development, include the glob too — otherwise the gate passes silently regardless of what cdk-nag would find against the real stacks.
+**`cdk synth` must use `'**'` to descend into Stage-nested stacks** — all five stacks live inside `AppStage` (a `cdk.Stage`), so bare `cdk synth` walks only the App's direct children, finds the Stage, does not recurse, and emits an empty synthesis that succeeds without ever running cdk-nag against the data/WAF/backend/frontend/audit stacks. `'**'` is the CDK glob pattern for "every stack at every depth"; both `make cdk-synth` and the CI `cdk-check` job use it. If you run `cdk synth` directly during development, include the glob too — otherwise the gate passes silently regardless of what cdk-nag would find against the real stacks.
 
 **attrs version conflict** — CDK (via `jsii`) pins `attrs<26`, while `aws-lambda-powertools[all]>=3.27` requires `attrs>=26`. These two versions cannot coexist in a single Python environment. The project handles this by declaring the `lambda` and `cdk` dependency groups mutually exclusive in `pyproject.toml` (`[tool.uv.conflicts]`), which lets uv record both resolutions in a single `uv.lock` (25.4.0 for the CDK side, 26.1.0 for the Lambda side) and install each into its own venv: `.venv` for CDK work and `.venv-lambda` for Lambda runtime code. CI splits into separate `quality`/`cdk-check` (CDK venv) and `test` (Lambda venv) jobs for the same reason.
 
 **jsii `KeyError` on `cloud_assembly_schema.MetadataEntry` under coverage** — `make coverage` / `make coverage-badge` (and the docs workflow's coverage-badge step) run the CDK assertion suite under `coverage.py`, and two validation-aspect tests fail with `KeyError: 'aws-cdk-lib.cloud_assembly_schema.MetadataEntry'` raised inside jsii's Python `_reference_map`. `MetadataEntry` is a jsii **struct** (`@jsii.data_type`), which jsii passes *by value* ([aws/jsii#376](https://github.com/aws/jsii/pull/376)); the failure is the kernel returning it as an opaque object **reference** whose declared `interfaces` jsii can't resolve (structs aren't in the interface registry it looks them up in). It surfaces **only** under coverage's tracer timing, and **only** in the two tests that retrieve a *populated* error annotation via `Annotations.from_stack().find_error()` — every other synth (including the clean-stack nag checks) returns no annotation to resolve, so 116/118 pass. The `cdk-check` gate runs the same suite *without* `--cov` and never hits it, which is why merges stay green while only the docs deploy flaked. Under coverage it proved effectively **deterministic** (a three-attempt retry failed identically — retrying is *not* a fix). **Mitigation:** `--deselect` exactly those two tests from the coverage run only (the `_CDK_COV` variable in the [`Makefile`](Makefile)). They still run — and gate correctness — in `cdk-check`'s full no-coverage suite; the only cost is that the aspect's error-emitting branch isn't exercised under `--cov`, a negligible dip in the informational coverage badge. (Related: the broader "AWS CDK under pytest" jsii-kernel flakiness, [aws/aws-cdk#3759](https://github.com/aws/aws-cdk/issues/3759).)
 
-**SSM parameter name is CDK-generated** — the greeting parameter's name is auto-generated by CDK (derived from the construct path, e.g. `HelloWorld-us-east-1AppGreetingParameterD5E6E64F`) rather than set explicitly. The Lambda reads the name from the `GREETING_PARAM_NAME` env var, which CDK wires up from `greeting_param.parameter_name`, so the name never needs to be human-memorable. This follows the CDK "use generated resource names" best practice — see [Stack and construct composition](#stack-and-construct-composition).
+**SSM parameter name is CDK-generated** — the greeting parameter's name is auto-generated by CDK (derived from the construct path, e.g. `ServerlessAppBackend-us-east-1AppGreetingParameterD5E6E64F`) rather than set explicitly. The Lambda reads the name from the `GREETING_PARAM_NAME` env var, which CDK wires up from `greeting_param.parameter_name`, so the name never needs to be human-memorable. This follows the CDK "use generated resource names" best practice — see [Stack and construct composition](#stack-and-construct-composition).
 
 **CORS is open (`allow_origin="*"`)** — the Lambda handler configures `APIGatewayRestResolver` with `CORSConfig(allow_origin="*")` for simplicity. In production, restrict this to the specific CloudFront domain (e.g., `allow_origin="https://d1234.cloudfront.net"`) and set `allow_credentials=True` if the API requires cookies or Authorization headers. Leaving CORS open in production allows any origin to call the API from a browser.
 
@@ -1690,15 +1690,15 @@ Pre-creating a log group that a service would otherwise create implicitly has a 
 
 **Service-principal grants on KMS keys are confused-deputy-guarded** — the `logs.{region}.amazonaws.com` grant on every CMK is conditioned on `kms:EncryptionContext:aws:logs:arn` matching `arn:{partition}:logs:{region}:{account}:log-group:*`, so only log groups in this account+region can use the key. CloudWatch Logs sets that encryption-context key on every encrypt/decrypt call (per the [CloudWatch Logs encryption docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html)). The `cloudtrail.amazonaws.com` grant on the audit CMK is similarly conditioned on `aws:SourceAccount` matching this account and `aws:SourceArn` matching `arn:{partition}:cloudtrail:{region}:{account}:trail/*`. Without these conditions, any AWS-internal service principal that ever discovered the key ARN could in principle request key operations against it — the conditions make the grants strictly scoped to resources this account actually owns.
 
-**GuardDuty has `kms:Decrypt` on the backend CMK** — the Lambda's env vars are CMK-encrypted (see "Lambda environment variables are CMK-encrypted" below), so GuardDuty Lambda Protection would otherwise hit `AccessDenied` when introspecting the function configuration. The grant lives in `grant_guardduty_service_to_key()` in [infrastructure/nag_utils.py](infrastructure/nag_utils.py) and is wired from [infrastructure/hello_world_app.py](infrastructure/hello_world_app.py). It's scoped to detectors in this account+region only via `aws:SourceAccount` + `aws:SourceArn` — the same confused-deputy guard pattern applied to the CloudWatch Logs and CloudTrail grants above. Only the backend CMK carries the statement; the frontend and WAF CMKs encrypt resources GuardDuty does not currently inspect through a CMK. The grant is dormant until GuardDuty Lambda Protection is enabled at the account level (a one-time AWS console / API toggle outside this stack's scope) — the original `AccessDenied` finding in CloudTrail was what flagged the missing grant in the first place.
+**GuardDuty has `kms:Decrypt` on the backend CMK** — the Lambda's env vars are CMK-encrypted (see "Lambda environment variables are CMK-encrypted" below), so GuardDuty Lambda Protection would otherwise hit `AccessDenied` when introspecting the function configuration. The grant lives in `grant_guardduty_service_to_key()` in [infrastructure/nag_utils.py](infrastructure/nag_utils.py) and is wired from [infrastructure/backend_app.py](infrastructure/backend_app.py). It's scoped to detectors in this account+region only via `aws:SourceAccount` + `aws:SourceArn` — the same confused-deputy guard pattern applied to the CloudWatch Logs and CloudTrail grants above. Only the backend CMK carries the statement; the frontend and WAF CMKs encrypt resources GuardDuty does not currently inspect through a CMK. The grant is dormant until GuardDuty Lambda Protection is enabled at the account level (a one-time AWS console / API toggle outside this stack's scope) — the original `AccessDenied` finding in CloudTrail was what flagged the missing grant in the first place.
 
 **CloudTrail trail bucket has an explicit confused-deputy Deny** — the `cloudtrail.Trail` L2 (verified through the current CDK pin) grants `cloudtrail.amazonaws.com` `s3:GetBucketAcl` + `s3:PutObject` on the destination bucket without an `aws:SourceArn` condition. To close that gap without rebuilding the L2-managed Allow statements, the audit stack appends **two** Deny statements to the bucket policy: one rejecting the CloudTrail principal whenever `aws:SourceArn` doesn't equal this stack's trail ARN, and a second rejecting it whenever `aws:SourceAccount` doesn't match the account. They live in separate statements on purpose — packing both keys into one `StringNotEquals` block would AND them, so a malicious trail in the same account with a different name would match `aws:SourceAccount` and slip past. Splitting them gives the OR semantics we actually want: either mismatch denies. The trail name is pinned (`{stack-name}-S3DataEventsTrail`) so the ARN is computable before the trail resource is created — without that, the bucket policy would form a dependency cycle with the trail.
 
 **Lambda recursive-loop detection is set explicitly to `Terminate`** — the L2 `PythonFunction` construct doesn't expose this property, so it's set on the underlying `CfnFunction` via a property override. `Terminate` is the AWS default and is the correct posture: if the function ever invokes itself or sets up a self-triggering chain (Lambda → SNS → Lambda, etc.), Lambda will detect the loop and terminate after a small number of iterations. Setting it in code rather than relying on the runtime default makes the choice visible in review.
 
-**Lambda environment variables are CMK-encrypted** — `environment_encryption=self.encryption_key` is set on the `PythonFunction` so env vars at rest are encrypted with the backend (compute-side) CMK rather than Lambda's default AWS-managed key. Without this, the boundary for the compute-side resources would span two keys: the AWS-managed one for env vars, and the backend CMK for everything else compute-side (log groups, AppConfig hosted config, SNS). Pinning to one key keeps the auditable surface small and means `kms:Decrypt` on a single ARN is the entire blast radius for env-var compromise. (The DynamoDB table is encrypted by a *separate* dedicated CMK in `HelloWorldDataStack` — the keys are intentionally not shared across the stack boundary; see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data).)
+**Lambda environment variables are CMK-encrypted** — `environment_encryption=self.encryption_key` is set on the `PythonFunction` so env vars at rest are encrypted with the backend (compute-side) CMK rather than Lambda's default AWS-managed key. Without this, the boundary for the compute-side resources would span two keys: the AWS-managed one for env vars, and the backend CMK for everything else compute-side (log groups, AppConfig hosted config, SNS). Pinning to one key keeps the auditable surface small and means `kms:Decrypt` on a single ARN is the entire blast radius for env-var compromise. (The DynamoDB table is encrypted by a *separate* dedicated CMK in `DataStack` — the keys are intentionally not shared across the stack boundary; see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data).)
 
-**AppConfig hosted configuration content is CMK-encrypted** — `kms_key_identifier=self.encryption_key.key_arn` is set on the `CfnConfigurationProfile` (and the deployment), so the feature-flag JSON stored by AppConfig is encrypted at rest with the same backend CMK as the rest of the compute side (log groups, env vars, SNS). `KmsKeyIdentifier` on `AWS::AppConfig::ConfigurationProfile` was a later AWS addition that some older CDK reference projects still claim isn't available — it is, and it composes with the rest of this stack's KMS posture rather than leaving a feature-flag store on an AWS-managed key. Per the [AppConfig data-protection docs](https://docs.aws.amazon.com/appconfig/latest/userguide/data-protection.html), the *caller's* IAM role (not a service principal) needs `kms:Decrypt` on the key to read a CMK-encrypted config via `GetLatestConfiguration`. The Lambda gets an explicit, scoped `kms:Decrypt` grant on the backend CMK for exactly this (`self.encryption_key.grant_decrypt(self.function)`). This grant used to be incidental — it rode the DynamoDB `grant_read_write_data` back when the table shared this CMK — but once the table moved to its own dedicated key in `HelloWorldDataStack`, the AppConfig decrypt path needed its own explicit grant. A `tests/cdk` assertion (`test_lambda_role_can_decrypt_appconfig_cmk`) locks it in, because no synth-time check (cdk-nag included) would catch its absence — only a runtime `GetLatestConfiguration` KMS error would.
+**AppConfig hosted configuration content is CMK-encrypted** — `kms_key_identifier=self.encryption_key.key_arn` is set on the `CfnConfigurationProfile` (and the deployment), so the feature-flag JSON stored by AppConfig is encrypted at rest with the same backend CMK as the rest of the compute side (log groups, env vars, SNS). `KmsKeyIdentifier` on `AWS::AppConfig::ConfigurationProfile` was a later AWS addition that some older CDK reference projects still claim isn't available — it is, and it composes with the rest of this stack's KMS posture rather than leaving a feature-flag store on an AWS-managed key. Per the [AppConfig data-protection docs](https://docs.aws.amazon.com/appconfig/latest/userguide/data-protection.html), the *caller's* IAM role (not a service principal) needs `kms:Decrypt` on the key to read a CMK-encrypted config via `GetLatestConfiguration`. The Lambda gets an explicit, scoped `kms:Decrypt` grant on the backend CMK for exactly this (`self.encryption_key.grant_decrypt(self.function)`). This grant used to be incidental — it rode the DynamoDB `grant_read_write_data` back when the table shared this CMK — but once the table moved to its own dedicated key in `DataStack`, the AppConfig decrypt path needed its own explicit grant. A `tests/cdk` assertion (`test_lambda_role_can_decrypt_appconfig_cmk`) locks it in, because no synth-time check (cdk-nag included) would catch its absence — only a runtime `GetLatestConfiguration` KMS error would.
 
 **Powertools log level uses one knob, not two** — only `POWERTOOLS_LOG_LEVEL` is set; the legacy `LOG_LEVEL` fallback is intentionally not. Powertools 3.x prefers `POWERTOOLS_LOG_LEVEL` and falls back to `LOG_LEVEL` for backward compat — running both side-by-side hides which knob actually wins, especially during a future deploy where someone updates one but not the other. Keeping a single source of truth means the answer to "why is the log level X?" is always the same env var.
 
@@ -1706,7 +1706,7 @@ Pre-creating a log group that a service would otherwise create implicitly has a 
 
 **Athena query results are SSE-KMS-encrypted via per-object override** — the access-log bucket's default encryption is SSE-S3 (because the S3/CloudFront log delivery service can't write to KMS-encrypted buckets), but Athena's `PutObject` calls override the bucket default on a per-object basis to write `athena-results/` objects with SSE-KMS using the frontend CMK. The bucket-default constraint only applies to objects S3 chooses the encryption for, not to objects whose caller specifies it. End result: the noisy log objects use SSE-S3, but every Athena query result file is CMK-encrypted alongside the rest of the project's data.
 
-**CloudWatch log groups for the AwsCustomResource provider are pre-created with the project CMK** — the AwsCustomResource singleton, the BucketDeployment provider, and the S3 auto-delete provider all get explicit `LogGroup`s passed in via `log_group=` (rather than the legacy `log_retention=` path). This closes the `*-CloudWatchLogGroupEncrypted` finding without needing an Aspect-level suppression — every log group in the stack is owned by CDK and encrypted with the same CMK as the rest of the data, and `cdk destroy` removes them cleanly. The pattern lives in `attach_async_failure_destination()` and the explicit `BucketDeploymentLogGroup` / `AwsCustomResourceLogGroup` declarations in [infrastructure/hello_world_app.py](infrastructure/hello_world_app.py) and [infrastructure/hello_world_frontend_stack.py](infrastructure/hello_world_frontend_stack.py).
+**CloudWatch log groups for the AwsCustomResource provider are pre-created with the project CMK** — the AwsCustomResource singleton, the BucketDeployment provider, and the S3 auto-delete provider all get explicit `LogGroup`s passed in via `log_group=` (rather than the legacy `log_retention=` path). This closes the `*-CloudWatchLogGroupEncrypted` finding without needing an Aspect-level suppression — every log group in the stack is owned by CDK and encrypted with the same CMK as the rest of the data, and `cdk destroy` removes them cleanly. The pattern lives in `attach_async_failure_destination()` and the explicit `BucketDeploymentLogGroup` / `AwsCustomResourceLogGroup` declarations in [infrastructure/backend_app.py](infrastructure/backend_app.py) and [infrastructure/frontend_stack.py](infrastructure/frontend_stack.py).
 
 **AppInsights cleanup custom resource is scoped to one dashboard ARN** — the AppInsights service creates a CloudWatch dashboard outside CloudFormation, so a Lambda-backed `cr.AwsCustomResource` calls `DeleteDashboards` at destroy time. The earlier `AwsCustomResourcePolicy.ANY_RESOURCE` would have granted `cloudwatch:DeleteDashboards` on `*`; the policy is now scoped to `arn:{partition}:cloudwatch::{account}:dashboard/{resource_group.name}` so the CR can only delete the one dashboard it knows about. CloudWatch dashboards have a known global ARN format and the resource group name is fixed, so the ARN is computable at synth time without needing a custom-resource lookup.
 
@@ -1720,7 +1720,7 @@ Pre-creating a log group that a service would otherwise create implicitly has a 
 
 **AppConfig fallback exception list is narrow, not broad** — the feature-flag evaluation's `except` clause catches only `(ConfigurationStoreError, SchemaValidationError, StoreClientError)` from `aws_lambda_powertools.utilities.feature_flags.exceptions`. A bare `except Exception` would also absorb programming errors (TypeError, AttributeError) introduced by future code edits to the rule engine — those should surface as bugs in metrics rather than silently fall back to the default. New downstream calls should pick the same shape: catch the specific service-side exception types, let everything else propagate.
 
-**CloudTrail S3-data-events bucket has a 90-day lifecycle** — the trail bucket (in `HelloWorldAuditStack`) expires objects after 90 days; data events fire on every Get/Put/Delete against the audited buckets and would otherwise grow unbounded. 90 days is the template default (see [Audit stack and log retention](#audit-stack-and-log-retention) for the cost/compliance rationale); production forks under HIPAA/PCI scope should extend it (tier to Glacier/Deep Archive), add an AWS Backup plan, and consider S3 Object Lock for WORM immutability — all `retain_data`-gated so the template stays destroy-friendly.
+**CloudTrail S3-data-events bucket has a 90-day lifecycle** — the trail bucket (in `AuditStack`) expires objects after 90 days; data events fire on every Get/Put/Delete against the audited buckets and would otherwise grow unbounded. 90 days is the template default (see [Audit stack and log retention](#audit-stack-and-log-retention) for the cost/compliance rationale); production forks under HIPAA/PCI scope should extend it (tier to Glacier/Deep Archive), add an AWS Backup plan, and consider S3 Object Lock for WORM immutability — all `retain_data`-gated so the template stays destroy-friendly.
 
 **`cdk.json` `_skipped_` flags document the non-trivial rejections** — flags that produce real template drift on this stack (e.g. `@aws-cdk/aws-iam:standardizedServicePrincipals`, verified locally) live in `cdk.json` as documented `_skipped_` entries rather than getting silently flipped on. The convention is: safe-flags (zero template drift) get enabled; flags that emit drift get a `_skipped_` entry naming the reason, so a future "should we enable this?" review starts from documented context instead of re-running the synth comparison from scratch.
 
@@ -1773,7 +1773,7 @@ This project is a single-developer sample. AWS publishes broader guidance in [Be
 | **cdk-monitoring-constructs** for dashboards and alarms | Wired through `MonitoringFacade` covering Lambda, API Gateway, DynamoDB |
 | **CDK code held to application-code quality standards** | ruff, mypy, pylint, bandit, pip-audit all run via pre-commit and CI |
 | **Automated CI/CD with policy gates** | GitHub Actions runs `cdk synth` (which runs cdk-nag) on every PR, blocks merge on findings; a `cdk-diff` job posts the CloudFormation diff for review |
-| **Reusable constructs that bake in secure defaults** (the post's `MyCompanyBucket` pattern) | The [`nag_utils.py`](infrastructure/nag_utils.py) helpers (`create_sse_s3_log_bucket`, `create_waf_logs_bucket`, `grant_*_to_key`, `create_auto_delete_objects_log_group`) and the `HelloWorldApp` construct encode encryption, least-privilege grants, confused-deputy guards, and explicit log retention so every caller inherits them |
+| **Reusable constructs that bake in secure defaults** (the post's `MyCompanyBucket` pattern) | The [`nag_utils.py`](infrastructure/nag_utils.py) helpers (`create_sse_s3_log_bucket`, `create_waf_logs_bucket`, `grant_*_to_key`, `create_auto_delete_objects_log_group`) and the `BackendApp` construct encode encryption, least-privilege grants, confused-deputy guards, and explicit log retention so every caller inherits them |
 | **Single repository** (infrastructure + application + config + CI/CD + docs together — the post's recommended layout) | `infrastructure/` (CDK), `lambda/` (handler), `tests/`, `.github/`, and `docs/` all live in one repo with isolated dependency groups |
 
 #### Already analyzed and skipped
@@ -1786,7 +1786,7 @@ These are gaps surfaced by an audit pass against AWS public documentation that I
 
 - **WAF logging — no `redacted_fields` or `logging_filter`.** Per the [`CfnLoggingConfiguration` reference](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.cfn_property_mixins.aws_wafv2/CfnLoggingConfigurationMixinProps.html), WAF logs include full request headers, body, and URI by default. If your fork ever accepts an `Authorization` header, a session cookie, or a body field with PII, that lands in the WAF logs (now the `aws-waf-logs-*` S3 bucket) unredacted. Wire `redacted_fields=[{single_header: {name: "authorization"}}, {single_header: {name: "cookie"}}, ...]` so they're scrubbed before logging. Separately, `logging_filter` lets you drop ALLOW logs and keep BLOCK/COUNT/CAPTCHA so the volume is proportional to threat traffic — relevant once paid traffic actually hits the WAF.
 
-- **API Gateway endpoint still *accepts* requests that bypass CloudFront (option (a) shipped, option (b) open).** The `execute-api.{region}.amazonaws.com` URL is published in the `HelloWorldApiOutput` CfnOutput and bypasses the CloudFront-only WebACL. Per [Protect your REST APIs](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-protect.html) and the [origin-security blog](https://aws.amazon.com/blogs/security/how-to-enhance-amazon-cloudfront-origin-security-with-aws-waf-and-aws-secrets-manager/), the two AWS-supported fixes are (a) attach a regional WAF ACL to the API too, and (b) have CloudFront inject a custom secret header from Secrets Manager plus an API Gateway resource policy that denies any request without it. **Option (a) is implemented** — `HelloWorldApp._attach_regional_waf` associates a REGIONAL WebACL (the four shared managed rule groups) with the Prod stage, so direct callers are now *inspected*. They are not yet *rejected*: that requires option (b) (a custom CloudFront origin header + a Secrets Manager rotation Lambda), which remains open.
+- **API Gateway endpoint still *accepts* requests that bypass CloudFront (option (a) shipped, option (b) open).** The `execute-api.{region}.amazonaws.com` URL is published in the `ApiUrlOutput` CfnOutput and bypasses the CloudFront-only WebACL. Per [Protect your REST APIs](https://docs.aws.amazon.com/apigateway/latest/developerguide/rest-api-protect.html) and the [origin-security blog](https://aws.amazon.com/blogs/security/how-to-enhance-amazon-cloudfront-origin-security-with-aws-waf-and-aws-secrets-manager/), the two AWS-supported fixes are (a) attach a regional WAF ACL to the API too, and (b) have CloudFront inject a custom secret header from Secrets Manager plus an API Gateway resource policy that denies any request without it. **Option (a) is implemented** — `BackendApp._attach_regional_waf` associates a REGIONAL WebACL (the four shared managed rule groups) with the Prod stage, so direct callers are now *inspected*. They are not yet *rejected*: that requires option (b) (a custom CloudFront origin header + a Secrets Manager rotation Lambda), which remains open.
 
 - **AppConfig Lambda extension not used.** Per [Using AWS AppConfig Agent with AWS Lambda](https://docs.aws.amazon.com/appconfig/latest/userguide/appconfig-integration-lambda-extensions.html), the agent caches configurations in-process, polls in the background, and serves them via `localhost:2772` — reducing both AppConfig API spend and cold-start latency. Powertools' `AppConfigStore` does in-memory caching too, so the gain is smaller than for raw API users; still the AWS-recommended pattern for high-throughput functions.
 
@@ -1808,7 +1808,7 @@ These are gaps surfaced by an audit pass against AWS public documentation that I
 
 - **Handler structure for a growing API.** This reference keeps a single route in one `lambda/app.py`, which is the right size for one endpoint — but the patterns that keep a multi-route service maintainable are worth adopting the moment a second resource appears: typed domain exceptions mapped centrally via `@app.exception_handler(...)` (so route bodies raise semantically and one place owns status-code mapping), a handler / business-logic / data-access layering where the handler only validates and delegates, `@idempotent_function(data_keyword_argument=...)` with a `PydanticSerializer` on the logic function instead of wrapping the whole resolver (see the docstring on `_resolve_with_idempotency` for why), and one Pydantic env-var model per handler so each function declares exactly the configuration it reads. All four are incremental — none require restructuring the existing route.
 
-- **AWS Config conformance packs deployed via CDK** — different *timing* layer from cdk-nag: cdk-nag is preventive at synth time, Config is detective at runtime. Catches drift introduced after deploy (someone disables KMS via console, a new resource type that an Aspect rule doesn't yet cover, IAM policy expansion via service-linked roles). Could live as a sibling stack `HelloWorldComplianceStack` deploying an `AWS::Config::ConformancePack` referencing one of AWS's published templates ([Operational Best Practices for HIPAA Security](https://docs.aws.amazon.com/config/latest/developerguide/operational-best-practices-for-hipaa_security.html), Operational Best Practices for FedRAMP, etc.). Fits the existing "synth-time + runtime + access-log analytics" theme. Cost: Config has per-rule-evaluation pricing that scales with resource count, plus the configuration recorder itself.
+- **AWS Config conformance packs deployed via CDK** — different *timing* layer from cdk-nag: cdk-nag is preventive at synth time, Config is detective at runtime. Catches drift introduced after deploy (someone disables KMS via console, a new resource type that an Aspect rule doesn't yet cover, IAM policy expansion via service-linked roles). Could live as a sibling stack `ServerlessAppComplianceStack` deploying an `AWS::Config::ConformancePack` referencing one of AWS's published templates ([Operational Best Practices for HIPAA Security](https://docs.aws.amazon.com/config/latest/developerguide/operational-best-practices-for-hipaa_security.html), Operational Best Practices for FedRAMP, etc.). Fits the existing "synth-time + runtime + access-log analytics" theme. Cost: Config has per-rule-evaluation pricing that scales with resource count, plus the configuration recorder itself.
 
 - **CloudFormation Hooks for post-synthesis validation** — defensive *during stack operations*, not at synth or runtime. Catches the case where someone bypasses CI and pushes raw CloudFormation to the API directly (e.g., a misconfigured deploy script, a manually-crafted change set). Implementation is substantial — Hooks are a separate registry resource type with their own Python handler and deploy infrastructure. For a single-developer reference architecture this is meaningful complexity for marginal benefit; the realistic threat model here is the developer's own pre-commit hooks, not adversarial CFN injection. More compelling in a multi-team org where multiple roles have CFN deploy permissions.
 

@@ -11,7 +11,7 @@ operation so readers can see the AWS wiring in the published spec, not just
 the HTTP interface. The integration URI uses literal placeholders
 (``{region}``, ``{lambdaArn}``) — callers who want to import the spec into
 their own API Gateway substitute those for real values first. The actual
-deployed API is built by CDK in ``HelloWorldApp``; this spec is
+deployed API is built by CDK in ``BackendApp``; this spec is
 documentation-only.
 
 The spec is intentionally generated at build time rather than served at
@@ -84,7 +84,7 @@ those if they want to `aws apigateway import-rest-api` the spec elsewhere.
 _HTTP_VERBS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
 
 # Uniform AWS_PROXY integration applied to every operation. Matches how
-# ``HelloWorldApp`` wires its single Lambda to API Gateway — AWS_PROXY means
+# ``BackendApp`` wires its single Lambda to API Gateway — AWS_PROXY means
 # the entire request/response round-trips through the Lambda unchanged. The
 # HTTP method in ``httpMethod`` is always ``POST`` for Lambda integrations
 # regardless of the caller's verb; that is an API Gateway quirk, not a typo.
@@ -132,7 +132,7 @@ def main() -> None:
         servers=[
             Server(
                 # Stage paths are case-sensitive and the CDK stage is named
-                # "Prod" (StageOptions.stage_name in HelloWorldApp) — "/prod"
+                # "Prod" (StageOptions.stage_name in BackendApp) — "/prod"
                 # would 403 against a real deployment.
                 url="https://{apiId}.execute-api.{region}.amazonaws.com/Prod",
                 description="API Gateway stage (substitute your deployed apiId and region)",

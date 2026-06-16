@@ -6,7 +6,7 @@ from aws_cdk import aws_iam as iam
 from cdk_nag import NagSuppressions
 from constructs import Construct
 
-from infrastructure.hello_world_app import HelloWorldApp
+from infrastructure.backend_app import BackendApp
 from infrastructure.nag_utils import (
     AWS_CUSTOM_RESOURCE_PROVIDER_ID,
     apply_compliance_aspects,
@@ -20,11 +20,11 @@ from infrastructure.nag_utils import (
 _CDK_SINGLETON_IDS = (AWS_CUSTOM_RESOURCE_PROVIDER_ID,)
 
 
-class HelloWorldStack(Stack):
-    """Thin wrapper stack composing the :class:`HelloWorldApp` construct.
+class BackendStack(Stack):
+    """Thin wrapper stack composing the :class:`BackendApp` construct.
 
     Per the CDK best practice "model with constructs, deploy with stacks",
-    the domain logic lives in the ``HelloWorldApp`` construct; this stack only
+    the domain logic lives in the ``BackendApp`` construct; this stack only
     applies stack-wide compliance Aspects, wires CfnOutputs, and attaches the
     stack-level and singleton-scoped cdk-nag suppressions that cannot be
     expressed on individual resources.
@@ -46,25 +46,25 @@ class HelloWorldStack(Stack):
             scope: The CDK construct scope.
             construct_id: The unique identifier for this stack.
             idempotency_table: The Powertools idempotency table from the
-                separate :class:`HelloWorldDataStack`, forwarded to
-                :class:`HelloWorldApp` for cross-stack wiring (env var + grant).
-            is_production_env: Forwarded to :class:`HelloWorldApp` — production
+                separate :class:`DataStack`, forwarded to
+                :class:`BackendApp` for cross-stack wiring (env var + grant).
+            is_production_env: Forwarded to :class:`BackendApp` — production
                 environments route alarm notifications to an SNS topic;
                 ephemeral/dev environments skip the topic. Defaults to True so
                 direct instantiation (tests, single-environment deploys)
                 matches the default ``prod`` deployment environment.
-            appconfig_monitor: Forwarded to :class:`HelloWorldApp` — when True,
+            appconfig_monitor: Forwarded to :class:`BackendApp` — when True,
                 the AppConfig flag deployment is gradual and the environment
                 carries an alarm rollback monitor. Defaults to False (all-at-once,
                 no monitor) so a cold/first deploy always succeeds; see
-                :meth:`HelloWorldApp._attach_appconfig_rollback_monitor`.
+                :meth:`BackendApp._attach_appconfig_rollback_monitor`.
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
 
         apply_compliance_aspects(self)
 
-        self.app = HelloWorldApp(
+        self.app = BackendApp(
             self,
             "App",
             idempotency_table=idempotency_table,
@@ -79,19 +79,19 @@ class HelloWorldStack(Stack):
 
         CfnOutput(
             self,
-            "HelloWorldApiOutput",
+            "ApiUrlOutput",
             description="API Gateway endpoint URL for Prod stage",
             value=f"{self.app.api.url}hello",
         )
         CfnOutput(
             self,
-            "HelloWorldFunctionOutput",
+            "FunctionArnOutput",
             description="Hello World Lambda Function ARN",
             value=self.app.function.function_arn,
         )
         CfnOutput(
             self,
-            "HelloWorldFunctionIamRoleOutput",
+            "FunctionIamRoleOutput",
             description="IAM Role created for Hello World function",
             value=cast(iam.IRole, self.app.function.role).role_arn,
         )
@@ -117,7 +117,7 @@ class HelloWorldStack(Stack):
             ),
         )
         # Only present in production environments — non-prod skips the alarm
-        # topic entirely (see HelloWorldApp.__init__). Surfaced so operators
+        # topic entirely (see BackendApp.__init__). Surfaced so operators
         # can attach subscriptions (email/Chatbot/PagerDuty) without console
         # archaeology.
         if self.app.alarm_topic is not None:
@@ -161,14 +161,14 @@ class HelloWorldStack(Stack):
                 {"id": "AwsSolutions-APIG2", "reason": "Request validation not needed for sample app"},
                 # AwsSolutions-APIG3 (WAF on API Gateway) is no longer suppressed —
                 # a REGIONAL WebACL is now associated with the Prod stage in
-                # HelloWorldApp._attach_regional_waf, in addition to the
+                # BackendApp._attach_regional_waf, in addition to the
                 # CloudFront-scoped ACL.
                 {"id": "AwsSolutions-APIG4", "reason": "Authorization not needed for sample app"},
                 {"id": "AwsSolutions-COG4", "reason": "Cognito authorizer not needed for sample app"},
                 # ── Serverless ───────────────────────────────────────────────────
                 # Serverless-APIGWDefaultThrottling is no longer suppressed —
                 # stage-level throttling_rate_limit / throttling_burst_limit are
-                # configured on the Prod stage in HelloWorldApp.
+                # configured on the Prod stage in BackendApp.
                 {
                     "id": "CdkNagValidationFailure",
                     "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination — structured JSON logging is configured via logging_format=JSON on the Lambda",
@@ -176,7 +176,7 @@ class HelloWorldStack(Stack):
                 # ── NIST 800-53 R5 ──────────────────────────────────────────────
                 # NIST.800.53.R5-APIGWAssociatedWithWAF is no longer suppressed —
                 # a REGIONAL WebACL is associated with the Prod stage (see
-                # HelloWorldApp._attach_regional_waf).
+                # BackendApp._attach_regional_waf).
                 {
                     "id": "NIST.800.53.R5-APIGWSSLEnabled",
                     "reason": "Client-side SSL certificates not required for sample app",
@@ -189,7 +189,7 @@ class HelloWorldStack(Stack):
                         "stale values across SSM parameter and AppConfig feature-flag changes."
                     ),
                 },
-                # DynamoDBInBackupPlan suppressions moved to HelloWorldDataStack —
+                # DynamoDBInBackupPlan suppressions moved to DataStack —
                 # the idempotency table (and its backup posture) now lives there.
                 # ── HIPAA Security ───────────────────────────────────────────────
                 {
@@ -206,7 +206,7 @@ class HelloWorldStack(Stack):
                 # ── PCI DSS 3.2.1 ────────────────────────────────────────────────
                 # PCI.DSS.321-APIGWAssociatedWithWAF is no longer suppressed —
                 # a REGIONAL WebACL is associated with the Prod stage (see
-                # HelloWorldApp._attach_regional_waf).
+                # BackendApp._attach_regional_waf).
                 {
                     "id": "PCI.DSS.321-APIGWSSLEnabled",
                     "reason": "Client-side SSL certificates not required for sample app",

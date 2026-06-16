@@ -26,54 +26,54 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipp
 import aws_cdk as cdk
 from aws_cdk.assertions import Annotations, Match, Template
 
-from infrastructure.hello_world_stage import DEFAULT_ENV_NAME, HelloWorldStage, validate_env_name
+from infrastructure.app_stage import DEFAULT_ENV_NAME, AppStage, validate_env_name
 
 # Skip Docker bundling so these tests run without Docker (same key the CLI honours).
 _NO_BUNDLING = {"aws:cdk:bundling-stacks": []}
 
 
 @pytest.fixture(scope="module")
-def prod_stage() -> HelloWorldStage:
+def prod_stage() -> AppStage:
     """Synthesize the default (prod) stage for us-east-1."""
     app = cdk.App(context=_NO_BUNDLING)
-    return HelloWorldStage(app, "HelloWorld-us-east-1-stage", region="us-east-1")
+    return AppStage(app, "ServerlessApp-us-east-1-stage", region="us-east-1")
 
 
 @pytest.fixture(scope="module")
-def dev_stage() -> HelloWorldStage:
+def dev_stage() -> AppStage:
     """Synthesize an ephemeral developer stage."""
     app = cdk.App(context=_NO_BUNDLING)
-    return HelloWorldStage(
+    return AppStage(
         app,
-        "HelloWorld-alice-feature-x-us-east-1-stage",
+        "ServerlessApp-alice-feature-x-us-east-1-stage",
         region="us-east-1",
         env_name="alice-feature-x",
     )
 
 
 class TestEnvironmentNaming:
-    def test_prod_default_keeps_legacy_stack_names(self, prod_stage: HelloWorldStage) -> None:
+    def test_prod_default_keeps_legacy_stack_names(self, prod_stage: AppStage) -> None:
         # Byte-for-byte: a rename here orphans the deployed prod stacks.
-        assert prod_stage.waf.stack_name == "HelloWorldWaf-us-east-1"
-        assert prod_stage.data.stack_name == "HelloWorldData-us-east-1"
-        assert prod_stage.backend.stack_name == "HelloWorld-us-east-1"
-        assert prod_stage.frontend.stack_name == "HelloWorldFrontend-us-east-1"
-        assert prod_stage.audit.stack_name == "HelloWorldAudit-us-east-1"
+        assert prod_stage.waf.stack_name == "ServerlessAppWaf-us-east-1"
+        assert prod_stage.data.stack_name == "ServerlessAppData-us-east-1"
+        assert prod_stage.backend.stack_name == "ServerlessAppBackend-us-east-1"
+        assert prod_stage.frontend.stack_name == "ServerlessAppFrontend-us-east-1"
+        assert prod_stage.audit.stack_name == "ServerlessAppAudit-us-east-1"
 
-    def test_ephemeral_env_namespaces_every_stack(self, dev_stage: HelloWorldStage) -> None:
-        assert dev_stage.waf.stack_name == "HelloWorldWaf-alice-feature-x-us-east-1"
-        assert dev_stage.data.stack_name == "HelloWorldData-alice-feature-x-us-east-1"
-        assert dev_stage.backend.stack_name == "HelloWorld-alice-feature-x-us-east-1"
-        assert dev_stage.frontend.stack_name == "HelloWorldFrontend-alice-feature-x-us-east-1"
-        assert dev_stage.audit.stack_name == "HelloWorldAudit-alice-feature-x-us-east-1"
+    def test_ephemeral_env_namespaces_every_stack(self, dev_stage: AppStage) -> None:
+        assert dev_stage.waf.stack_name == "ServerlessAppWaf-alice-feature-x-us-east-1"
+        assert dev_stage.data.stack_name == "ServerlessAppData-alice-feature-x-us-east-1"
+        assert dev_stage.backend.stack_name == "ServerlessAppBackend-alice-feature-x-us-east-1"
+        assert dev_stage.frontend.stack_name == "ServerlessAppFrontend-alice-feature-x-us-east-1"
+        assert dev_stage.audit.stack_name == "ServerlessAppAudit-alice-feature-x-us-east-1"
 
-    def test_ephemeral_env_disables_alarm_paging(self, dev_stage: HelloWorldStage) -> None:
+    def test_ephemeral_env_disables_alarm_paging(self, dev_stage: AppStage) -> None:
         # Non-prod environments must not create the SNS alarm topic — an
         # ephemeral branch stack should never page an operator.
         template = Template.from_stack(dev_stage.backend)
         template.resource_count_is("AWS::SNS::Topic", 0)
 
-    def test_prod_env_routes_alarms_to_topic(self, prod_stage: HelloWorldStage) -> None:
+    def test_prod_env_routes_alarms_to_topic(self, prod_stage: AppStage) -> None:
         template = Template.from_stack(prod_stage.backend)
         template.resource_count_is("AWS::SNS::Topic", 1)
 
@@ -91,7 +91,7 @@ class TestEnvironmentNaming:
 
 
 class TestStackTags:
-    def test_all_stacks_carry_service_environment_owner_tags(self, prod_stage: HelloWorldStage) -> None:
+    def test_all_stacks_carry_service_environment_owner_tags(self, prod_stage: AppStage) -> None:
         # Stack tags propagate to every taggable resource at deploy time —
         # cost allocation and console filtering for free. They live in the
         # deploy-time manifest (not the template body), so assert on the
@@ -102,27 +102,27 @@ class TestStackTags:
             assert tags.get("environment") == "prod"
             assert tags.get("owner"), "owner tag must be non-empty (username or ci fallback)"
 
-    def test_ephemeral_stage_tags_carry_env_name(self, dev_stage: HelloWorldStage) -> None:
+    def test_ephemeral_stage_tags_carry_env_name(self, dev_stage: AppStage) -> None:
         assert dev_stage.backend.tags.tag_values().get("environment") == "alice-feature-x"
 
 
 class TestRetainDataPlumbing:
     """The Stage forwards retain_data to the stateful data stack."""
 
-    def test_default_stage_data_table_is_destroyable(self, prod_stage: HelloWorldStage) -> None:
+    def test_default_stage_data_table_is_destroyable(self, prod_stage: AppStage) -> None:
         # Default stage (retain_data omitted) → DESTROY, so the template tears
         # down cleanly.
         Template.from_stack(prod_stage.data).has_resource("AWS::DynamoDB::GlobalTable", {"DeletionPolicy": "Delete"})
 
     def test_retain_data_stage_data_table_is_retained(self) -> None:
-        # retain_data=True flows Stage → HelloWorldDataStack → RETAIN.
+        # retain_data=True flows Stage → DataStack → RETAIN.
         app = cdk.App(context=_NO_BUNDLING)
-        stage = HelloWorldStage(app, "HelloWorld-us-east-1-stage", region="us-east-1", retain_data=True)
+        stage = AppStage(app, "ServerlessApp-us-east-1-stage", region="us-east-1", retain_data=True)
         Template.from_stack(stage.data).has_resource("AWS::DynamoDB::GlobalTable", {"DeletionPolicy": "Retain"})
 
 
 class TestAppConfigMonitorPlumbing:
-    """The Stage forwards appconfig_monitor → backend → HelloWorldApp.
+    """The Stage forwards appconfig_monitor → backend → BackendApp.
 
     Default (off) = all-at-once, no monitor (asserted in test_stacks.py — the
     shape that must create a cold stack). On = gradual rollout + environment
@@ -130,12 +130,12 @@ class TestAppConfigMonitorPlumbing:
     """
 
     @staticmethod
-    def _monitor_stage() -> HelloWorldStage:
+    def _monitor_stage() -> AppStage:
         app = cdk.App(context=_NO_BUNDLING)
-        return HelloWorldStage(app, "HelloWorld-us-east-1-stage", region="us-east-1", appconfig_monitor=True)
+        return AppStage(app, "ServerlessApp-us-east-1-stage", region="us-east-1", appconfig_monitor=True)
 
     def test_monitor_on_uses_gradual_strategy(self) -> None:
-        # appconfig_monitor=True flows Stage → HelloWorldStack → HelloWorldApp and
+        # appconfig_monitor=True flows Stage → BackendStack → BackendApp and
         # swaps the all-at-once strategy for a gradual one with a bake window.
         template = Template.from_stack(self._monitor_stage().backend)
         template.has_resource_properties(
@@ -178,7 +178,7 @@ class TestDeploymentAggressivenessByEnv:
     can't carry the alarm-monitored gradual rollout.)
     """
 
-    def test_dev_codedeploy_is_all_at_once(self, dev_stage: HelloWorldStage) -> None:
+    def test_dev_codedeploy_is_all_at_once(self, dev_stage: AppStage) -> None:
         template = Template.from_stack(dev_stage.backend)
         groups = template.find_resources("AWS::CodeDeploy::DeploymentGroup")
         assert groups, "expected a CodeDeploy deployment group even in dev"
@@ -195,7 +195,7 @@ class TestNagCompliance:
     """
 
     @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend", "audit"])
-    def test_no_unsuppressed_nag_errors(self, prod_stage: HelloWorldStage, stack_attr: str) -> None:
+    def test_no_unsuppressed_nag_errors(self, prod_stage: AppStage, stack_attr: str) -> None:
         stack = getattr(prod_stage, stack_attr)
         errors = Annotations.from_stack(stack).find_error("*", Match.string_like_regexp(".*"))
         details = "\n".join(
@@ -207,7 +207,7 @@ class TestNagCompliance:
             f"scoped suppression with a reason (see CLAUDE.md):\n{details}"
         )
 
-    def test_dev_stage_has_no_unsuppressed_nag_errors(self, dev_stage: HelloWorldStage) -> None:
+    def test_dev_stage_has_no_unsuppressed_nag_errors(self, dev_stage: AppStage) -> None:
         # The non-prod shape (no SNS topic) must be nag-clean too — otherwise
         # ephemeral stacks would fail the CI synth gate when env is overridden.
         errors = Annotations.from_stack(dev_stage.backend).find_error("*", Match.string_like_regexp(".*"))
@@ -218,6 +218,6 @@ class TestNagCompliance:
         # role; its suppressions (IAM5 wildcard, inline-policy, no-alarm-action)
         # must be complete or a fork enabling appconfig_monitor would fail synth.
         app = cdk.App(context=_NO_BUNDLING)
-        stage = HelloWorldStage(app, "HelloWorld-us-east-1-stage", region="us-east-1", appconfig_monitor=True)
+        stage = AppStage(app, "ServerlessApp-us-east-1-stage", region="us-east-1", appconfig_monitor=True)
         errors = Annotations.from_stack(stage.backend).find_error("*", Match.string_like_regexp(".*"))
         assert not errors

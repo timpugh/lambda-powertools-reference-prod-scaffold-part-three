@@ -24,7 +24,7 @@ from infrastructure.nag_utils import (
 )
 
 
-class HelloWorldWafStack(Stack):
+class WafStack(Stack):
     """WAF WebACL stack, always deployed in us-east-1.
 
     CloudFront requires its associated WAF WebACL to exist in us-east-1
@@ -57,7 +57,7 @@ class HelloWorldWafStack(Stack):
             "WafEncryptionKey",
             description=f"KMS key for {self.stack_name} provider log group encryption",
             enable_key_rotation=True,
-            # See HelloWorldApp.encryption_key for the rationale — automated
+            # See BackendApp.encryption_key for the rationale — automated
             # rotation, no dependent redeploys, 90-day compliance baseline.
             rotation_period=Duration.days(90),
             removal_policy=RemovalPolicy.DESTROY,
@@ -142,7 +142,7 @@ class HelloWorldWafStack(Stack):
         # CDK-managed-singleton nag findings).
         create_auto_delete_objects_log_group(self, waf_encryption_key)
 
-        # Exposed for HelloWorldFrontendStack to attach to CloudFront.
+        # Exposed for FrontendStack to attach to CloudFront.
         # When the frontend stack is in a different region, CDK bridges this
         # value automatically via SSM (cross_region_references=True on the consumer).
         self.web_acl_arn = web_acl.attr_arn

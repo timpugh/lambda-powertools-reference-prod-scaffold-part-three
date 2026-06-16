@@ -9,7 +9,7 @@ without a live deployment. To run integration tests explicitly:
 The stack name is read from the ``AWS_BACKEND_STACK_NAME`` environment variable
 (set in pyproject.toml). Override it for a different region:
 
-    AWS_BACKEND_STACK_NAME=HelloWorld-ap-southeast-1 pytest tests/integration/
+    AWS_BACKEND_STACK_NAME=ServerlessAppBackend-ap-southeast-1 pytest tests/integration/
 """
 
 import os
@@ -58,10 +58,10 @@ class TestApiGateway:
 
         stacks = response["Stacks"]
         stack_outputs = stacks[0]["Outputs"]
-        api_outputs = [output for output in stack_outputs if output["OutputKey"] == "HelloWorldApiOutput"]
+        api_outputs = [output for output in stack_outputs if output["OutputKey"] == "ApiUrlOutput"]
 
         if not api_outputs:
-            pytest.skip(f"HelloWorldApiOutput not found in stack '{stack_name}' — skipping integration tests")
+            pytest.skip(f"ApiUrlOutput not found in stack '{stack_name}' — skipping integration tests")
 
         return api_outputs[0]["OutputValue"]
 

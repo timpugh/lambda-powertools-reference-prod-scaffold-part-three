@@ -1,4 +1,4 @@
-"""HelloWorldApp construct — the domain-level application.
+"""BackendApp construct — the domain-level application.
 
 Encapsulates all resources that make up the Hello World serverless application:
 KMS key, DynamoDB idempotency table, SSM greeting parameter, AppConfig feature
@@ -89,7 +89,7 @@ from infrastructure.nag_utils import (
 )
 
 
-class HelloWorldApp(Construct):
+class BackendApp(Construct):
     """Domain-level Hello World application.
 
     Exposes the top-level resources as public attributes so the enclosing
@@ -111,7 +111,7 @@ class HelloWorldApp(Construct):
             scope: The CDK construct scope.
             construct_id: The scoped construct ID.
             idempotency_table: The Powertools idempotency table, created in the
-                separate :class:`HelloWorldDataStack` and passed in cross-stack.
+                separate :class:`DataStack` and passed in cross-stack.
                 This construct wires it into the Lambda (the
                 ``IDEMPOTENCY_TABLE_NAME`` env var and a scoped read/write
                 grant) but does not own its lifecycle — see that stack for the
@@ -137,7 +137,7 @@ class HelloWorldApp(Construct):
 
         stack = Stack.of(self)
 
-        # Stateful data layer lives in its own stack (HelloWorldDataStack); the
+        # Stateful data layer lives in its own stack (DataStack); the
         # table is passed in cross-stack. This construct's own CMK below covers
         # the compute-side encryption (Lambda env vars, log groups, AppConfig,
         # SNS) — the table is encrypted by the data stack's separate key.
@@ -146,7 +146,7 @@ class HelloWorldApp(Construct):
         # Compute-side KMS key, shared across this stack's CloudWatch log groups,
         # Lambda env vars, AppConfig hosted configuration content, and the SNS
         # alarm topic. The DynamoDB table has its own key in the data stack
-        # (see HelloWorldDataStack) — keys are not shared across the stack
+        # (see DataStack) — keys are not shared across the stack
         # boundary, so each carries a tighter, least-privilege key policy.
         # CloudWatch Logs requires the Logs service principal to be granted access
         # so it can encrypt data on behalf of the service.
@@ -349,7 +349,7 @@ class HelloWorldApp(Construct):
         # Lambda function via the log_group property below.
         lambda_log_group = logs.LogGroup(
             self,
-            "HelloWorldFunctionLogGroup",
+            "FunctionLogGroup",
             encryption_key=self.encryption_key,
             # 90 days for operational app logs — enough debugging history and
             # satisfies a "3 months immediately available" clause without paying
@@ -366,7 +366,7 @@ class HelloWorldApp(Construct):
         # to an AWS-managed key.
         self.function = PythonFunction(
             self,
-            "HelloWorldFunction",
+            "ApiFunction",
             runtime=_lambda.Runtime.PYTHON_3_14,
             entry="lambda",
             index="app.py",
@@ -430,7 +430,7 @@ class HelloWorldApp(Construct):
         # Terminate posture — mirroring the provider-lookup guard in the frontend stack.
         cfn_function = self.function.node.default_child
         if not isinstance(cfn_function, _lambda.CfnFunction):
-            raise TypeError(f"Expected HelloWorldFunction default_child to be CfnFunction, got {type(cfn_function)}")
+            raise TypeError(f"Expected ApiFunction default_child to be CfnFunction, got {type(cfn_function)}")
         cfn_function.recursive_loop = "Terminate"
 
         # Lambda alias for CodeDeploy traffic-shifting deployments. The API
@@ -474,7 +474,7 @@ class HelloWorldApp(Construct):
         # *caller's* role on GetLatestConfiguration — so the Lambda needs decrypt
         # on this key. This permission used to ride the DynamoDB grant back when
         # the table shared this CMK; now that the table has its own key in
-        # HelloWorldDataStack, the AppConfig decrypt path needs an explicit,
+        # DataStack, the AppConfig decrypt path needs an explicit,
         # scoped grant here (read-only path, so kms:Decrypt only).
         self.encryption_key.grant_decrypt(self.function)
 
@@ -483,9 +483,9 @@ class HelloWorldApp(Construct):
         # RestApi via LogGroupLogDestination below.
         api_log_group = logs.LogGroup(
             self,
-            "HelloWorldApiAccessLogs",
+            "ApiAccessLogs",
             encryption_key=self.encryption_key,
-            # 90 days — operational retention (see HelloWorldFunctionLogGroup).
+            # 90 days — operational retention (see FunctionLogGroup).
             retention=logs.RetentionDays.THREE_MONTHS,
             removal_policy=RemovalPolicy.DESTROY,
         )
@@ -496,7 +496,7 @@ class HelloWorldApp(Construct):
         # region-level account setting managed by CDK automatically.
         self.api = apigw.RestApi(
             self,
-            "HelloWorldApi",
+            "RestApi",
             cloud_watch_role=True,
             cloud_watch_role_removal_policy=RemovalPolicy.DESTROY,
             deploy_options=apigw.StageOptions(
@@ -508,7 +508,7 @@ class HelloWorldApp(Construct):
                 # overrides or a usage plan can layer tighter limits later. Values
                 # are deliberately modest for a reference workload — raise them in a
                 # fork sized to real traffic. This retires the
-                # Serverless-APIGWDefaultThrottling suppression in HelloWorldStack.
+                # Serverless-APIGWDefaultThrottling suppression in BackendStack.
                 throttling_rate_limit=100,
                 throttling_burst_limit=200,
                 access_log_destination=apigw.LogGroupLogDestination(api_log_group),
@@ -576,10 +576,10 @@ class HelloWorldApp(Construct):
         # so it is deleted on cdk destroy. Name format is fixed by the API Gateway service.
         execution_log_group = logs.LogGroup(
             self,
-            "HelloWorldApiExecutionLogs",
+            "ApiExecutionLogs",
             log_group_name=f"API-Gateway-Execution-Logs_{self.api.rest_api_id}/Prod",
             encryption_key=self.encryption_key,
-            # 90 days — operational retention (see HelloWorldFunctionLogGroup).
+            # 90 days — operational retention (see FunctionLogGroup).
             retention=logs.RetentionDays.THREE_MONTHS,
             removal_policy=RemovalPolicy.DESTROY,
         )
@@ -737,8 +737,8 @@ class HelloWorldApp(Construct):
         # in both the alarm name and the dashboard widget title.
         monitoring.monitor_api_gateway(
             api=self.api,
-            human_readable_name="HelloWorldApi",
-            alarm_friendly_name="HelloWorldApi",
+            human_readable_name="RestApi",
+            alarm_friendly_name="RestApi",
             add5_xx_fault_rate_alarm={"internal_error": ErrorRateThreshold(max_error_rate=1)},
         )
         monitoring.monitor_dynamo_table(table=self.idempotency_table)
@@ -837,10 +837,10 @@ class HelloWorldApp(Construct):
     def _attach_regional_waf(self) -> None:
         """Attach a REGIONAL WAF WebACL to the API Gateway stage.
 
-        The CLOUDFRONT-scoped WebACL in ``HelloWorldWafStack`` only inspects
+        The CLOUDFRONT-scoped WebACL in ``WafStack`` only inspects
         traffic that arrives through CloudFront. The API Gateway's public
         ``https://{id}.execute-api.{region}.amazonaws.com/Prod`` URL — published
-        in the ``HelloWorldApiOutput`` CfnOutput — bypasses CloudFront entirely,
+        in the ``ApiUrlOutput`` CfnOutput — bypasses CloudFront entirely,
         so without a second ACL here a caller hitting that URL directly evades
         every managed rule group. This REGIONAL ACL mirrors the four managed
         threat rule groups onto the origin so both paths get the same protection.
@@ -878,7 +878,7 @@ class HelloWorldApp(Construct):
         )
 
         # WAF logging — required by NIST/HIPAA/PCI WAFv2LoggingEnabled, mirroring
-        # the CloudFront ACL in HelloWorldWafStack. Logs go to S3 (cheaper
+        # the CloudFront ACL in WafStack. Logs go to S3 (cheaper
         # long-term retention than CloudWatch) via the shared create_waf_logs_bucket
         # helper, which builds the aws-waf-logs-* bucket + its delivery bucket
         # policy. The regional bucket lives in this (target-region) stack because
@@ -1094,7 +1094,7 @@ class HelloWorldApp(Construct):
     def _add_resource_suppressions(self, app_insights_dashboard_cleanup: cr.AwsCustomResource) -> None:
         """Attach per-resource cdk-nag suppressions for resources owned by this construct.
 
-        HelloWorldFunction passes Lambda rules natively (tracing=ACTIVE,
+        ApiFunction passes Lambda rules natively (tracing=ACTIVE,
         memory_size=256, sync invocation). Suppressions below document the
         intentional design decisions (no VPC, no DLQ, no concurrency) and work
         around CDK-level limitations (inline policies, KMS wildcard actions).

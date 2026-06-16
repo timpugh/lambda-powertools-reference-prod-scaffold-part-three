@@ -264,8 +264,8 @@ env = [
     # region without setting one per-invocation. Unit tests mock all AWS calls,
     # so the value is never used against a real endpoint.
     "AWS_DEFAULT_REGION=us-east-1",
-    "AWS_BACKEND_STACK_NAME=HelloWorld-us-east-1",
-    "AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-us-east-1",
+    "AWS_BACKEND_STACK_NAME=ServerlessAppBackend-us-east-1",
+    "AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1",
     "POWERTOOLS_IDEMPOTENCY_DISABLED=true",
     "POWERTOOLS_SERVICE_NAME=hello-world",
     "POWERTOOLS_METRICS_NAMESPACE=HelloWorld",
@@ -273,8 +273,8 @@ env = [
     "IDEMPOTENCY_TABLE_NAME=test-idempotency",
     "GREETING_PARAM_NAME=/test/greeting",
     "APPCONFIG_APP_NAME=test-app",
-    "APPCONFIG_ENV_NAME=HelloWorld-test-env",
-    "APPCONFIG_PROFILE_NAME=HelloWorld-test-features",
+    "APPCONFIG_ENV_NAME=ServerlessAppBackend-test-env",
+    "APPCONFIG_PROFILE_NAME=ServerlessAppBackend-test-features",
 ]
 
 # =============================================================================

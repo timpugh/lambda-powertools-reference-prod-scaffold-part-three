@@ -35,11 +35,11 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipp
 import aws_cdk as cdk
 from aws_cdk.assertions import Match, Template
 
-from infrastructure.hello_world_audit_stack import HelloWorldAuditStack
-from infrastructure.hello_world_data_stack import HelloWorldDataStack
-from infrastructure.hello_world_frontend_stack import HelloWorldFrontendStack
-from infrastructure.hello_world_stack import HelloWorldStack
-from infrastructure.hello_world_waf_stack import HelloWorldWafStack
+from infrastructure.audit_stack import AuditStack
+from infrastructure.backend_stack import BackendStack
+from infrastructure.data_stack import DataStack
+from infrastructure.frontend_stack import FrontendStack
+from infrastructure.waf_stack import WafStack
 
 # Fake account/region — synthesis does not make live AWS API calls
 _TEST_ACCOUNT = "123456789012"
@@ -59,45 +59,45 @@ _NO_BUNDLING = {"aws:cdk:bundling-stacks": []}
 
 @pytest.fixture(scope="module")
 def waf_template() -> Template:
-    """Synthesize HelloWorldWafStack and return its CloudFormation template."""
+    """Synthesize WafStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
-    stack = HelloWorldWafStack(app, "TestWafStack", env=_WAF_ENV)
+    stack = WafStack(app, "TestWafStack", env=_WAF_ENV)
     return Template.from_stack(stack)
 
 
 @pytest.fixture(scope="module")
 def data_template() -> Template:
-    """Synthesize HelloWorldDataStack (default destroy-friendly shape)."""
+    """Synthesize DataStack (default destroy-friendly shape)."""
     app = cdk.App(context=_NO_BUNDLING)
-    stack = HelloWorldDataStack(app, "TestDataStack", env=_TEST_ENV)
+    stack = DataStack(app, "TestDataStack", env=_TEST_ENV)
     return Template.from_stack(stack)
 
 
 @pytest.fixture(scope="module")
 def data_template_retained() -> Template:
-    """Synthesize HelloWorldDataStack with retain_data=True (production shape)."""
+    """Synthesize DataStack with retain_data=True (production shape)."""
     app = cdk.App(context=_NO_BUNDLING)
-    stack = HelloWorldDataStack(app, "TestDataStackRetained", retain_data=True, env=_TEST_ENV)
+    stack = DataStack(app, "TestDataStackRetained", retain_data=True, env=_TEST_ENV)
     return Template.from_stack(stack)
 
 
 @pytest.fixture(scope="module")
 def backend_template() -> Template:
-    """Synthesize HelloWorldStack and return its CloudFormation template."""
+    """Synthesize BackendStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
-    data = HelloWorldDataStack(app, "TestBackendData", env=_TEST_ENV)
-    stack = HelloWorldStack(app, "TestBackendStack", idempotency_table=data.idempotency_table, env=_TEST_ENV)
+    data = DataStack(app, "TestBackendData", env=_TEST_ENV)
+    stack = BackendStack(app, "TestBackendStack", idempotency_table=data.idempotency_table, env=_TEST_ENV)
     return Template.from_stack(stack)
 
 
 @pytest.fixture(scope="module")
 def frontend_template() -> Template:
-    """Synthesize HelloWorldFrontendStack and return its CloudFormation template."""
+    """Synthesize FrontendStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
-    waf = HelloWorldWafStack(app, "TestFrontendWaf", env=_WAF_ENV)
-    data = HelloWorldDataStack(app, "TestFrontendData", env=_TEST_ENV)
-    backend = HelloWorldStack(app, "TestFrontendBackend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
-    stack = HelloWorldFrontendStack(
+    waf = WafStack(app, "TestFrontendWaf", env=_WAF_ENV)
+    data = DataStack(app, "TestFrontendData", env=_TEST_ENV)
+    backend = BackendStack(app, "TestFrontendBackend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
+    stack = FrontendStack(
         app,
         "TestFrontendStack",
         api_url=backend.api_url,
@@ -111,16 +111,16 @@ def frontend_template() -> Template:
     return Template.from_stack(stack)
 
 
-def _build_frontend(app: cdk.App, stack_suffix: str) -> HelloWorldFrontendStack:
+def _build_frontend(app: cdk.App, stack_suffix: str) -> FrontendStack:
     """Build the waf->data->backend->frontend chain and return the frontend stack.
 
     The audit stack audits the frontend buckets, so its tests need a real
     frontend whose ``bucket`` / ``access_log_bucket`` they can pass in.
     """
-    waf = HelloWorldWafStack(app, f"{stack_suffix}Waf", env=_WAF_ENV)
-    data = HelloWorldDataStack(app, f"{stack_suffix}Data", env=_TEST_ENV)
-    backend = HelloWorldStack(app, f"{stack_suffix}Backend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
-    return HelloWorldFrontendStack(
+    waf = WafStack(app, f"{stack_suffix}Waf", env=_WAF_ENV)
+    data = DataStack(app, f"{stack_suffix}Data", env=_TEST_ENV)
+    backend = BackendStack(app, f"{stack_suffix}Backend", idempotency_table=data.idempotency_table, env=_TEST_ENV)
+    return FrontendStack(
         app,
         f"{stack_suffix}Frontend",
         api_url=backend.api_url,
@@ -135,10 +135,10 @@ def _build_frontend(app: cdk.App, stack_suffix: str) -> HelloWorldFrontendStack:
 
 @pytest.fixture(scope="module")
 def audit_template() -> Template:
-    """Synthesize HelloWorldAuditStack (default destroy-friendly shape)."""
+    """Synthesize AuditStack (default destroy-friendly shape)."""
     app = cdk.App(context=_NO_BUNDLING)
     frontend = _build_frontend(app, "TestAudit")
-    stack = HelloWorldAuditStack(
+    stack = AuditStack(
         app,
         "TestAuditStack",
         audited_buckets=[frontend.bucket, frontend.access_log_bucket],
@@ -149,10 +149,10 @@ def audit_template() -> Template:
 
 @pytest.fixture(scope="module")
 def audit_template_retained() -> Template:
-    """Synthesize HelloWorldAuditStack with retain_data=True (production shape)."""
+    """Synthesize AuditStack with retain_data=True (production shape)."""
     app = cdk.App(context=_NO_BUNDLING)
     frontend = _build_frontend(app, "TestAuditRetained")
-    stack = HelloWorldAuditStack(
+    stack = AuditStack(
         app,
         "TestAuditStackRetained",
         audited_buckets=[frontend.bucket, frontend.access_log_bucket],
@@ -279,7 +279,7 @@ class TestDataStack:
     """Stateful data layer: DynamoDB idempotency table + its dedicated CMK.
 
     These properties moved out of the backend stack when the stateful
-    resources were isolated into HelloWorldDataStack (CDK best practice:
+    resources were isolated into DataStack (CDK best practice:
     keep stateful resources in their own stack).
     """
 
@@ -414,9 +414,7 @@ class TestBackendStack:
         # retries at the service default, so match on the qualified function.
         configs = backend_template.find_resources("AWS::Lambda::EventInvokeConfig")
         app_configs = [
-            c
-            for c in configs.values()
-            if "HelloWorldFunction" in json.dumps(c["Properties"].get("FunctionName"), default=str)
+            c for c in configs.values() if "ApiFunction" in json.dumps(c["Properties"].get("FunctionName"), default=str)
         ]
         assert len(app_configs) == 1, "expected exactly one EventInvokeConfig on the application function"
         assert app_configs[0]["Properties"]["MaximumRetryAttempts"] == 0
@@ -667,8 +665,8 @@ class TestBackendStack:
         # Ephemeral/dev environments keep the dashboards and alarms but must
         # not create the SNS topic — short-lived stacks never page anyone.
         app = cdk.App(context=_NO_BUNDLING)
-        data = HelloWorldDataStack(app, "TestDevBackendData", env=_TEST_ENV)
-        stack = HelloWorldStack(
+        data = DataStack(app, "TestDevBackendData", env=_TEST_ENV)
+        stack = BackendStack(
             app,
             "TestDevBackendStack",
             idempotency_table=data.idempotency_table,
@@ -733,7 +731,7 @@ class TestBackendStack:
             log_format = stage["Properties"]["AccessLogSetting"]["Format"]
             assert "$context.responseLatency" in log_format
             assert "$context.error.messageString" not in log_format, (
-                "messageString is unusable in a JSON access-log format — see the comment in HelloWorldApp"
+                "messageString is unusable in a JSON access-log format — see the comment in BackendApp"
             )
             assert '"$context.error.message"' in log_format
 
@@ -745,14 +743,14 @@ class TestBackendStack:
         stages = backend_template.find_resources("AWS::ApiGateway::Stage")
         assert stages, "expected at least one API Gateway stage"
         for stage in stages.values():
-            assert "AppHelloWorldApiExecutionLogsA5806940" in stage.get("DependsOn", []), (
+            assert "AppApiExecutionLogs0AE84813" in stage.get("DependsOn", []), (
                 "Prod stage must depend on the pre-created execution log group"
             )
 
     def test_api_gateway_cache_cluster_disabled(self, backend_template: Template) -> None:
         # Cache cluster is intentionally disabled for cost (~$14/mo for the smallest size)
         # and to avoid serving stale values across SSM/AppConfig changes — see the
-        # NIST.800.53.R5-APIGWCacheEnabledAndEncrypted suppression in HelloWorldStack.
+        # NIST.800.53.R5-APIGWCacheEnabledAndEncrypted suppression in BackendStack.
         stages = backend_template.find_resources("AWS::ApiGateway::Stage")
         assert stages, "expected at least one API Gateway stage"
         for stage in stages.values():
@@ -804,11 +802,11 @@ class TestBackendStack:
         )
 
     def test_stack_outputs_exist(self, backend_template: Template) -> None:
-        backend_template.has_output("HelloWorldApiOutput", {})
-        backend_template.has_output("HelloWorldFunctionOutput", {})
+        backend_template.has_output("ApiUrlOutput", {})
+        backend_template.has_output("FunctionArnOutput", {})
         backend_template.has_output("GreetingParameterName", {})
         backend_template.has_output("CloudWatchDashboardUrl", {})
-        # IdempotencyTableName now lives on HelloWorldDataStack (the table owner).
+        # IdempotencyTableName now lives on DataStack (the table owner).
 
 
 # ── Frontend stack ────────────────────────────────────────────────────────────
@@ -955,7 +953,7 @@ class TestFrontendStack:
         # "interaction"). Pin the server list so an accidental edit — e.g. dropping
         # "http", which silently degrades vended HTTP metrics — is caught in CI.
         # See the "do not sync these lists" comment in _wire_rum_metrics / the RUM
-        # AppMonitor block of hello_world_frontend_stack.py.
+        # AppMonitor block of frontend_stack.py.
         frontend_template.has_resource_properties(
             "AWS::RUM::AppMonitor",
             {"AppMonitorConfiguration": Match.object_like({"Telemetries": ["errors", "performance", "http"]})},
@@ -1014,7 +1012,7 @@ class TestFrontendStack:
 
     def test_two_s3_buckets_exist(self, frontend_template: Template) -> None:
         # FrontendBucket + FrontendAccessLogBucket. The CloudTrail-logs bucket
-        # moved to HelloWorldAuditStack (see TestAuditStack).
+        # moved to AuditStack (see TestAuditStack).
         frontend_template.resource_count_is("AWS::S3::Bucket", 2)
 
     def test_stack_outputs_exist(self, frontend_template: Template) -> None:
@@ -1133,9 +1131,9 @@ class TestLogicalIdStability:
     """Lock in logical IDs of stateful resources — changing one replaces the resource."""
 
     # ── Data ───────────────────────────────────────────────────────────────────
-    # The idempotency table and its CMK live in HelloWorldDataStack. Their
+    # The idempotency table and its CMK live in DataStack. Their
     # logical IDs lost the "App" construct prefix when the table moved out of
-    # the HelloWorldApp construct and into its own stack — a one-time change
+    # the BackendApp construct and into its own stack — a one-time change
     # captured here (the template ships with no live data, so no migration).
 
     def test_data_dynamodb_table_id(self, data_template: Template) -> None:
@@ -1165,9 +1163,9 @@ class TestLogicalIdStability:
 
     def test_backend_log_group_ids(self, backend_template: Template) -> None:
         log_groups = backend_template.find_resources("AWS::Logs::LogGroup")
-        assert "AppHelloWorldFunctionLogGroupD773BE34" in log_groups
-        assert "AppHelloWorldApiAccessLogsBAD11F8B" in log_groups
-        assert "AppHelloWorldApiExecutionLogsA5806940" in log_groups
+        assert "AppFunctionLogGroupB9961371" in log_groups
+        assert "AppApiAccessLogsDD2CC3E5" in log_groups
+        assert "AppApiExecutionLogs0AE84813" in log_groups
 
     # ── Frontend ───────────────────────────────────────────────────────────────
 

@@ -1,16 +1,16 @@
 """Integration tests for the CloudFront / S3 frontend distribution.
 
-These tests require a deployed HelloWorldFrontend stack. They are skipped
+These tests require a deployed ServerlessAppFrontend stack. They are skipped
 automatically when the stack cannot be found, so the standard ``pytest`` run
 (unit tests) stays green without a live deployment.
 
 To run frontend integration tests explicitly:
 
-    AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-us-east-1 pytest tests/integration/
+    AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1 pytest tests/integration/
 
 Override for a different region:
 
-    AWS_FRONTEND_STACK_NAME=HelloWorldFrontend-ap-southeast-1 pytest tests/integration/
+    AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-ap-southeast-1 pytest tests/integration/
 """
 
 import os

@@ -168,13 +168,13 @@ LIMIT 25""",
 )
 
 
-class HelloWorldFrontendStack(Stack):
+class FrontendStack(Stack):
     """CDK stack for the Hello World frontend.
 
     Provisions a private S3 bucket for static assets and a CloudFront
     distribution with OAC, HTTPS-only enforcement, and security response
     headers. WAF protection is provided by a WebACL ARN passed in from
-    HelloWorldWafStack, which is always deployed in us-east-1.
+    WafStack, which is always deployed in us-east-1.
 
     This stack can be deployed to any region. When the target region differs
     from us-east-1, CDK bridges the WAF ARN cross-region automatically via
@@ -201,7 +201,7 @@ class HelloWorldFrontendStack(Stack):
             api_url: The backend API Gateway URL, injected into config.json at deploy time.
             api_id: The backend API Gateway REST API ID, used to pin the CSP connect-src
                 to the exact execute-api host instead of a region-wide wildcard.
-            waf_acl_arn: ARN of the WAF WebACL from HelloWorldWafStack (always in us-east-1).
+            waf_acl_arn: ARN of the WAF WebACL from WafStack (always in us-east-1).
             cf_waf_logs_location: ``s3://…/`` prefix of the CloudFront WebACL's WAF logs,
                 for the Athena Glue table (computed by the Stage — see its docstring).
             regional_waf_logs_location: ``s3://…/`` prefix of the regional (API Gateway)
@@ -223,7 +223,7 @@ class HelloWorldFrontendStack(Stack):
             "FrontendEncryptionKey",
             description=f"KMS key for {self.stack_name} S3 bucket and log groups",
             enable_key_rotation=True,
-            # See HelloWorldApp.encryption_key for the rationale — automated
+            # See BackendApp.encryption_key for the rationale — automated
             # rotation, no dependent redeploys, 90-day compliance baseline.
             rotation_period=Duration.days(90),
             removal_policy=RemovalPolicy.DESTROY,
@@ -279,7 +279,7 @@ class HelloWorldFrontendStack(Stack):
 
         # Expose the buckets for the audit stack to consume cross-stack — the
         # CloudTrail trail recording object-level data events on them lives in
-        # HelloWorldAuditStack (a one-way dependency: audit -> frontend).
+        # AuditStack (a one-way dependency: audit -> frontend).
         self.bucket = bucket
         self.access_log_bucket = access_log_bucket
 
@@ -633,7 +633,7 @@ class HelloWorldFrontendStack(Stack):
         )
 
         # ── Async failure destinations for the CDK-managed provider Lambdas ─────
-        # See HelloWorldStack for the full rationale — CFN invokes the providers
+        # See BackendStack for the full rationale — CFN invokes the providers
         # async, and without on_failure a crashed provider's payload is lost.
         # Both stack-level Function-based singletons get the same treatment: the
         # AwsCustomResource provider AND the BucketDeployment handler. (The S3

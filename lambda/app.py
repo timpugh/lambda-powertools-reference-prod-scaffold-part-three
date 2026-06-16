@@ -306,7 +306,7 @@ def hello() -> HelloResponse:
         # the only signal that the config is broken. It's the signal a production
         # fork wires an AppConfig deployment monitor to (gradual rollout +
         # auto-rollback — a documented add-on, not shipped; see the AppConfig
-        # deployment comment in infrastructure/hello_world_app.py). Lands in the
+        # deployment comment in infrastructure/backend_app.py). Lands in the
         # HelloWorld namespace with the service dimension Powertools adds.
         metrics.add_metric(name="FeatureFlagEvaluationFailure", unit=MetricUnit.Count, value=1)
         enhanced = False

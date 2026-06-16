@@ -1,4 +1,4 @@
-"""HelloWorldDataStack — the stateful data layer (DynamoDB + its own CMK).
+"""DataStack — the stateful data layer (DynamoDB + its own CMK).
 
 Isolated from the compute/backend stack on purpose, per the CDK best practice
 "keep stateful resources in their own stack." The payoff is lifecycle
@@ -33,7 +33,7 @@ from constructs import Construct
 from infrastructure.nag_utils import apply_compliance_aspects
 
 
-class HelloWorldDataStack(Stack):
+class DataStack(Stack):
     """Stateful data layer: the Powertools idempotency table and its CMK.
 
     Exposes ``idempotency_table`` (and ``encryption_key``) for the compute

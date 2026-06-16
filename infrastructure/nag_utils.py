@@ -197,9 +197,9 @@ def grant_guardduty_service_to_key(key: kms.Key, *, region: str, account: str, p
 def build_managed_threat_rules(metric_prefix: str) -> list[wafv2.CfnWebACL.RuleProperty]:
     """Build the four AWS managed rule groups shared by every WebACL in this project.
 
-    Two WebACLs use these: the CLOUDFRONT-scoped ACL in ``HelloWorldWafStack``
+    Two WebACLs use these: the CLOUDFRONT-scoped ACL in ``WafStack``
     (browser traffic at the edge) and the REGIONAL-scoped ACL on API Gateway in
-    ``HelloWorldApp`` (closes the ``execute-api`` CloudFront-bypass window). Both
+    ``BackendApp`` (closes the ``execute-api`` CloudFront-bypass window). Both
     need the identical IP-reputation / common / known-bad-inputs / anonymous-IP
     protections, so the list is defined once here — pylint's R0801 duplicate-code
     check would otherwise (correctly) flag two ~60-line copies drifting apart, and
