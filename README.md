@@ -499,7 +499,7 @@ Static assets live in `frontend/` — currently just an `index.html` that fetche
 
 #### S3 bucket
 
-The bucket is fully private — no public access of any kind. CloudFront reaches it exclusively via [Origin Access Control (OAC)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html), the current AWS-recommended successor to OAI. The bucket is encrypted with SSE-KMS (customer-managed key with 90-day rotation), has SSL enforced, server access logging enabled to a dedicated log bucket, versioning disabled (git is the source of truth), and `auto_delete_objects=True` so `cdk destroy` empties and deletes it cleanly.
+The bucket is fully private — no public access of any kind. CloudFront reaches it exclusively via [Origin Access Control (OAC)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html), the current AWS-recommended successor to OAI. The bucket is encrypted with SSE-KMS (customer-managed key with 90-day rotation), has SSL enforced, server access logging enabled to a dedicated log bucket, versioning disabled (git is the source of truth), and `auto_delete_objects=True` so `cdk destroy` empties and deletes it cleanly. On the *initial* deploy, CDK emits this bucket's CMK key-policy with a wildcard `aws:SourceArn` condition matching every CloudFront distribution ID in the account (the `@aws-cdk/aws-cloudfront-origins:wildcardKeyPolicyForOac` acknowledgment, surfaced as a synth/deploy warning) — a workaround for the circular dependency between the key, bucket, and distribution before the distribution ID exists. After the first deploy AWS recommends tightening it to the specific distribution ARN; that needs a second-deploy override (the ID isn't known at first synth), so it's tracked as a hardening follow-up in [`TODO.md`](TODO.md).
 
 The access log bucket itself uses SSE-S3 rather than SSE-KMS — neither the S3 log delivery service nor CloudFront standard logging support writing to KMS-encrypted target buckets. The bucket is organized by prefix: `cloudfront/` for CloudFront standard logs, `s3-access-logs/` for S3 server access logs, and `athena-results/` for Athena query output. Glue catalog tables point at the log prefixes so Athena can query them directly with SQL. Athena's `PutObject` calls override the bucket-level SSE-S3 default on a per-object basis to write query results under `athena-results/` with SSE-KMS using the frontend CMK; the bucket-default constraint only applies to objects S3 chooses the encryption for, not to objects whose caller specifies it.
 
@@ -798,8 +798,8 @@ async delivery race re-creates CloudWatch **log groups** after CloudFormation de
 (provider Lambdas flush their final teardown logs late). `destroy-clean` sweeps those by
 stack-name prefix — but CloudFormation composes Lambda physical names as
 `{stack-name}-{logical-id}-{suffix}` truncated to 64 chars, and the cut lands **mid-way through
-the stack name**. A live teardown left `/aws/lambda/ServerlessAppFrontend-us-eas-CustomS3AutoDeleteObject-…`
-behind (`us-eas`, not `us-east-1`) — a name no full-stack-name prefix can match, and one that a
+the stack name**. A live teardown left `/aws/lambda/ServerlessAppFrontend-us--CustomS3AutoDeleteObject-…`
+behind (the region was truncated to `us-` mid-`us-east-1`, hence the doubled dash before the logical id) — a name no full-stack-name prefix can match, and one that a
 *broader* prefix can't safely match either without sweeping other deployment environments'
 groups. `destroy-clean` therefore also **snapshots the exact physical names** of every CFN-owned
 log group before destroying (CloudFormation knows them while the stacks still exist) and, after
@@ -821,7 +821,11 @@ make destroy-clean   # or: cdk destroy   (see the teardown gotcha above)
 ```
 
 Every resource (including all log groups) is `RemovalPolicy.DESTROY`, so a successful destroy
-leaves no dangling resources or ongoing AWS costs. The one caveat is the async-log-bucket race
+leaves no dangling resources or ongoing AWS costs. (The five customer-managed KMS keys are the one
+nuance — a CMK can't be deleted instantly, so CloudFormation schedules each into KMS's mandatory
+`PendingDeletion` waiting window rather than removing it on the spot. AWS bills nothing for a key
+pending deletion and it auto-deletes when the window elapses; run `aws kms cancel-key-deletion` if
+you tore down by mistake.) The other caveat is the async-log-bucket race
 described above — use `make destroy-clean` (or the documented two-step recovery) so a late-arriving
 CloudFront log doesn't leave the frontend stack stuck in `DELETE_FAILED`.
 

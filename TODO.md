@@ -137,6 +137,10 @@ The table and its dedicated CMK live in their own stack, [`DataStack`](infrastru
 - [ ] **Versioning on the frontend bucket** — currently disabled because git is the source of truth for deployed assets. If git is ever lost or assets get manually overwritten, recovery requires a redeploy from a known-good commit. Enabling versioning gives in-bucket recovery as well, and is also a prerequisite for cross-region replication.
 - [ ] **S3 Inventory / Storage Lens / Object Lock / Macie** — `(Required)` per the broader S3 best-practice set: Inventory exports object-level metadata daily, Storage Lens gives org-wide visibility, Object Lock enforces write-once retention for compliance, Macie scans for sensitive data. None justify themselves at sample-app scale; revisit at production scale or under compliance scope.
 
+### CloudFront
+
+- [ ] **Scope down the OAC SSE-KMS key-policy wildcard after first deploy** — `S3BucketOrigin.with_origin_access_control()` on the KMS-encrypted frontend bucket emits a key-policy condition whose `aws:SourceArn` matches *every* distribution in the account (`arn:aws:cloudfront::<account>:distribution/*`), to break the circular dependency between the key, bucket, and distribution on the *initial* deploy — CDK flags this as `@aws-cdk/aws-cloudfront-origins:wildcardKeyPolicyForOac` (a synth/deploy warning, observed on a live deploy). Once the distribution exists, AWS recommends tightening the condition to the specific distribution ARN. Doing so in CDK requires a second-deploy override (or a post-deploy key-policy edit) because the distribution ID isn't known at first synth. Low blast radius for a single-distribution account — only this account's CloudFront service can use the key, and only for this stack's bucket — but worth scoping for a multi-distribution account or a strict least-privilege posture.
+
 ### IAM
 
 - [ ] **Permissions boundary on the Lambda execution role** — already covered by [Narrow the CDK bootstrap permissions](#security) and the broader bootstrap-hardening item; the same `cdk bootstrap --custom-permissions-boundary` work applies to runtime roles, not just deployment roles.
