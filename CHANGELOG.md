@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-06-17
+
+### Build
+
+- Bump the linting group across 1 directory with 4 updates (#78)
+
 ## [2.0.0] - 2026-06-16
 
 ### Added
@@ -61,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run cdk-diff render from the PR checkout so npx uses the pinned CLI
 - Retry CDK coverage run to dodge flaky jsii MetadataEntry KeyError
 - Deselect the two jsii-flaky tests from the coverage run
+
+### Maintenance
+
+- Release v2.0.0
 
 ### Refactored
 
@@ -315,6 +325,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add error case unit tests for SSM failure, unknown route, and unsupported method
 - Separate CDK tests from unit tests so cdk-check CI job stops failing
 
+[2.0.1]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.0..v2.0.1
 [2.0.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.1.0..v2.0.0
 [1.1.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.0.1..v1.1.0
 [1.0.1]: https://github.com/timpugh/lambda-powertools-reference/compare/v1.0.0..v1.0.1
