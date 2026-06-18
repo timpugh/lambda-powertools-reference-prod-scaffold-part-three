@@ -1,0 +1,180 @@
+{
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "id": "NIST.800.53.R5-DynamoDBInBackupPlan",
+          "is_reason_encoded": true,
+          "reason": "QVdTIEJhY2t1cCBwbGFuIG5vdCBjb25maWd1cmVkIGZvciBzYW1wbGUgYXBwIOKAlCBQSVRSIGlzIGVuYWJsZWQgZm9yIHBvaW50LWluLXRpbWUgcmVjb3Zlcnk="
+        },
+        {
+          "id": "HIPAA.Security-DynamoDBInBackupPlan",
+          "is_reason_encoded": true,
+          "reason": "QVdTIEJhY2t1cCBwbGFuIG5vdCBjb25maWd1cmVkIGZvciBzYW1wbGUgYXBwIOKAlCBQSVRSIGlzIGVuYWJsZWQgZm9yIHBvaW50LWluLXRpbWUgcmVjb3Zlcnk="
+        }
+      ]
+    }
+  },
+  "Outputs": {
+    "ExportsOutputFnGetAttDataEncryptionKey101796EEArn95D63FE8": {
+      "Export": {
+        "Name": "ServerlessAppData-us-east-1:ExportsOutputFnGetAttDataEncryptionKey101796EEArn95D63FE8"
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "DataEncryptionKey101796EE",
+          "Arn"
+        ]
+      }
+    },
+    "ExportsOutputFnGetAttIdempotencyTableV203A5298EArn6C317160": {
+      "Export": {
+        "Name": "ServerlessAppData-us-east-1:ExportsOutputFnGetAttIdempotencyTableV203A5298EArn6C317160"
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "IdempotencyTableV203A5298E",
+          "Arn"
+        ]
+      }
+    },
+    "ExportsOutputRefIdempotencyTableV203A5298EA9078EF6": {
+      "Export": {
+        "Name": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+      },
+      "Value": {
+        "Ref": "IdempotencyTableV203A5298E"
+      }
+    },
+    "IdempotencyTableName": {
+      "Description": "DynamoDB table used for Lambda idempotency",
+      "Value": {
+        "Ref": "IdempotencyTableV203A5298E"
+      }
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>"
+    }
+  },
+  "Resources": {
+    "DataEncryptionKey101796EE": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "KMS key for ServerlessAppData-us-east-1 DynamoDB",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RotationPeriodInDays": 90
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "IdempotencyTableV203A5298E": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "id",
+            "AttributeType": "S"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+          {
+            "AttributeName": "id",
+            "KeyType": "HASH"
+          }
+        ],
+        "Replicas": [
+          {
+            "ContributorInsightsSpecification": {
+              "Enabled": true,
+              "Mode": "THROTTLED_KEYS"
+            },
+            "DeletionProtectionEnabled": false,
+            "PointInTimeRecoverySpecification": {
+              "PointInTimeRecoveryEnabled": true,
+              "RecoveryPeriodInDays": 1
+            },
+            "Region": "us-east-1",
+            "SSESpecification": {
+              "KMSMasterKeyId": {
+                "Fn::GetAtt": [
+                  "DataEncryptionKey101796EE",
+                  "Arn"
+                ]
+              }
+            }
+          }
+        ],
+        "SSESpecification": {
+          "SSEEnabled": true,
+          "SSEType": "KMS"
+        },
+        "TimeToLiveSpecification": {
+          "AttributeName": "expiration",
+          "Enabled": true
+        }
+      },
+      "Type": "AWS::DynamoDB::GlobalTable",
+      "UpdateReplacePolicy": "Delete"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}

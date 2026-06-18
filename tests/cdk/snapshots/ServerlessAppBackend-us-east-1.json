@@ -1,0 +1,3337 @@
+{
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "id": "AwsSolutions-APIG2",
+          "reason": "Request validation not needed for sample app"
+        },
+        {
+          "id": "AwsSolutions-APIG4",
+          "reason": "Authorization not needed for sample app"
+        },
+        {
+          "id": "AwsSolutions-COG4",
+          "reason": "Cognito authorizer not needed for sample app"
+        },
+        {
+          "id": "CdkNagValidationFailure",
+          "is_reason_encoded": true,
+          "reason": "U2VydmVybGVzcy1BUElHV1N0cnVjdHVyZWRMb2dnaW5nIHZhbGlkYXRpb24gZmFpbHMgZHVlIHRvIGludHJpbnNpYyBmdW5jdGlvbiByZWZlcmVuY2UgaW4gYWNjZXNzIGxvZyBkZXN0aW5hdGlvbiDigJQgc3RydWN0dXJlZCBKU09OIGxvZ2dpbmcgaXMgY29uZmlndXJlZCB2aWEgbG9nZ2luZ19mb3JtYXQ9SlNPTiBvbiB0aGUgTGFtYmRh"
+        },
+        {
+          "id": "NIST.800.53.R5-APIGWSSLEnabled",
+          "reason": "Client-side SSL certificates not required for sample app"
+        },
+        {
+          "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+          "is_reason_encoded": true,
+          "reason": "QVBJIEdhdGV3YXkgY2FjaGUgY2x1c3RlciBpbnRlbnRpb25hbGx5IGRpc2FibGVkIGZvciBjb3N0IHJlYXNvbnMg4oCUIHRoZSBzbWFsbGVzdCAwLjUgR0IgY2x1c3RlciBpcyB+JDE0L21vbnRoIGZvciBhIHNhbXBsZSBhcHAuIENhY2hpbmcgR0VUIC9ncmVldGluZyB3b3VsZCBhbHNvIHNlcnZlIHN0YWxlIHZhbHVlcyBhY3Jvc3MgU1NNIHBhcmFtZXRlciBhbmQgQXBwQ29uZmlnIGZlYXR1cmUtZmxhZyBjaGFuZ2VzLg=="
+        },
+        {
+          "id": "HIPAA.Security-APIGWSSLEnabled",
+          "reason": "Client-side SSL certificates not required for sample app"
+        },
+        {
+          "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+          "is_reason_encoded": true,
+          "reason": "QVBJIEdhdGV3YXkgY2FjaGUgY2x1c3RlciBpbnRlbnRpb25hbGx5IGRpc2FibGVkIGZvciBjb3N0IHJlYXNvbnMg4oCUIHNlZSBOSVNULjgwMC41My5SNS1BUElHV0NhY2hlRW5hYmxlZEFuZEVuY3J5cHRlZCByYXRpb25hbGUgYWJvdmUu"
+        },
+        {
+          "id": "PCI.DSS.321-APIGWSSLEnabled",
+          "reason": "Client-side SSL certificates not required for sample app"
+        },
+        {
+          "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+          "is_reason_encoded": true,
+          "reason": "QVBJIEdhdGV3YXkgY2FjaGUgY2x1c3RlciBpbnRlbnRpb25hbGx5IGRpc2FibGVkIGZvciBjb3N0IHJlYXNvbnMg4oCUIHNlZSBOSVNULjgwMC41My5SNS1BUElHV0NhY2hlRW5hYmxlZEFuZEVuY3J5cHRlZCByYXRpb25hbGUgYWJvdmUu"
+        }
+      ]
+    }
+  },
+  "Outputs": {
+    "AlarmTopicName": {
+      "Description": "SNS topic that CloudWatch alarms publish to (attach subscriptions here)",
+      "Value": {
+        "Fn::GetAtt": [
+          "AppAlarmTopicAD260C2E",
+          "TopicName"
+        ]
+      }
+    },
+    "ApiUrlOutput": {
+      "Description": "API Gateway endpoint URL for Prod stage",
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "AppRestApiB4885DCD"
+            },
+            ".execute-api.us-east-1.",
+            {
+              "Ref": "AWS::URLSuffix"
+            },
+            "/",
+            {
+              "Ref": "AppRestApiDeploymentStageProd56399416"
+            },
+            "/greeting"
+          ]
+        ]
+      }
+    },
+    "AppConfigAppName": {
+      "Description": "AppConfig application name for feature flags",
+      "Value": "ServerlessAppBackend-us-east-1-features"
+    },
+    "AppRestApiEndpoint325744F4": {
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Ref": "AppRestApiB4885DCD"
+            },
+            ".execute-api.us-east-1.",
+            {
+              "Ref": "AWS::URLSuffix"
+            },
+            "/",
+            {
+              "Ref": "AppRestApiDeploymentStageProd56399416"
+            },
+            "/"
+          ]
+        ]
+      }
+    },
+    "AwsCustomResourceProviderDlqUrl": {
+      "Description": "SQS DLQ capturing failed async invocations of the AWS679f53fac002430cb0da5b7982bd2287 provider Lambda",
+      "Value": {
+        "Ref": "AwsCustomResourceProviderDlqDF9B9BDA"
+      }
+    },
+    "CloudWatchDashboardUrl": {
+      "Description": "CloudWatch dashboard URL for this stack",
+      "Value": "https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards/dashboard/ServerlessAppBackend-us-east-1"
+    },
+    "ExportsOutputRefAppRestApiB4885DCD4DD8D922": {
+      "Export": {
+        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
+      },
+      "Value": {
+        "Ref": "AppRestApiB4885DCD"
+      }
+    },
+    "ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF": {
+      "Export": {
+        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF"
+      },
+      "Value": {
+        "Ref": "AppRestApiDeploymentStageProd56399416"
+      }
+    },
+    "FunctionArnOutput": {
+      "Description": "ARN of the Lambda function backing the greeting API",
+      "Value": {
+        "Fn::GetAtt": [
+          "AppApiFunctionDE515850",
+          "Arn"
+        ]
+      }
+    },
+    "FunctionIamRoleOutput": {
+      "Description": "IAM Role created for Serverless App function",
+      "Value": {
+        "Fn::GetAtt": [
+          "AppApiFunctionServiceRole6AC45AEC",
+          "Arn"
+        ]
+      }
+    },
+    "GreetingParameterName": {
+      "Description": "SSM parameter name for the greeting message",
+      "Value": {
+        "Ref": "AppGreetingParameterD5E6E64F"
+      }
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>"
+    }
+  },
+  "Resources": {
+    "AWS679f53fac002430cb0da5b7982bd22872D164C4C": {
+      "DependsOn": [
+        "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E",
+        "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Handler": "index.handler",
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "AppAwsCustomResourceLogGroup9899DFE4"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 120
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287EventInvokeConfig74F91771": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "AwsCustomResourceProviderDlqDF9B9BDA",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "FunctionName": {
+          "Ref": "AWS679f53fac002430cb0da5b7982bd22872D164C4C"
+        },
+        "Qualifier": "$LATEST"
+      },
+      "Type": "AWS::Lambda::EventInvokeConfig"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AwsCustomResourceProviderDlqDF9B9BDA",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AppEncryptionKey7F644894",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "AppAlarmTopicAD260C2E": {
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::SNS::Topic"
+    },
+    "AppAlarmTopicPolicyC01D10E0": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sns:Publish",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": {
+                "Ref": "AppAlarmTopicAD260C2E"
+              },
+              "Sid": "AllowPublishThroughSSLOnly"
+            },
+            {
+              "Action": "sns:Publish",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":cloudwatch:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":alarm:*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudwatch.amazonaws.com"
+              },
+              "Resource": {
+                "Ref": "AppAlarmTopicAD260C2E"
+              },
+              "Sid": "AllowCloudWatchAlarmsPublish"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Topics": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ]
+      },
+      "Type": "AWS::SNS::TopicPolicy"
+    },
+    "AppApiAccessLogsDD2CC3E5": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 90
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppApiExecutionLogs0AE84813": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "API-Gateway-Execution-Logs_",
+              {
+                "Ref": "AppRestApiB4885DCD"
+              },
+              "/Prod"
+            ]
+          ]
+        },
+        "RetentionInDays": 90
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppApiFunctionCurrentVersion01C510AC00051fab5823f34495b554499e1606d8": {
+      "Metadata": {
+        "aws:cdk:do-not-refactor": true,
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "Serverless-LambdaAsyncFailureDestination",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgbm8gYXN5bmMgZXZlbnQgc291cmNlIGV4aXN0czsgdGhlIEV2ZW50SW52b2tlQ29uZmlnIGV4aXN0cyBvbmx5IHRvIHBpbiByZXRyeV9hdHRlbXB0cz0w"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "a21zOkdlbmVyYXRlRGF0YUtleSogYW5kIGttczpSZUVuY3J5cHQqIHJlcXVpcmUgd2lsZGNhcmQgYWN0aW9uIHN1ZmZpeCDigJQgc3RhbmRhcmQgS01TIHVzYWdlIHBhdHRlcm4="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "WC1SYXkgc2VnbWVudHMgaGF2ZSBubyByZXNvdXJjZS1sZXZlbCBBUk4g4oCUIHdpbGRjYXJkIGlzIHJlcXVpcmVkIGZvciB0aGUgWC1SYXkgd3JpdGUgc3RhdGVtZW50IG9ubHk="
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AppApiFunctionDE515850"
+        }
+      },
+      "Type": "AWS::Lambda::Version"
+    },
+    "AppApiFunctionDE515850": {
+      "DependsOn": [
+        "AppApiFunctionServiceRoleDefaultPolicy6A1593AC",
+        "AppApiFunctionServiceRole6AC45AEC"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "Serverless-LambdaAsyncFailureDestination",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgbm8gYXN5bmMgZXZlbnQgc291cmNlIGV4aXN0czsgdGhlIEV2ZW50SW52b2tlQ29uZmlnIGV4aXN0cyBvbmx5IHRvIHBpbiByZXRyeV9hdHRlbXB0cz0w"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "a21zOkdlbmVyYXRlRGF0YUtleSogYW5kIGttczpSZUVuY3J5cHQqIHJlcXVpcmUgd2lsZGNhcmQgYWN0aW9uIHN1ZmZpeCDigJQgc3RhbmRhcmQgS01TIHVzYWdlIHBhdHRlcm4="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "WC1SYXkgc2VnbWVudHMgaGF2ZSBubyByZXNvdXJjZS1sZXZlbCBBUk4g4oCUIHdpbGRjYXJkIGlzIHJlcXVpcmVkIGZvciB0aGUgWC1SYXkgd3JpdGUgc3RhdGVtZW50IG9ubHk="
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Architectures": [
+          "arm64"
+        ],
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Environment": {
+          "Variables": {
+            "APPCONFIG_APP_NAME": "ServerlessAppBackend-us-east-1-features",
+            "APPCONFIG_ENV_NAME": "ServerlessAppBackend-us-east-1-env",
+            "APPCONFIG_MAX_AGE_SECONDS": "300",
+            "APPCONFIG_PROFILE_NAME": "ServerlessAppBackend-us-east-1-flags",
+            "GREETING_PARAM_NAME": {
+              "Ref": "AppGreetingParameterD5E6E64F"
+            },
+            "IDEMPOTENCY_TABLE_NAME": {
+              "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+            },
+            "POWERTOOLS_LOG_LEVEL": "INFO",
+            "POWERTOOLS_METRICS_NAMESPACE": "ServerlessApp",
+            "POWERTOOLS_SERVICE_NAME": "serverless-app"
+          }
+        },
+        "Handler": "app.lambda_handler",
+        "KmsKeyArn": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "LoggingConfig": {
+          "LogFormat": "JSON",
+          "LogGroup": {
+            "Ref": "AppFunctionLogGroupB9961371"
+          },
+          "SystemLogLevel": "INFO"
+        },
+        "MemorySize": 256,
+        "RecursiveLoop": "Terminate",
+        "ReservedConcurrentExecutions": 100,
+        "Role": {
+          "Fn::GetAtt": [
+            "AppApiFunctionServiceRole6AC45AEC",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.14",
+        "Timeout": 10,
+        "TracingConfig": {
+          "Mode": "Active"
+        }
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "AppApiFunctionEventInvokeConfigDB7250CF": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "Serverless-LambdaAsyncFailureDestination",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgbm8gYXN5bmMgZXZlbnQgc291cmNlIGV4aXN0czsgdGhlIEV2ZW50SW52b2tlQ29uZmlnIGV4aXN0cyBvbmx5IHRvIHBpbiByZXRyeV9hdHRlbXB0cz0w"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "a21zOkdlbmVyYXRlRGF0YUtleSogYW5kIGttczpSZUVuY3J5cHQqIHJlcXVpcmUgd2lsZGNhcmQgYWN0aW9uIHN1ZmZpeCDigJQgc3RhbmRhcmQgS01TIHVzYWdlIHBhdHRlcm4="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "WC1SYXkgc2VnbWVudHMgaGF2ZSBubyByZXNvdXJjZS1sZXZlbCBBUk4g4oCUIHdpbGRjYXJkIGlzIHJlcXVpcmVkIGZvciB0aGUgWC1SYXkgd3JpdGUgc3RhdGVtZW50IG9ubHk="
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AppApiFunctionDE515850"
+        },
+        "MaximumRetryAttempts": 0,
+        "Qualifier": "$LATEST"
+      },
+      "Type": "AWS::Lambda::EventInvokeConfig"
+    },
+    "AppApiFunctionServiceRole6AC45AEC": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "Serverless-LambdaAsyncFailureDestination",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgbm8gYXN5bmMgZXZlbnQgc291cmNlIGV4aXN0czsgdGhlIEV2ZW50SW52b2tlQ29uZmlnIGV4aXN0cyBvbmx5IHRvIHBpbiByZXRyeV9hdHRlbXB0cz0w"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "a21zOkdlbmVyYXRlRGF0YUtleSogYW5kIGttczpSZUVuY3J5cHQqIHJlcXVpcmUgd2lsZGNhcmQgYWN0aW9uIHN1ZmZpeCDigJQgc3RhbmRhcmQgS01TIHVzYWdlIHBhdHRlcm4="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "WC1SYXkgc2VnbWVudHMgaGF2ZSBubyByZXNvdXJjZS1sZXZlbCBBUk4g4oCUIHdpbGRjYXJkIGlzIHJlcXVpcmVkIGZvciB0aGUgWC1SYXkgd3JpdGUgc3RhdGVtZW50IG9ubHk="
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "AppApiFunctionServiceRoleDefaultPolicy6A1593AC": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "Serverless-LambdaAsyncFailureDestination",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgbm8gYXN5bmMgZXZlbnQgc291cmNlIGV4aXN0czsgdGhlIEV2ZW50SW52b2tlQ29uZmlnIGV4aXN0cyBvbmx5IHRvIHBpbiByZXRyeV9hdHRlbXB0cz0w"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "SW52b2tlZCBzeW5jaHJvbm91c2x5IHZpYSBBUEkgR2F0ZXdheSDigJQgYXN5bmMgRExRIHBhdHRlcm4gZG9lcyBub3QgYXBwbHk="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Tm8gVlBDIOKAlCBhZGRzIHNpZ25pZmljYW50IG9wZXJhdGlvbmFsIGNvbXBsZXhpdHk="
+            },
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "a21zOkdlbmVyYXRlRGF0YUtleSogYW5kIGttczpSZUVuY3J5cHQqIHJlcXVpcmUgd2lsZGNhcmQgYWN0aW9uIHN1ZmZpeCDigJQgc3RhbmRhcmQgS01TIHVzYWdlIHBhdHRlcm4="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "WC1SYXkgc2VnbWVudHMgaGF2ZSBubyByZXNvdXJjZS1sZXZlbCBBUk4g4oCUIHdpbGRjYXJkIGlzIHJlcXVpcmVkIGZvciB0aGUgWC1SYXkgd3JpdGUgc3RhdGVtZW50IG9ubHk="
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgZGVmYXVsdCBwb2xpY3kgaW5saW5lIG9uIHRoZSBMYW1iZGEgc2VydmljZSByb2xlIOKAlCBub3QgZGlyZWN0bHkgY29uZmlndXJhYmxl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "xray:PutTraceSegments",
+                "xray:PutTelemetryRecords"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputFnGetAttDataEncryptionKey101796EEArn95D63FE8"
+              }
+            },
+            {
+              "Action": [
+                "dynamodb:BatchGetItem",
+                "dynamodb:Query",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:DescribeTable"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputFnGetAttIdempotencyTableV203A5298EArn6C317160"
+              }
+            },
+            {
+              "Action": [
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputFnGetAttIdempotencyTableV203A5298EArn6C317160"
+              }
+            },
+            {
+              "Action": [
+                "ssm:DescribeParameters",
+                "ssm:GetParameters",
+                "ssm:GetParameter",
+                "ssm:GetParameterHistory"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":ssm:us-east-1:",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":parameter/",
+                    {
+                      "Ref": "AppGreetingParameterD5E6E64F"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": [
+                "appconfig:StartConfigurationSession",
+                "appconfig:GetLatestConfiguration"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":appconfig:us-east-1:",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":application/",
+                    {
+                      "Ref": "AppFeatureFlagsAppD0EAAC11"
+                    },
+                    "/environment/",
+                    {
+                      "Ref": "AppFeatureFlagsEnvBF21F0D3"
+                    },
+                    "/configuration/",
+                    {
+                      "Ref": "AppFeatureFlagsProfile324F0464"
+                    }
+                  ]
+                ]
+              }
+            },
+            {
+              "Action": "kms:Decrypt",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AppEncryptionKey7F644894",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "AppApiFunctionServiceRoleDefaultPolicy6A1593AC",
+        "Roles": [
+          {
+            "Ref": "AppApiFunctionServiceRole6AC45AEC"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "AppApiGatewayErrors13599598": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppApiAccessLogsDD2CC3E5"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/ApiGateway/4xx5xxErrors",
+        "QueryString": "fields @timestamp, status, httpMethod, resourcePath, errorMessage, responseType, ip, xrayTraceId, requestId\n| filter status >= 400\n| sort @timestamp desc\n| limit 50"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppApiGatewayLatency044C2C9C": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppApiAccessLogsDD2CC3E5"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/ApiGateway/SlowestRequests",
+        "QueryString": "fields @timestamp, responseLatency, status, httpMethod, resourcePath, responseLength, ip, xrayTraceId, requestId\n| sort responseLatency desc\n| limit 50"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppApiGatewayRequestsByIp56EA52A3": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppApiAccessLogsDD2CC3E5"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/ApiGateway/RequestsByIP",
+        "QueryString": "fields ip\n| stats count(*) as requestCount by ip\n| sort requestCount desc\n| limit 25"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppApiRegionalWafLoggingB2DC4D0F": {
+      "DependsOn": [
+        "WafLogsBucketPolicyC1654A35"
+      ],
+      "Properties": {
+        "LogDestinationConfigs": [
+          {
+            "Fn::GetAtt": [
+              "WafLogsBucket2E62CA90",
+              "Arn"
+            ]
+          }
+        ],
+        "ResourceArn": {
+          "Fn::GetAtt": [
+            "AppApiRegionalWebACL03074A4B",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::WAFv2::LoggingConfiguration"
+    },
+    "AppApiRegionalWebACL03074A4B": {
+      "Properties": {
+        "DefaultAction": {
+          "Allow": {}
+        },
+        "Name": "ServerlessAppBackend-us-east-1-api",
+        "Rules": [
+          {
+            "Name": "AWSManagedRulesAmazonIpReputationList",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 0,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesAmazonIpReputationList",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppBackend-us-east-1-api-IpReputationList",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesCommonRuleSet",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 1,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesCommonRuleSet",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppBackend-us-east-1-api-CommonRuleSet",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesKnownBadInputsRuleSet",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 2,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesKnownBadInputsRuleSet",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppBackend-us-east-1-api-KnownBadInputs",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesAnonymousIpList",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 3,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesAnonymousIpList",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppBackend-us-east-1-api-AnonymousIpList",
+              "SampledRequestsEnabled": true
+            }
+          }
+        ],
+        "Scope": "REGIONAL",
+        "VisibilityConfig": {
+          "CloudWatchMetricsEnabled": true,
+          "MetricName": "ServerlessAppBackend-us-east-1ApiRegionalWebACL",
+          "SampledRequestsEnabled": true
+        }
+      },
+      "Type": "AWS::WAFv2::WebACL"
+    },
+    "AppApiRegionalWebACLAssociationBE75DEA8": {
+      "Properties": {
+        "ResourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":apigateway:us-east-1::/restapis/",
+              {
+                "Ref": "AppRestApiB4885DCD"
+              },
+              "/stages/",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              }
+            ]
+          ]
+        },
+        "WebACLArn": {
+          "Fn::GetAtt": [
+            "AppApiRegionalWebACL03074A4B",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::WAFv2::WebACLAssociation"
+    },
+    "AppAppInsightsDashboardCleanup0E002186": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AppAppInsightsDashboardCleanupCustomResourcePolicyD9FB8817",
+        "AppApplicationInsightsMonitoring169D3BF2"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Delete": "{\"action\":\"deleteDashboards\",\"service\":\"CloudWatch\",\"parameters\":{\"DashboardNames\":[\"ApplicationInsights-ApplicationInsights-ServerlessAppBackend-us-east-1\"]},\"physicalResourceId\":{\"id\":\"ApplicationInsights-ApplicationInsights-ServerlessAppBackend-us-east-1\"}}",
+        "InstallLatestAwsSdk": false,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppAppInsightsDashboardCleanupCustomResourcePolicyD9FB8817": {
+      "DependsOn": [
+        "AppApplicationInsightsMonitoring169D3BF2"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgZ2VuZXJhdGVzIGFuIGlubGluZSBwb2xpY3kg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "cloudwatch:DeleteDashboards",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":cloudwatch::",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":dashboard/ApplicationInsights-ApplicationInsights-ServerlessAppBackend-us-east-1"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "AppAppInsightsDashboardCleanupCustomResourcePolicyD9FB8817",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "AppApplicationInsightsMonitoring169D3BF2": {
+      "DependsOn": [
+        "AppApplicationResourceGroup6F8349BE"
+      ],
+      "Properties": {
+        "AutoConfigurationEnabled": true,
+        "ResourceGroupName": "ApplicationInsights-ServerlessAppBackend-us-east-1"
+      },
+      "Type": "AWS::ApplicationInsights::Application"
+    },
+    "AppApplicationResourceGroup6F8349BE": {
+      "Properties": {
+        "Name": "ApplicationInsights-ServerlessAppBackend-us-east-1",
+        "ResourceQuery": {
+          "Type": "CLOUDFORMATION_STACK_1_0"
+        }
+      },
+      "Type": "AWS::ResourceGroups::Group"
+    },
+    "AppAwsCustomResourceLogGroup9899DFE4": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppCanaryDeploymentGroup1EA31477": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "is_reason_encoded": true,
+              "reason": "Q29kZURlcGxveSBzZXJ2aWNlIHJvbGUgdXNlcyB0aGUgQVdTIG1hbmFnZWQgQVdTQ29kZURlcGxveVJvbGVGb3JMYW1iZGFMaW1pdGVkIHBvbGljeSDigJQgdGhlIGRvY3VtZW50ZWQgbGVhc3QtcHJpdmlsZWdlIHJvbGUgZm9yIExhbWJkYSB0cmFmZmljLXNoaWZ0aW5nIGRlcGxveW1lbnRz"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmConfiguration": {
+          "Alarms": [
+            {
+              "Name": {
+                "Ref": "AppCanaryErrorsAlarm4CBED174"
+              }
+            }
+          ],
+          "Enabled": true
+        },
+        "ApplicationName": {
+          "Ref": "AppCanaryDeploymentGroupApplicationDA9C4E22"
+        },
+        "AutoRollbackConfiguration": {
+          "Enabled": true,
+          "Events": [
+            "DEPLOYMENT_FAILURE",
+            "DEPLOYMENT_STOP_ON_ALARM"
+          ]
+        },
+        "DeploymentConfigName": "CodeDeployDefault.LambdaCanary10Percent5Minutes",
+        "DeploymentStyle": {
+          "DeploymentOption": "WITH_TRAFFIC_CONTROL",
+          "DeploymentType": "BLUE_GREEN"
+        },
+        "ServiceRoleArn": {
+          "Fn::GetAtt": [
+            "AppCanaryDeploymentGroupServiceRole913D9140",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::CodeDeploy::DeploymentGroup"
+    },
+    "AppCanaryDeploymentGroupApplicationDA9C4E22": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "is_reason_encoded": true,
+              "reason": "Q29kZURlcGxveSBzZXJ2aWNlIHJvbGUgdXNlcyB0aGUgQVdTIG1hbmFnZWQgQVdTQ29kZURlcGxveVJvbGVGb3JMYW1iZGFMaW1pdGVkIHBvbGljeSDigJQgdGhlIGRvY3VtZW50ZWQgbGVhc3QtcHJpdmlsZWdlIHJvbGUgZm9yIExhbWJkYSB0cmFmZmljLXNoaWZ0aW5nIGRlcGxveW1lbnRz"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "ComputePlatform": "Lambda"
+      },
+      "Type": "AWS::CodeDeploy::Application"
+    },
+    "AppCanaryDeploymentGroupServiceRole913D9140": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "is_reason_encoded": true,
+              "reason": "Q29kZURlcGxveSBzZXJ2aWNlIHJvbGUgdXNlcyB0aGUgQVdTIG1hbmFnZWQgQVdTQ29kZURlcGxveVJvbGVGb3JMYW1iZGFMaW1pdGVkIHBvbGljeSDigJQgdGhlIGRvY3VtZW50ZWQgbGVhc3QtcHJpdmlsZWdlIHJvbGUgZm9yIExhbWJkYSB0cmFmZmljLXNoaWZ0aW5nIGRlcGxveW1lbnRz"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codedeploy.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSCodeDeployRoleForLambdaLimited"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "AppCanaryErrorsAlarm4CBED174": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-CloudWatchAlarmAction",
+              "is_reason_encoded": true,
+              "reason": "QWxhcm0gaXMgY29uc3VtZWQgYnkgdGhlIENvZGVEZXBsb3kgY2FuYXJ5IHJvbGxiYWNrLCB3aGljaCBwb2xscyBpdHMgc3RhdGUgdG8gZGVjaWRlIG9uIHJvbGxiYWNrIOKAlCBub3QgYSBub3RpZmljYXRpb24gY2hhbm5lbCwgc28gbm8gU05TIGFjdGlvbiBieSBkZXNpZ24="
+            },
+            {
+              "id": "HIPAA.Security-CloudWatchAlarmAction",
+              "is_reason_encoded": true,
+              "reason": "QWxhcm0gaXMgY29uc3VtZWQgYnkgdGhlIENvZGVEZXBsb3kgY2FuYXJ5IHJvbGxiYWNrLCB3aGljaCBwb2xscyBpdHMgc3RhdGUgdG8gZGVjaWRlIG9uIHJvbGxiYWNrIOKAlCBub3QgYSBub3RpZmljYXRpb24gY2hhbm5lbCwgc28gbm8gU05TIGFjdGlvbiBieSBkZXNpZ24="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmDescription": "Lambda alias errors during a CodeDeploy traffic shift \u2014 triggers rollback",
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "AppApiFunctionDE515850"
+            }
+          },
+          {
+            "Name": "Resource",
+            "Value": {
+              "Fn::Join": [
+                "",
+                [
+                  {
+                    "Ref": "AppApiFunctionDE515850"
+                  },
+                  ":live"
+                ]
+              ]
+            }
+          }
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "Errors",
+        "Namespace": "AWS/Lambda",
+        "Period": 60,
+        "Statistic": "Sum",
+        "Threshold": 1,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppEncryptionKey7F644894": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "KMS key for ServerlessAppBackend-us-east-1 log groups, Lambda env, AppConfig, and SNS",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:Encrypt*",
+                "kms:Decrypt*",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:Describe*"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "kms:EncryptionContext:aws:logs:arn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:*"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logs.us-east-1.amazonaws.com"
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": "kms:Decrypt",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":guardduty:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":detector/*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "guardduty.amazonaws.com"
+              },
+              "Resource": "*",
+              "Sid": "AllowGuardDutyDecrypt"
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:GenerateDataKey*"
+              ],
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "kms:ViaService": "sns.us-east-1.amazonaws.com"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudwatch.amazonaws.com"
+              },
+              "Resource": "*",
+              "Sid": "AllowCloudWatchAlarmsViaSns"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RotationPeriodInDays": 90
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppFeatureFlagsAppD0EAAC11": {
+      "Properties": {
+        "Name": "ServerlessAppBackend-us-east-1-features"
+      },
+      "Type": "AWS::AppConfig::Application"
+    },
+    "AppFeatureFlagsDeployStrategyF51A0361": {
+      "Properties": {
+        "DeploymentDurationInMinutes": 0,
+        "FinalBakeTimeInMinutes": 0,
+        "GrowthFactor": 100,
+        "GrowthType": "LINEAR",
+        "Name": "ServerlessAppBackend-us-east-1-all-at-once",
+        "ReplicateTo": "NONE"
+      },
+      "Type": "AWS::AppConfig::DeploymentStrategy"
+    },
+    "AppFeatureFlagsDeployment1CB9CC7C": {
+      "Properties": {
+        "ApplicationId": {
+          "Ref": "AppFeatureFlagsAppD0EAAC11"
+        },
+        "ConfigurationProfileId": {
+          "Ref": "AppFeatureFlagsProfile324F0464"
+        },
+        "ConfigurationVersion": {
+          "Ref": "AppFeatureFlagsVersion486FFE3A"
+        },
+        "DeploymentStrategyId": {
+          "Ref": "AppFeatureFlagsDeployStrategyF51A0361"
+        },
+        "EnvironmentId": {
+          "Ref": "AppFeatureFlagsEnvBF21F0D3"
+        },
+        "KmsKeyIdentifier": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::AppConfig::Deployment"
+    },
+    "AppFeatureFlagsEnvBF21F0D3": {
+      "Properties": {
+        "ApplicationId": {
+          "Ref": "AppFeatureFlagsAppD0EAAC11"
+        },
+        "DeletionProtectionCheck": "BYPASS",
+        "Name": "ServerlessAppBackend-us-east-1-env"
+      },
+      "Type": "AWS::AppConfig::Environment"
+    },
+    "AppFeatureFlagsProfile324F0464": {
+      "Properties": {
+        "ApplicationId": {
+          "Ref": "AppFeatureFlagsAppD0EAAC11"
+        },
+        "DeletionProtectionCheck": "BYPASS",
+        "KmsKeyIdentifier": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "LocationUri": "hosted",
+        "Name": "ServerlessAppBackend-us-east-1-flags",
+        "Type": "AWS.Freeform"
+      },
+      "Type": "AWS::AppConfig::ConfigurationProfile"
+    },
+    "AppFeatureFlagsVersion486FFE3A": {
+      "Properties": {
+        "ApplicationId": {
+          "Ref": "AppFeatureFlagsAppD0EAAC11"
+        },
+        "ConfigurationProfileId": {
+          "Ref": "AppFeatureFlagsProfile324F0464"
+        },
+        "Content": "{\n  \"enhanced_greeting\": {\n    \"default\": false\n  }\n}\n",
+        "ContentType": "application/json"
+      },
+      "Type": "AWS::AppConfig::HostedConfigurationVersion"
+    },
+    "AppFunctionLogGroupB9961371": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 90
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppGreetingParameterD5E6E64F": {
+      "Properties": {
+        "Type": "String",
+        "Value": "hello world"
+      },
+      "Type": "AWS::SSM::Parameter"
+    },
+    "AppLambdaColdStarts6D375D5A": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppFunctionLogGroupB9961371"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/Lambda/ColdStarts",
+        "QueryString": "fields @timestamp, function_name, function_request_id, xray_trace_id\n| filter cold_start = true\n| sort @timestamp desc\n| limit 50"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppLambdaRecentErrors0008ACA4": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppFunctionLogGroupB9961371"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/Lambda/RecentErrors",
+        "QueryString": "fields @timestamp, level, message, xray_trace_id, function_request_id, exception, exception_name\n| filter level = 'ERROR'\n| sort @timestamp desc\n| limit 50"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppLambdaSlowInvocations760C2E05": {
+      "Properties": {
+        "LogGroupNames": [
+          {
+            "Ref": "AppFunctionLogGroupB9961371"
+          }
+        ],
+        "Name": "ServerlessAppBackend-us-east-1/Lambda/SlowInvocations",
+        "QueryString": "fields @timestamp, record.metrics.durationMs, record.requestId, record.metrics.maxMemoryUsedMB\n| filter type = 'platform.report'\n| filter record.metrics.durationMs > 3000\n| sort record.metrics.durationMs desc\n| limit 50"
+      },
+      "Type": "AWS::Logs::QueryDefinition"
+    },
+    "AppLiveAlias3872472E": {
+      "Properties": {
+        "FunctionName": {
+          "Ref": "AppApiFunctionDE515850"
+        },
+        "FunctionVersion": {
+          "Fn::GetAtt": [
+            "AppApiFunctionCurrentVersion01C510AC00051fab5823f34495b554499e1606d8",
+            "Version"
+          ]
+        },
+        "Name": "live"
+      },
+      "Type": "AWS::Lambda::Alias",
+      "UpdatePolicy": {
+        "CodeDeployLambdaAliasUpdate": {
+          "ApplicationName": {
+            "Ref": "AppCanaryDeploymentGroupApplicationDA9C4E22"
+          },
+          "DeploymentGroupName": {
+            "Ref": "AppCanaryDeploymentGroup1EA31477"
+          }
+        }
+      }
+    },
+    "AppMonitoringDashboardFactoryDashboard0CCA23D1": {
+      "Properties": {
+        "DashboardBody": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"start\":\"-PT8H\",\"periodOverride\":\"inherit\",\"widgets\":[{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":0,\"properties\":{\"markdown\":\"# Service health\"}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":1,\"properties\":{\"markdown\":\"### Lambda Function **[ApiFunction](https://us-east-1.console.aws.amazon.com/lambda/home?region=us-east-1#/functions/",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              ")**\"}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":0,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"TPS\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"TPS\",\"expression\":\"FILL(requests,0) / PERIOD(requests)\"}],[\"AWS/Lambda\",\"Invocations\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Invocations\",\"id\":\"requests\",\"visible\":false,\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":6,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Latency\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"Duration\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"P50 (avg: ${AVG})\",\"stat\":\"p50\"}],[\"AWS/Lambda\",\"Duration\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"P90 (avg: ${AVG})\",\"stat\":\"p90\"}],[\"AWS/Lambda\",\"Duration\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"P99 (avg: ${AVG})\",\"stat\":\"p99\"}]],\"annotations\":{\"horizontal\":[{\"label\":\"P90 > 3000 for 3 datapoints within 15 minutes\",\"value\":3000,\"yAxis\":\"left\"}]},\"yAxis\":{\"left\":{\"min\":0,\"label\":\"ms\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":12,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors (rate)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"Errors\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Faults (avg)\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":18,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Rates\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"Throttles\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Throttles (avg)\"}],[\"AWS/Lambda\",\"ProvisionedConcurrencySpilloverInvocations\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Provisioned Concurrency Spillovers (avg)\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":8,\"height\":5,\"x\":0,\"y\":7,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Invocations\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"Invocations\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Invocations\",\"stat\":\"Sum\"}],[\"AWS/Lambda\",\"Throttles\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Throttles\",\"stat\":\"Sum\"}],[\"AWS/Lambda\",\"ConcurrentExecutions\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Concurrent\",\"stat\":\"Maximum\"}],[\"AWS/Lambda\",\"ProvisionedConcurrencySpilloverInvocations\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Provisioned Concurrency Spillovers\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":8,\"height\":5,\"x\":8,\"y\":7,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"Errors\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Faults\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":8,\"height\":5,\"x\":16,\"y\":12,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Iterator\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Lambda\",\"IteratorAge\",\"FunctionName\",\"",
+              {
+                "Ref": "AppApiFunctionDE515850"
+              },
+              "\",{\"label\":\"Iterator Age\",\"stat\":\"Maximum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"ms\",\"showUnits\":false}}}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":17,\"properties\":{\"markdown\":\"### Log Group **[",
+              {
+                "Ref": "AppFunctionLogGroupB9961371"
+              },
+              "](https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/",
+              {
+                "Ref": "AppFunctionLogGroupB9961371"
+              },
+              ")**\"}},{\"type\":\"log\",\"width\":18,\"height\":10,\"x\":0,\"y\":18,\"properties\":{\"view\":\"table\",\"title\":\"Find ERROR (limit = 10)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"query\":\"SOURCE '",
+              {
+                "Ref": "AppFunctionLogGroupB9961371"
+              },
+              "' | fields @timestamp, @logStream, @message\\n| filter @message like /ERROR/\\n| sort @timestamp desc\\n| limit 10\"}},{\"type\":\"metric\",\"width\":6,\"height\":10,\"x\":18,\"y\":18,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Incoming logs\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/Logs\",\"IncomingLogEvents\",\"LogGroupName\",\"",
+              {
+                "Ref": "AppFunctionLogGroupB9961371"
+              },
+              "\",{\"label\":\"Logs\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":28,\"properties\":{\"markdown\":\"### API Gateway Endpoint **RestApi**\"}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":0,\"y\":29,\"properties\":{\"view\":\"timeSeries\",\"title\":\"TPS\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"Count/s\",\"expression\":\"FILL(requests,0) / PERIOD(requests)\"}],[\"AWS/ApiGateway\",\"Count\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"Count\",\"id\":\"requests\",\"visible\":false,\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":6,\"y\":29,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Latency\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/ApiGateway\",\"Latency\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"P50 (avg: ${AVG})\",\"stat\":\"p50\"}],[\"AWS/ApiGateway\",\"Latency\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"P90 (avg: ${AVG})\",\"stat\":\"p90\"}],[\"AWS/ApiGateway\",\"Latency\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"P99 (avg: ${AVG})\",\"stat\":\"p99\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"ms\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":12,\"y\":29,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/ApiGateway\",\"4XXError\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"4XX Error\",\"stat\":\"Sum\"}],[\"AWS/ApiGateway\",\"5XXError\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"5XX Fault\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":18,\"y\":29,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors (rate)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"AWS/ApiGateway\",\"4XXError\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"4XX Error (avg)\"}],[\"AWS/ApiGateway\",\"5XXError\",\"ApiName\",\"RestApi\",\"Stage\",\"",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "\",{\"label\":\"5XX Fault (avg)\"}]],\"annotations\":{\"horizontal\":[{\"label\":\"5XX Fault (avg) > 1 for 3 datapoints within 15 minutes\",\"value\":1,\"yAxis\":\"left\"}]},\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":34,\"properties\":{\"markdown\":\"### Dynamo Table **[IdempotencyTableV2](https://us-east-1.console.aws.amazon.com/dynamodb/home?region=us-east-1#tables:selected=",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              ")**\"}},{\"type\":\"metric\",\"width\":6,\"height\":3,\"x\":0,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Read Usage\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"Consumed\",\"expression\":\"consumed_rcu_sum/PERIOD(consumed_rcu_sum)\"}],[\"AWS/DynamoDB\",\"ConsumedReadCapacityUnits\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"consumed_rcu_sum\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":3,\"x\":0,\"y\":38,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Write Usage\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"Consumed\",\"expression\":\"consumed_wcu_sum/PERIOD(consumed_wcu_sum)\"}],[\"AWS/DynamoDB\",\"ConsumedWriteCapacityUnits\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"consumed_wcu_sum\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":9,\"height\":6,\"x\":6,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Latency (Average)\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\" \",\"expression\":\"SEARCH('{\\\"AWS/DynamoDB\\\",\\\"TableName\\\",\\\"Operation\\\"} \\\"TableName\\\"=\\\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\\\" MetricName=\\\"SuccessfulRequestLatency\\\"', 'Average', 300)\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"ms\",\"showUnits\":false}},\"legend\":{\"position\":\"right\"}}},{\"type\":\"metric\",\"width\":3,\"height\":6,\"x\":15,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Throttles\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"Read\",\"expression\":\"FILL(readThrottles,0)\"}],[\"AWS/DynamoDB\",\"ReadThrottleEvents\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"label\":\"Read\",\"id\":\"readThrottles\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[{\"label\":\"Write\",\"expression\":\"FILL(writeThrottles,0)\"}],[\"AWS/DynamoDB\",\"WriteThrottleEvents\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"label\":\"Write\",\"id\":\"writeThrottles\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":18,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[{\"label\":\"System Errors\",\"expression\":\"systemErrorGetItem+systemErrorBatchGetItem+systemErrorScan+systemErrorQuery+systemErrorGetRecords+systemErrorPutItem+systemErrorDeleteItem+systemErrorUpdateItem+systemErrorBatchWriteItem\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"GetItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorGetItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"BatchGetItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorBatchGetItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"Scan\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorScan\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"Query\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorQuery\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"GetRecords\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorGetRecords\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"PutItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorPutItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"DeleteItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorDeleteItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"UpdateItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorUpdateItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}],[\"AWS/DynamoDB\",\"SystemErrors\",\"Operation\",\"BatchWriteItem\",\"TableName\",\"",
+              {
+                "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+              },
+              "\",{\"id\":\"systemErrorBatchWriteItem\",\"visible\":false,\"accountId\":\"",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":41,\"properties\":{\"markdown\":\"# Business KPIs\"}},{\"type\":\"text\",\"width\":24,\"height\":1,\"x\":0,\"y\":42,\"properties\":{\"markdown\":\"### Business KPIs\"}},{\"type\":\"metric\",\"width\":24,\"height\":5,\"x\":0,\"y\":43,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Hourly greeting requests\",\"region\":\"",
+              {
+                "Ref": "AWS::Region"
+              },
+              "\",\"metrics\":[[\"ServerlessApp\",\"GreetingRequests\",\"service\",\"serverless-app\",{\"label\":\"greeting requests\",\"period\":3600,\"stat\":\"Sum\"}]],\"yAxis\":{}}}]}"
+            ]
+          ]
+        },
+        "DashboardName": "ServerlessAppBackend-us-east-1"
+      },
+      "Type": "AWS::CloudWatch::Dashboard"
+    },
+    "AppMonitoringServerlessAppBackenduseast1ApiFunctionLatencyP90p90BC0B58EC": {
+      "Properties": {
+        "ActionsEnabled": true,
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "P90 latency is too high.",
+        "AlarmName": "ServerlessAppBackend-us-east-1-ApiFunction-Latency-P90-p90",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "DatapointsToAlarm": 3,
+        "EvaluationPeriods": 3,
+        "Metrics": [
+          {
+            "Id": "m1",
+            "Label": "P90",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "FunctionName",
+                    "Value": {
+                      "Ref": "AppApiFunctionDE515850"
+                    }
+                  }
+                ],
+                "MetricName": "Duration",
+                "Namespace": "AWS/Lambda"
+              },
+              "Period": 300,
+              "Stat": "p90"
+            },
+            "ReturnData": true
+          }
+        ],
+        "Threshold": 3000,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppMonitoringServerlessAppBackenduseast1RestApiFaultRateinternalerrorAE344767": {
+      "Properties": {
+        "ActionsEnabled": true,
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Fault rate is too high.",
+        "AlarmName": "ServerlessAppBackend-us-east-1-RestApi-Fault-Rate-internal_error",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "DatapointsToAlarm": 3,
+        "EvaluationPeriods": 3,
+        "Metrics": [
+          {
+            "Id": "m1",
+            "Label": "5XX Fault (avg)",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "ApiName",
+                    "Value": "RestApi"
+                  },
+                  {
+                    "Name": "Stage",
+                    "Value": {
+                      "Ref": "AppRestApiDeploymentStageProd56399416"
+                    }
+                  }
+                ],
+                "MetricName": "5XXError",
+                "Namespace": "AWS/ApiGateway"
+              },
+              "Period": 300,
+              "Stat": "Average"
+            },
+            "ReturnData": true
+          }
+        ],
+        "Threshold": 1,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppRestApiAccount86BAD4C4": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AppRestApiB4885DCD"
+      ],
+      "Properties": {
+        "CloudWatchRoleArn": {
+          "Fn::GetAtt": [
+            "AppRestApiCloudWatchRoleB5C058B6",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::ApiGateway::Account",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppRestApiB4885DCD": {
+      "Properties": {
+        "Name": "RestApi"
+      },
+      "Type": "AWS::ApiGateway::RestApi"
+    },
+    "AppRestApiCloudWatchRoleB5C058B6": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed API Gateway CloudWatch role uses AWS managed policy"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AppRestApiDeployment0A1A30D78b8d00a02962fa08b890d9e21755f7ca": {
+      "DependsOn": [
+        "AppRestApigreetingGETE278858C",
+        "AppRestApigreetingOPTIONS18B87E90",
+        "AppRestApigreeting2BA1B41F"
+      ],
+      "Metadata": {
+        "aws:cdk:do-not-refactor": true
+      },
+      "Properties": {
+        "Description": "Automatically created by the RestApi construct",
+        "RestApiId": {
+          "Ref": "AppRestApiB4885DCD"
+        }
+      },
+      "Type": "AWS::ApiGateway::Deployment"
+    },
+    "AppRestApiDeploymentStageProd56399416": {
+      "DependsOn": [
+        "AppApiExecutionLogs0AE84813",
+        "AppRestApiAccount86BAD4C4"
+      ],
+      "Properties": {
+        "AccessLogSetting": {
+          "DestinationArn": {
+            "Fn::GetAtt": [
+              "AppApiAccessLogsDD2CC3E5",
+              "Arn"
+            ]
+          },
+          "Format": "{\"requestId\":\"$context.requestId\",\"accountId\":\"$context.accountId\",\"apiId\":\"$context.apiId\",\"stage\":\"$context.stage\",\"resourcePath\":\"$context.resourcePath\",\"httpMethod\":\"$context.httpMethod\",\"protocol\":\"$context.protocol\",\"status\":\"$context.status\",\"responseType\":\"$context.error.responseType\",\"errorMessage\":\"$context.error.message\",\"requestTime\":\"$context.requestTime\",\"responseLatency\":\"$context.responseLatency\",\"ip\":\"$context.identity.sourceIp\",\"caller\":\"$context.identity.caller\",\"user\":\"$context.identity.user\",\"responseLength\":\"$context.responseLength\",\"xrayTraceId\":\"$context.xrayTraceId\"}"
+        },
+        "DeploymentId": {
+          "Ref": "AppRestApiDeployment0A1A30D78b8d00a02962fa08b890d9e21755f7ca"
+        },
+        "MethodSettings": [
+          {
+            "DataTraceEnabled": false,
+            "HttpMethod": "*",
+            "LoggingLevel": "INFO",
+            "ResourcePath": "/*",
+            "ThrottlingBurstLimit": 200,
+            "ThrottlingRateLimit": 100
+          }
+        ],
+        "RestApiId": {
+          "Ref": "AppRestApiB4885DCD"
+        },
+        "StageName": "Prod",
+        "TracingEnabled": true
+      },
+      "Type": "AWS::ApiGateway::Stage"
+    },
+    "AppRestApigreeting2BA1B41F": {
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "AppRestApiB4885DCD",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "greeting",
+        "RestApiId": {
+          "Ref": "AppRestApiB4885DCD"
+        }
+      },
+      "Type": "AWS::ApiGateway::Resource"
+    },
+    "AppRestApigreetingGETApiPermissionServerlessAppuseast1stageServerlessAppBackenduseast1AppRestApi4D1FB3E8GETgreeting5743FCBD": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "AppLiveAlias3872472E"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:us-east-1:",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "AppRestApiB4885DCD"
+              },
+              "/",
+              {
+                "Ref": "AppRestApiDeploymentStageProd56399416"
+              },
+              "/GET/greeting"
+            ]
+          ]
+        }
+      },
+      "Type": "AWS::Lambda::Permission"
+    },
+    "AppRestApigreetingGETApiPermissionTestServerlessAppuseast1stageServerlessAppBackenduseast1AppRestApi4D1FB3E8GETgreeting4F9EF522": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "AppLiveAlias3872472E"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:us-east-1:",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "AppRestApiB4885DCD"
+              },
+              "/test-invoke-stage/GET/greeting"
+            ]
+          ]
+        }
+      },
+      "Type": "AWS::Lambda::Permission"
+    },
+    "AppRestApigreetingGETE278858C": {
+      "Properties": {
+        "AuthorizationType": "NONE",
+        "HttpMethod": "GET",
+        "Integration": {
+          "IntegrationHttpMethod": "POST",
+          "Type": "AWS_PROXY",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+                {
+                  "Ref": "AppLiveAlias3872472E"
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        },
+        "ResourceId": {
+          "Ref": "AppRestApigreeting2BA1B41F"
+        },
+        "RestApiId": {
+          "Ref": "AppRestApiB4885DCD"
+        }
+      },
+      "Type": "AWS::ApiGateway::Method"
+    },
+    "AppRestApigreetingOPTIONS18B87E90": {
+      "Properties": {
+        "ApiKeyRequired": false,
+        "AuthorizationType": "NONE",
+        "HttpMethod": "OPTIONS",
+        "Integration": {
+          "IntegrationResponses": [
+            {
+              "ResponseParameters": {
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent,X-Amzn-Trace-Id,Idempotency-Key'",
+                "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              },
+              "StatusCode": "204"
+            }
+          ],
+          "RequestTemplates": {
+            "application/json": "{ statusCode: 200 }"
+          },
+          "Type": "MOCK"
+        },
+        "MethodResponses": [
+          {
+            "ResponseParameters": {
+              "method.response.header.Access-Control-Allow-Headers": true,
+              "method.response.header.Access-Control-Allow-Methods": true,
+              "method.response.header.Access-Control-Allow-Origin": true
+            },
+            "StatusCode": "204"
+          }
+        ],
+        "ResourceId": {
+          "Ref": "AppRestApigreeting2BA1B41F"
+        },
+        "RestApiId": {
+          "Ref": "AppRestApiB4885DCD"
+        }
+      },
+      "Type": "AWS::ApiGateway::Method"
+    },
+    "AutoDeleteObjectsLogGroupC1303B18": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Fn::Select": [
+                  6,
+                  {
+                    "Fn::Split": [
+                      ":",
+                      {
+                        "Fn::GetAtt": [
+                          "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+                          "Arn"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AwsCustomResourceProviderDlqDF9B9BDA": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SQS3",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            },
+            {
+              "id": "Serverless-SQSRedrivePolicy",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "AppEncryptionKey7F644894",
+            "Arn"
+          ]
+        },
+        "MessageRetentionPeriod": 1209600
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AwsCustomResourceProviderDlqPolicyEA02C36D": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AwsCustomResourceProviderDlqDF9B9BDA",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Queues": [
+          {
+            "Ref": "AwsCustomResourceProviderDlqDF9B9BDA"
+          }
+        ]
+      },
+      "Type": "AWS::SQS::QueuePolicy"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "WafLogsBucket2E62CA90"
+              },
+              " S3 bucket."
+            ]
+          ]
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "WafLogsBucket2E62CA90": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "aws-waf-logs-",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "-f0a2b2e853d9-api"
+            ]
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              },
+              "ExpirationInDays": 90,
+              "Id": "ExpireAfter90Days",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerPreferred"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "WafLogsBucketAutoDeleteObjectsCustomResource69FD4DCF": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AutoDeleteObjectsLogGroupC1303B18",
+        "WafLogsBucketPolicyC1654A35"
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "WafLogsBucket2E62CA90"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "WafLogsBucketPolicyC1654A35": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "WafLogsBucket2E62CA90"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "WafLogsBucket2E62CA90",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "WafLogsBucket2E62CA90",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn"
+                  ]
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "WafLogsBucket2E62CA90",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "WafLogsBucket2E62CA90",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "WafLogsBucket2E62CA90",
+                        "Arn"
+                      ]
+                    },
+                    "/AWSLogs/",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Sid": "AWSLogDeliveryWrite"
+            },
+            {
+              "Action": [
+                "s3:GetBucketAcl",
+                "s3:ListBucket"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "WafLogsBucket2E62CA90",
+                  "Arn"
+                ]
+              },
+              "Sid": "AWSLogDeliveryAclCheck"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,891 @@
+{
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+          "is_reason_encoded": true,
+          "reason": "Q0RLJ3MgQ3Jvc3NSZWdpb25FeHBvcnRXcml0ZXIgY3VzdG9tIHJlc291cmNlIChjcmVhdGVkIGxhemlseSBieSBjcm9zc19yZWdpb25fcmVmZXJlbmNlcyBhZnRlciBzdGFjayBjb25zdHJ1Y3Rpb24pIHVzZXMgYSBDREstZ2VuZXJhdGVkIGlubGluZSBwb2xpY3kgb24gaXRzIHByb3ZpZGVyIHJvbGUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+        },
+        {
+          "id": "HIPAA.Security-IAMNoInlinePolicy",
+          "is_reason_encoded": true,
+          "reason": "Q0RLJ3MgQ3Jvc3NSZWdpb25FeHBvcnRXcml0ZXIgY3VzdG9tIHJlc291cmNlIChjcmVhdGVkIGxhemlseSBieSBjcm9zc19yZWdpb25fcmVmZXJlbmNlcyBhZnRlciBzdGFjayBjb25zdHJ1Y3Rpb24pIHVzZXMgYSBDREstZ2VuZXJhdGVkIGlubGluZSBwb2xpY3kgb24gaXRzIHByb3ZpZGVyIHJvbGUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+        },
+        {
+          "id": "PCI.DSS.321-IAMNoInlinePolicy",
+          "is_reason_encoded": true,
+          "reason": "Q0RLJ3MgQ3Jvc3NSZWdpb25FeHBvcnRXcml0ZXIgY3VzdG9tIHJlc291cmNlIChjcmVhdGVkIGxhemlseSBieSBjcm9zc19yZWdpb25fcmVmZXJlbmNlcyBhZnRlciBzdGFjayBjb25zdHJ1Y3Rpb24pIHVzZXMgYSBDREstZ2VuZXJhdGVkIGlubGluZSBwb2xpY3kgb24gaXRzIHByb3ZpZGVyIHJvbGUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+        }
+      ]
+    }
+  },
+  "Outputs": {
+    "ExportsOutputFnGetAttWebACLArn3404FD8D": {
+      "Export": {
+        "Name": "ServerlessAppWaf-us-east-1:ExportsOutputFnGetAttWebACLArn3404FD8D"
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "WebACL",
+          "Arn"
+        ]
+      }
+    },
+    "WafLogsBucketName": {
+      "Description": "S3 bucket receiving WAF (CloudFront-scoped WebACL) access logs",
+      "Value": {
+        "Ref": "WafLogsBucket2E62CA90"
+      }
+    },
+    "WebAclArn": {
+      "Description": "WAF WebACL ARN \u2014 attach to CloudFront distributions in any region",
+      "Value": {
+        "Fn::GetAtt": [
+          "WebACL",
+          "Arn"
+        ]
+      }
+    },
+    "WebAclId": {
+      "Description": "WAF WebACL logical ID",
+      "Value": {
+        "Fn::GetAtt": [
+          "WebACL",
+          "Id"
+        ]
+      }
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>"
+    }
+  },
+  "Resources": {
+    "AutoDeleteObjectsLogGroupC1303B18": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "WafEncryptionKeyB025E51A",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Fn::Select": [
+                  6,
+                  {
+                    "Fn::Split": [
+                      ":",
+                      {
+                        "Fn::GetAtt": [
+                          "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+                          "Arn"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "WafLogsBucket2E62CA90"
+              },
+              " S3 bucket."
+            ]
+          ]
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "WAFLogging": {
+      "DependsOn": [
+        "WafLogsBucketPolicyC1654A35"
+      ],
+      "Properties": {
+        "LogDestinationConfigs": [
+          {
+            "Fn::GetAtt": [
+              "WafLogsBucket2E62CA90",
+              "Arn"
+            ]
+          }
+        ],
+        "ResourceArn": {
+          "Fn::GetAtt": [
+            "WebACL",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "AWS::WAFv2::LoggingConfiguration"
+    },
+    "WafEncryptionKeyB025E51A": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "KMS key for ServerlessAppWaf-us-east-1 provider log group encryption",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:Encrypt*",
+                "kms:Decrypt*",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:Describe*"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "kms:EncryptionContext:aws:logs:arn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:*"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logs.us-east-1.amazonaws.com"
+              },
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RotationPeriodInDays": 90
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "WafLogsBucket2E62CA90": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "V0FGIGxvZyBkZXN0aW5hdGlvbiBidWNrZXQg4oCUIFNTRS1TMyAoZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgYnVja2V0cyksIG5vIHNlbGYtbG9nZ2luZy92ZXJzaW9uaW5nL3JlcGxpY2F0aW9uIGZvciBhbiBhcHBlbmQtb25seSBsb2cgc2luaw=="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "BucketName": {
+          "Fn::Join": [
+            "",
+            [
+              "aws-waf-logs-",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              "-b25e13ade15d-cf"
+            ]
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              },
+              "ExpirationInDays": 90,
+              "Id": "ExpireAfter90Days",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerPreferred"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "WafLogsBucketAutoDeleteObjectsCustomResource69FD4DCF": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AutoDeleteObjectsLogGroupC1303B18",
+        "WafLogsBucketPolicyC1654A35"
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "WafLogsBucket2E62CA90"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "WafLogsBucketPolicyC1654A35": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "WafLogsBucket2E62CA90"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "WafLogsBucket2E62CA90",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "WafLogsBucket2E62CA90",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn"
+                  ]
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "WafLogsBucket2E62CA90",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "WafLogsBucket2E62CA90",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "WafLogsBucket2E62CA90",
+                        "Arn"
+                      ]
+                    },
+                    "/AWSLogs/",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Sid": "AWSLogDeliveryWrite"
+            },
+            {
+              "Action": [
+                "s3:GetBucketAcl",
+                "s3:ListBucket"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "delivery.logs.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "WafLogsBucket2E62CA90",
+                  "Arn"
+                ]
+              },
+              "Sid": "AWSLogDeliveryAclCheck"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    },
+    "WebACL": {
+      "Properties": {
+        "DefaultAction": {
+          "Allow": {}
+        },
+        "Name": "ServerlessAppWaf-us-east-1-cf",
+        "Rules": [
+          {
+            "Name": "AWSManagedRulesAmazonIpReputationList",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 0,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesAmazonIpReputationList",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppWaf-us-east-1-IpReputationList",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesCommonRuleSet",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 1,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesCommonRuleSet",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppWaf-us-east-1-CommonRuleSet",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesKnownBadInputsRuleSet",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 2,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesKnownBadInputsRuleSet",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppWaf-us-east-1-KnownBadInputs",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Name": "AWSManagedRulesAnonymousIpList",
+            "OverrideAction": {
+              "None": {}
+            },
+            "Priority": 3,
+            "Statement": {
+              "ManagedRuleGroupStatement": {
+                "Name": "AWSManagedRulesAnonymousIpList",
+                "VendorName": "AWS"
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppWaf-us-east-1-AnonymousIpList",
+              "SampledRequestsEnabled": true
+            }
+          },
+          {
+            "Action": {
+              "Block": {}
+            },
+            "Name": "RateLimitPerIP",
+            "Priority": 4,
+            "Statement": {
+              "RateBasedStatement": {
+                "AggregateKeyType": "IP",
+                "Limit": 200
+              }
+            },
+            "VisibilityConfig": {
+              "CloudWatchMetricsEnabled": true,
+              "MetricName": "ServerlessAppWaf-us-east-1-RateLimitPerIP",
+              "SampledRequestsEnabled": true
+            }
+          }
+        ],
+        "Scope": "CLOUDFRONT",
+        "VisibilityConfig": {
+          "CloudWatchMetricsEnabled": true,
+          "MetricName": "ServerlessAppWaf-us-east-1WebACL",
+          "SampledRequestsEnabled": true
+        }
+      },
+      "Type": "AWS::WAFv2::WebACL"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}

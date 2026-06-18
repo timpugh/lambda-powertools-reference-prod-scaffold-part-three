@@ -1,0 +1,962 @@
+{
+  "Outputs": {
+    "CloudTrailLogsBucketName": {
+      "Description": "S3 bucket storing the CloudTrail object-level data-event logs",
+      "Value": {
+        "Ref": "CloudTrailLogsBucketF4E95F70"
+      }
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>"
+    }
+  },
+  "Resources": {
+    "AuditEncryptionKey78640FBD": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "KMS key for ServerlessAppAudit-us-east-1 CloudTrail audit logs",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:Encrypt*",
+                "kms:Decrypt*",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:Describe*"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "kms:EncryptionContext:aws:logs:arn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:*"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logs.us-east-1.amazonaws.com"
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:GenerateDataKey*",
+                "kms:DescribeKey"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":cloudtrail:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":trail/*"
+                      ]
+                    ]
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              },
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RotationPeriodInDays": 90
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AutoDeleteObjectsLogGroupC1303B18": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AuditEncryptionKey78640FBD",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Fn::Select": [
+                  6,
+                  {
+                    "Fn::Split": [
+                      ":",
+                      {
+                        "Fn::GetAtt": [
+                          "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+                          "Arn"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "CloudTrailLogsBucketAutoDeleteObjectsCustomResource00A8BB98": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AutoDeleteObjectsLogGroupC1303B18",
+        "CloudTrailLogsBucketPolicyF40858DB"
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "CloudTrailLogsBucketF4E95F70"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "CloudTrailLogsBucketF4E95F70": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "NIST.800.53.R5-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "HIPAA.Security-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "PCI.DSS.321-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "Q2xvdWRUcmFpbCBsb2cgYnVja2V0IOKAlCBTU0UtUzMgKENsb3VkVHJhaWwgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgZGVzdGluYXRpb24gYnVja2V0czsgdHJhaWwgbG9nIGZpbGVzIGFyZSBwZXItb2JqZWN0IFNTRS1LTVMpLCBzZWxmLWxvZ2dpbmcgd291bGQgY3JlYXRlIGNpcmN1bGFyIGF1ZGl0IHRyYWlscywgbm8gdmVyc2lvbmluZy9yZXBsaWNhdGlvbiBmb3IgYW4gYXBwZW5kLW9ubHksIGludGVncml0eS12YWxpZGF0ZWQgbG9nIHNpbms="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              },
+              "ExpirationInDays": 90,
+              "Id": "ExpireAfter90Days",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "CloudTrailLogsBucketPolicyF40858DB": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "CloudTrailLogsBucketF4E95F70"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "CloudTrailLogsBucketF4E95F70",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "CloudTrailLogsBucketF4E95F70",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn"
+                  ]
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "CloudTrailLogsBucketF4E95F70",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "CloudTrailLogsBucketF4E95F70",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:GetBucketAcl",
+                "s3:PutObject"
+              ],
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":cloudtrail:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":trail/ServerlessAppAudit-us-east-1-S3DataEventsTrail"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "CloudTrailLogsBucketF4E95F70",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "CloudTrailLogsBucketF4E95F70",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:GetBucketAcl",
+                "s3:PutObject"
+              ],
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "CloudTrailLogsBucketF4E95F70",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "CloudTrailLogsBucketF4E95F70",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": "s3:GetBucketAcl",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "CloudTrailLogsBucketF4E95F70",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "s3:PutObject",
+              "Condition": {
+                "StringEquals": {
+                  "s3:x-amz-acl": "bucket-owner-full-control"
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "CloudTrailLogsBucketF4E95F70",
+                        "Arn"
+                      ]
+                    },
+                    "/AWSLogs/",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "CloudTrailLogsBucketF4E95F70"
+              },
+              " S3 bucket."
+            ]
+          ]
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "S3DataEventsTrail9A744E14": {
+      "DependsOn": [
+        "CloudTrailLogsBucketPolicyF40858DB",
+        "S3DataEventsTrailLogsRoleDefaultPolicy6EF6DB84",
+        "S3DataEventsTrailLogsRole65E12A90"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "CloudWatchLogsLogGroupArn": {
+          "Fn::GetAtt": [
+            "S3DataEventsTrailLogsC70C86DE",
+            "Arn"
+          ]
+        },
+        "CloudWatchLogsRoleArn": {
+          "Fn::GetAtt": [
+            "S3DataEventsTrailLogsRole65E12A90",
+            "Arn"
+          ]
+        },
+        "EnableLogFileValidation": true,
+        "EventSelectors": [
+          {
+            "DataResources": [
+              {
+                "Type": "AWS::S3::Object",
+                "Values": [
+                  {
+                    "Fn::Join": [
+                      "",
+                      [
+                        {
+                          "Fn::ImportValue": "ServerlessAppFrontend-us-east-1:ExportsOutputFnGetAttFrontendBucketEFE2E19CArnCE13AB85"
+                        },
+                        "/"
+                      ]
+                    ]
+                  },
+                  {
+                    "Fn::Join": [
+                      "",
+                      [
+                        {
+                          "Fn::ImportValue": "ServerlessAppFrontend-us-east-1:ExportsOutputFnGetAttFrontendAccessLogBucketD05E8E55ArnC1C737AA"
+                        },
+                        "/"
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ],
+            "IncludeManagementEvents": false
+          }
+        ],
+        "IncludeGlobalServiceEvents": false,
+        "IsLogging": true,
+        "IsMultiRegionTrail": false,
+        "KMSKeyId": {
+          "Fn::GetAtt": [
+            "AuditEncryptionKey78640FBD",
+            "Arn"
+          ]
+        },
+        "S3BucketName": {
+          "Ref": "CloudTrailLogsBucketF4E95F70"
+        },
+        "TrailName": "ServerlessAppAudit-us-east-1-S3DataEventsTrail"
+      },
+      "Type": "AWS::CloudTrail::Trail"
+    },
+    "S3DataEventsTrailLogsC70C86DE": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "AuditEncryptionKey78640FBD",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "S3DataEventsTrailLogsRole65E12A90": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudtrail.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "S3DataEventsTrailLogsRoleDefaultPolicy6EF6DB84": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "Q0RLIGdlbmVyYXRlcyB0aGUgdHJhaWwncyBMb2dzUm9sZSBkZWZhdWx0IHBvbGljeSBpbmxpbmUg4oCUIG5vdCBkaXJlY3RseSBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:PutLogEvents",
+                "logs:CreateLogStream"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "S3DataEventsTrailLogsC70C86DE",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "S3DataEventsTrailLogsRoleDefaultPolicy6EF6DB84",
+        "Roles": [
+          {
+            "Ref": "S3DataEventsTrailLogsRole65E12A90"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}

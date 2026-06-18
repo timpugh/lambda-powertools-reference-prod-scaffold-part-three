@@ -1,0 +1,3805 @@
+{
+  "Metadata": {
+    "cdk_nag": {
+      "rules_to_suppress": [
+        {
+          "id": "AwsSolutions-CFR1",
+          "reason": "Geo restriction not required for sample app"
+        },
+        {
+          "id": "AwsSolutions-CFR4",
+          "is_reason_encoded": true,
+          "reason": "VXNpbmcgZGVmYXVsdCBDbG91ZEZyb250IGNlcnRpZmljYXRlIOKAlCBubyBjdXN0b20gZG9tYWluIGZvciBzYW1wbGUgYXBw"
+        },
+        {
+          "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgcmVwbGljYXRpb24gbm90IG5lZWRlZCBmb3Igc2FtcGxlIGFwcCDigJQgc3RhdGljIGFzc2V0cyBhcmUgcmVkZXBsb3lhYmxl"
+        },
+        {
+          "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgdmVyc2lvbmluZyBub3QgbmVlZGVkIGZvciBzYW1wbGUgYXBwIOKAlCBzdGF0aWMgYXNzZXRzIGFyZSByZWRlcGxveWFibGUgdmlhIGNkayBkZXBsb3k="
+        },
+        {
+          "id": "HIPAA.Security-S3BucketReplicationEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgcmVwbGljYXRpb24gbm90IG5lZWRlZCBmb3Igc2FtcGxlIGFwcCDigJQgc3RhdGljIGFzc2V0cyBhcmUgcmVkZXBsb3lhYmxl"
+        },
+        {
+          "id": "HIPAA.Security-S3BucketVersioningEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgdmVyc2lvbmluZyBub3QgbmVlZGVkIGZvciBzYW1wbGUgYXBwIOKAlCBzdGF0aWMgYXNzZXRzIGFyZSByZWRlcGxveWFibGUgdmlhIGNkayBkZXBsb3k="
+        },
+        {
+          "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgcmVwbGljYXRpb24gbm90IG5lZWRlZCBmb3Igc2FtcGxlIGFwcCDigJQgc3RhdGljIGFzc2V0cyBhcmUgcmVkZXBsb3lhYmxl"
+        },
+        {
+          "id": "PCI.DSS.321-S3BucketVersioningEnabled",
+          "is_reason_encoded": true,
+          "reason": "UzMgdmVyc2lvbmluZyBub3QgbmVlZGVkIGZvciBzYW1wbGUgYXBwIOKAlCBzdGF0aWMgYXNzZXRzIGFyZSByZWRlcGxveWFibGUgdmlhIGNkayBkZXBsb3k="
+        }
+      ]
+    }
+  },
+  "Outputs": {
+    "AthenaWorkGroupName": {
+      "Description": "Athena workgroup for querying access logs",
+      "Value": "ServerlessAppFrontend-us-east-1-access-logs"
+    },
+    "AwsCustomResourceProviderDlqUrl": {
+      "Description": "SQS DLQ capturing failed async invocations of the AWS679f53fac002430cb0da5b7982bd2287 provider Lambda",
+      "Value": {
+        "Ref": "AwsCustomResourceProviderDlqDF9B9BDA"
+      }
+    },
+    "BucketDeploymentProviderDlqUrl": {
+      "Description": "SQS DLQ capturing failed async invocations of the Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C provider Lambda",
+      "Value": {
+        "Ref": "BucketDeploymentProviderDlqC4457E61"
+      }
+    },
+    "CloudFrontDistributionId": {
+      "Description": "CloudFront distribution ID \u2014 needed for manual cache invalidations",
+      "Value": {
+        "Ref": "Distribution830FAC52"
+      }
+    },
+    "CloudFrontDomainName": {
+      "Description": "CloudFront distribution domain name \u2014 use this as your frontend URL",
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Fn::GetAtt": [
+                "Distribution830FAC52",
+                "DomainName"
+              ]
+            }
+          ]
+        ]
+      }
+    },
+    "ExportsOutputFnGetAttFrontendAccessLogBucketD05E8E55ArnC1C737AA": {
+      "Export": {
+        "Name": "ServerlessAppFrontend-us-east-1:ExportsOutputFnGetAttFrontendAccessLogBucketD05E8E55ArnC1C737AA"
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "FrontendAccessLogBucketD05E8E55",
+          "Arn"
+        ]
+      }
+    },
+    "ExportsOutputFnGetAttFrontendBucketEFE2E19CArnCE13AB85": {
+      "Export": {
+        "Name": "ServerlessAppFrontend-us-east-1:ExportsOutputFnGetAttFrontendBucketEFE2E19CArnCE13AB85"
+      },
+      "Value": {
+        "Fn::GetAtt": [
+          "FrontendBucketEFE2E19C",
+          "Arn"
+        ]
+      }
+    },
+    "FrontendBucketName": {
+      "Description": "S3 bucket storing the frontend static assets",
+      "Value": {
+        "Ref": "FrontendBucketEFE2E19C"
+      }
+    },
+    "GlueDatabaseName": {
+      "Description": "Glue catalog database for CloudFront, S3 access, and WAF log analytics",
+      "Value": "serverlessappfrontend_us_east_1_access_logs"
+    },
+    "RumAppMonitorId": {
+      "Description": "CloudWatch RUM app monitor ID \u2014 used by the browser RUM client",
+      "Value": {
+        "Fn::GetAtt": [
+          "RumAppMonitor",
+          "Id"
+        ]
+      }
+    },
+    "RumIdentityPoolId": {
+      "Description": "Cognito Identity Pool ID \u2014 used by the browser RUM client for guest credentials",
+      "Value": {
+        "Ref": "RumIdentityPool"
+      }
+    }
+  },
+  "Parameters": {
+    "BootstrapVersion": {
+      "Default": "/cdk-bootstrap/hnb659fds/version",
+      "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]",
+      "Type": "AWS::SSM::Parameter::Value<String>"
+    }
+  },
+  "Resources": {
+    "AWS679f53fac002430cb0da5b7982bd22872D164C4C": {
+      "DependsOn": [
+        "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E",
+        "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Handler": "index.handler",
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "AwsCustomResourceLogGroup0228D074"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 120
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287EventInvokeConfig74F91771": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "AwsCustomResourceProviderDlqDF9B9BDA",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "FunctionName": {
+          "Ref": "AWS679f53fac002430cb0da5b7982bd22872D164C4C"
+        },
+        "Qualifier": "$LATEST"
+      },
+      "Type": "AWS::Lambda::EventInvokeConfig"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AwsCustomResourceProviderDlqDF9B9BDA",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FrontendEncryptionKey272BB0CA",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleDefaultPolicyD28E1A5E",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "AccessLogsDatabase": {
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseInput": {
+          "Description": "Glue catalog for CloudFront and S3 access logs",
+          "Name": "serverlessappfrontend_us_east_1_access_logs"
+        }
+      },
+      "Type": "AWS::Glue::Database"
+    },
+    "AccessLogsWorkGroup": {
+      "Properties": {
+        "Name": "ServerlessAppFrontend-us-east-1-access-logs",
+        "RecursiveDeleteOption": true,
+        "State": "ENABLED",
+        "WorkGroupConfiguration": {
+          "BytesScannedCutoffPerQuery": 1073741824,
+          "EnforceWorkGroupConfiguration": true,
+          "PublishCloudWatchMetricsEnabled": true,
+          "ResultConfiguration": {
+            "EncryptionConfiguration": {
+              "EncryptionOption": "SSE_KMS",
+              "KmsKey": {
+                "Fn::GetAtt": [
+                  "FrontendEncryptionKey272BB0CA",
+                  "Arn"
+                ]
+              }
+            },
+            "OutputLocation": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://",
+                  {
+                    "Ref": "FrontendAccessLogBucketD05E8E55"
+                  },
+                  "/athena-results/"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      "Type": "AWS::Athena::WorkGroup"
+    },
+    "AutoDeleteObjectsLogGroupC1303B18": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "FrontendEncryptionKey272BB0CA",
+            "Arn"
+          ]
+        },
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Fn::Select": [
+                  6,
+                  {
+                    "Fn::Split": [
+                      ":",
+                      {
+                        "Fn::GetAtt": [
+                          "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+                          "Arn"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AwsCustomResourceLogGroup0228D074": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "FrontendEncryptionKey272BB0CA",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AwsCustomResourceProviderDlqDF9B9BDA": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SQS3",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            },
+            {
+              "id": "Serverless-SQSRedrivePolicy",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "FrontendEncryptionKey272BB0CA",
+            "Arn"
+          ]
+        },
+        "MessageRetentionPeriod": 1209600
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "AwsCustomResourceProviderDlqPolicyEA02C36D": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "AwsCustomResourceProviderDlqDF9B9BDA",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Queues": [
+          {
+            "Ref": "AwsCustomResourceProviderDlqDF9B9BDA"
+          }
+        ]
+      },
+      "Type": "AWS::SQS::QueuePolicy"
+    },
+    "BucketDeploymentLogGroup8599F66E": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "FrontendEncryptionKey272BB0CA",
+            "Arn"
+          ]
+        },
+        "RetentionInDays": 7
+      },
+      "Type": "AWS::Logs::LogGroup",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "BucketDeploymentProviderDlqC4457E61": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-SQS3",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            },
+            {
+              "id": "Serverless-SQSRedrivePolicy",
+              "is_reason_encoded": true,
+              "reason": "VGVybWluYWwgRExROiB0aGlzIHF1ZXVlIElTIHRoZSBkZWFkLWxldHRlciBkZXN0aW5hdGlvbiDigJQgcmVjdXJzaW5nIGludG8gYW5vdGhlciBETFEgaGFzIG5vIHJlY292ZXJ5IHZhbHVl"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "KmsMasterKeyId": {
+          "Fn::GetAtt": [
+            "FrontendEncryptionKey272BB0CA",
+            "Arn"
+          ]
+        },
+        "MessageRetentionPeriod": 1209600
+      },
+      "Type": "AWS::SQS::Queue",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "BucketDeploymentProviderDlqPolicy6A6BA613": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sqs:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BucketDeploymentProviderDlqC4457E61",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Queues": [
+          {
+            "Ref": "BucketDeploymentProviderDlqC4457E61"
+          }
+        ]
+      },
+      "Type": "AWS::SQS::QueuePolicy"
+    },
+    "CfBandwidthByEdge": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Total bytes transferred per edge location",
+        "Name": "CloudFront - Bandwidth by Edge Location",
+        "QueryString": "SELECT x_edge_location, COUNT(*) as requests,\n       SUM(CAST(sc_bytes AS bigint)) as bytes_out,\n       SUM(CAST(cs_bytes AS bigint)) as bytes_in\nFROM cloudfront_logs\nGROUP BY x_edge_location\nORDER BY bytes_out DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "CfCacheHitRatio": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Request counts and percentages by edge result type (Hit/Miss/Error)",
+        "Name": "CloudFront - Cache Hit Ratio",
+        "QueryString": "SELECT x_edge_result_type, COUNT(*) as request_count,\n       ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 2) as pct\nFROM cloudfront_logs\nGROUP BY x_edge_result_type\nORDER BY request_count DESC",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "CfErrorResponses": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Recent 4xx/5xx error responses with client and edge details",
+        "Name": "CloudFront - Error Responses",
+        "QueryString": "SELECT log_date, log_time, c_ip, cs_method, cs_uri_stem, sc_status,\n       x_edge_result_type, x_edge_detailed_result_type\nFROM cloudfront_logs\nWHERE sc_status LIKE '4%' OR sc_status LIKE '5%'\nORDER BY log_date DESC, log_time DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "CfTopClientIps": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Highest-traffic client IPs with error counts",
+        "Name": "CloudFront - Top Client IPs",
+        "QueryString": "SELECT c_ip, COUNT(*) as request_count,\n       COUNT(CASE WHEN sc_status LIKE '4%' OR sc_status LIKE '5%' THEN 1 END) as errors\nFROM cloudfront_logs\nGROUP BY c_ip\nORDER BY request_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "CfTopRequestedUris": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Most frequently requested URIs with error counts",
+        "Name": "CloudFront - Top Requested URIs",
+        "QueryString": "SELECT cs_uri_stem, cs_method,\n       COUNT(*) as request_count,\n       COUNT(CASE WHEN sc_status LIKE '4%' OR sc_status LIKE '5%' THEN 1 END) as errors\nFROM cloudfront_logs\nGROUP BY cs_uri_stem, cs_method\nORDER BY request_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "CloudFrontLogsTable": {
+      "DependsOn": [
+        "AccessLogsDatabase"
+      ],
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseName": "serverlessappfrontend_us_east_1_access_logs",
+        "TableInput": {
+          "Description": "CloudFront standard access logs",
+          "Name": "cloudfront_logs",
+          "Parameters": {
+            "EXTERNAL": "TRUE",
+            "skip.header.line.count": "2"
+          },
+          "StorageDescriptor": {
+            "Columns": [
+              {
+                "Name": "log_date",
+                "Type": "string"
+              },
+              {
+                "Name": "log_time",
+                "Type": "string"
+              },
+              {
+                "Name": "x_edge_location",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_bytes",
+                "Type": "string"
+              },
+              {
+                "Name": "c_ip",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_method",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_host",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_uri_stem",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_status",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_referer",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_user_agent",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_uri_query",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_cookie",
+                "Type": "string"
+              },
+              {
+                "Name": "x_edge_result_type",
+                "Type": "string"
+              },
+              {
+                "Name": "x_edge_request_id",
+                "Type": "string"
+              },
+              {
+                "Name": "x_host_header",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_protocol",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_bytes",
+                "Type": "string"
+              },
+              {
+                "Name": "time_taken",
+                "Type": "string"
+              },
+              {
+                "Name": "x_forwarded_for",
+                "Type": "string"
+              },
+              {
+                "Name": "ssl_protocol",
+                "Type": "string"
+              },
+              {
+                "Name": "ssl_cipher",
+                "Type": "string"
+              },
+              {
+                "Name": "x_edge_response_result_type",
+                "Type": "string"
+              },
+              {
+                "Name": "cs_protocol_version",
+                "Type": "string"
+              },
+              {
+                "Name": "fle_status",
+                "Type": "string"
+              },
+              {
+                "Name": "fle_encrypted_fields",
+                "Type": "string"
+              },
+              {
+                "Name": "c_port",
+                "Type": "string"
+              },
+              {
+                "Name": "time_to_first_byte",
+                "Type": "string"
+              },
+              {
+                "Name": "x_edge_detailed_result_type",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_content_type",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_content_len",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_range_start",
+                "Type": "string"
+              },
+              {
+                "Name": "sc_range_end",
+                "Type": "string"
+              }
+            ],
+            "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+            "Location": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://",
+                  {
+                    "Ref": "FrontendAccessLogBucketD05E8E55"
+                  },
+                  "/cloudfront/"
+                ]
+              ]
+            },
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+            "SerdeInfo": {
+              "Parameters": {
+                "field.delim": "\t",
+                "serialization.null.format": "-"
+              },
+              "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+            }
+          },
+          "TableType": "EXTERNAL_TABLE"
+        }
+      },
+      "Type": "AWS::Glue::Table"
+    },
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536": {
+      "DependsOn": [
+        "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF",
+        "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Environment": {
+          "Variables": {
+            "AWS_CA_BUNDLE": "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
+          }
+        },
+        "Handler": "index.handler",
+        "Layers": [
+          {
+            "Ref": "DeployFrontendAwsCliLayerD774ED8F"
+          }
+        ],
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "BucketDeploymentLogGroup8599F66E"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.13",
+        "Timeout": 900
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CEventInvokeConfig3D67BD25": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "BucketDeploymentProviderDlqC4457E61",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "FunctionName": {
+          "Ref": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536"
+        },
+        "Qualifier": "$LATEST"
+      },
+      "Type": "AWS::Lambda::EventInvokeConfig"
+    },
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+              ]
+            ]
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "KMS wildcards required by configure_async_invoke to encrypt messages to the CMK-encrypted DLQ"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+                      }
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:GetObject*",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*",
+                "s3:PutObject",
+                "s3:PutObjectLegalHold",
+                "s3:PutObjectRetention",
+                "s3:PutObjectTagging",
+                "s3:PutObjectVersionTagging",
+                "s3:Abort*"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FrontendBucketEFE2E19C",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FrontendBucketEFE2E19C",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:DescribeKey",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FrontendEncryptionKey272BB0CA",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "sqs:SendMessage",
+                "sqs:GetQueueAttributes",
+                "sqs:GetQueueUrl"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BucketDeploymentProviderDlqC4457E61",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": [
+                "kms:Decrypt",
+                "kms:Encrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FrontendEncryptionKey272BB0CA",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF",
+        "Roles": [
+          {
+            "Ref": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "DependsOn": [
+        "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Lambda function for auto-deleting objects in ",
+              {
+                "Ref": "FrontendAccessLogBucketD05E8E55"
+              },
+              " S3 bucket."
+            ]
+          ]
+        },
+        "Handler": "index.handler",
+        "MemorySize": 128,
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn"
+          ]
+        },
+        "Runtime": "nodejs22.x",
+        "Timeout": 900
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-IAM4",
+              "reason": "CDK-managed singleton Lambda uses AWS managed execution role"
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "reason": "CDK-managed singleton Lambda uses wildcard in auto-generated policy"
+            },
+            {
+              "id": "AwsSolutions-L1",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "Serverless-LambdaTracing",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgdHJhY2luZyBpcyBub3QgY29uZmlndXJhYmxl"
+            },
+            {
+              "id": "Serverless-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaDefaultMemorySize",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgbWVtb3J5IGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "Serverless-LambdaLatestVersion",
+              "reason": "CDK-managed singleton Lambda runtime is not configurable"
+            },
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "NIST.800.53.R5-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "HIPAA.Security-LambdaDLQ",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgRExRIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "HIPAA.Security-LambdaConcurrency",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgY29uY3VycmVuY3kgaXMgbm90IGNvbmZpZ3VyYWJsZQ=="
+            },
+            {
+              "id": "HIPAA.Security-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "reason": "CDK-generated inline policy on singleton service role"
+            },
+            {
+              "id": "PCI.DSS.321-LambdaInsideVPC",
+              "is_reason_encoded": true,
+              "reason": "Q0RLLW1hbmFnZWQgc2luZ2xldG9uIExhbWJkYSDigJQgVlBDIGlzIG5vdCBjb25maWd1cmFibGU="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "ManagedPolicyArns": [
+          {
+            "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "DeployFrontendAwsCliLayerD774ED8F": {
+      "DependsOn": [
+        "RumExtendedMetricsCustomResourcePolicy33BDB00B",
+        "RumExtendedMetrics5A0A201E"
+      ],
+      "Properties": {
+        "Content": {
+          "S3Bucket": {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          "S3Key": "ASSET_HASH.zip"
+        },
+        "Description": "/opt/awscli/aws"
+      },
+      "Type": "AWS::Lambda::LayerVersion"
+    },
+    "DeployFrontendCustomResource3E02C3B7": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "RumExtendedMetricsCustomResourcePolicy33BDB00B",
+        "RumExtendedMetrics5A0A201E"
+      ],
+      "Properties": {
+        "DestinationBucketName": {
+          "Ref": "FrontendBucketEFE2E19C"
+        },
+        "OutputObjectKeys": true,
+        "Prune": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536",
+            "Arn"
+          ]
+        },
+        "SourceBucketNames": [
+          {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          },
+          {
+            "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+          }
+        ],
+        "SourceMarkers": [
+          {},
+          {
+            "<<marker:0xbaba:0>>": {
+              "Fn::Join": [
+                "",
+                [
+                  "\"https://",
+                  {
+                    "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
+                  },
+                  ".execute-api.us-east-1.",
+                  {
+                    "Ref": "AWS::URLSuffix"
+                  },
+                  "/",
+                  {
+                    "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF"
+                  },
+                  "/\""
+                ]
+              ]
+            },
+            "<<marker:0xbaba:1>>": {
+              "Fn::Join": [
+                "",
+                [
+                  "\"",
+                  {
+                    "Fn::GetAtt": [
+                      "RumAppMonitor",
+                      "Id"
+                    ]
+                  },
+                  "\""
+                ]
+              ]
+            },
+            "<<marker:0xbaba:2>>": {
+              "Fn::Join": [
+                "",
+                [
+                  "\"",
+                  {
+                    "Ref": "RumIdentityPool"
+                  },
+                  "\""
+                ]
+              ]
+            }
+          }
+        ],
+        "SourceMarkersConfig": [
+          {},
+          {}
+        ],
+        "SourceObjectKeys": [
+          "ASSET_HASH.zip",
+          "ASSET_HASH.zip"
+        ],
+        "WaitForDistributionInvalidation": true
+      },
+      "Type": "Custom::CDKBucketDeployment",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "Distribution830FAC52": {
+      "Properties": {
+        "DistributionConfig": {
+          "CustomErrorResponses": [
+            {
+              "ErrorCode": 403,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html"
+            },
+            {
+              "ErrorCode": 404,
+              "ResponseCode": 200,
+              "ResponsePagePath": "/index.html"
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+            "Compress": true,
+            "ResponseHeadersPolicyId": {
+              "Ref": "SecurityHeadersPolicyE1741D63"
+            },
+            "TargetOriginId": "ServerlessAppuseast1stageServerlessAppFrontenduseast1DistributionOrigin1FA268878",
+            "ViewerProtocolPolicy": "redirect-to-https"
+          },
+          "DefaultRootObject": "index.html",
+          "Enabled": true,
+          "HttpVersion": "http2",
+          "IPV6Enabled": true,
+          "Logging": {
+            "Bucket": {
+              "Fn::GetAtt": [
+                "FrontendAccessLogBucketD05E8E55",
+                "RegionalDomainName"
+              ]
+            },
+            "Prefix": "cloudfront/"
+          },
+          "Origins": [
+            {
+              "DomainName": {
+                "Fn::GetAtt": [
+                  "FrontendBucketEFE2E19C",
+                  "RegionalDomainName"
+                ]
+              },
+              "Id": "ServerlessAppuseast1stageServerlessAppFrontenduseast1DistributionOrigin1FA268878",
+              "OriginAccessControlId": {
+                "Fn::GetAtt": [
+                  "DistributionOrigin1S3OriginAccessControlEB606076",
+                  "Id"
+                ]
+              },
+              "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+              }
+            }
+          ],
+          "WebACLId": {
+            "Fn::ImportValue": "ServerlessAppWaf-us-east-1:ExportsOutputFnGetAttWebACLArn3404FD8D"
+          }
+        }
+      },
+      "Type": "AWS::CloudFront::Distribution"
+    },
+    "DistributionOrigin1S3OriginAccessControlEB606076": {
+      "Properties": {
+        "OriginAccessControlConfig": {
+          "Name": "ServerlessAppFrontenduseast1Origin1S3OriginAccessControl5EB408FD",
+          "OriginAccessControlOriginType": "s3",
+          "SigningBehavior": "always",
+          "SigningProtocol": "sigv4"
+        }
+      },
+      "Type": "AWS::CloudFront::OriginAccessControl"
+    },
+    "FrontendAccessLogBucketAutoDeleteObjectsCustomResource839FFB60": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AutoDeleteObjectsLogGroupC1303B18",
+        "FrontendAccessLogBucketPolicyAA93CA90"
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "FrontendAccessLogBucketD05E8E55"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "FrontendAccessLogBucketD05E8E55": {
+      "DeletionPolicy": "Delete",
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-S1",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketLoggingEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "NIST.800.53.R5-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "HIPAA.Security-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "PCI.DSS.321-S3DefaultEncryptionKMS",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "is_reason_encoded": true,
+              "reason": "QWNjZXNzLWxvZyBidWNrZXQg4oCUIFNTRS1TMyAoUzMvQ2xvdWRGcm9udCBsb2cgZGVsaXZlcnkgZG9lc24ndCBzdXBwb3J0IEtNUy1DTUsgdGFyZ2V0IGJ1Y2tldHMpLCBzZWxmLWxvZ2dpbmcgd291bGQgYmUgY2lyY3VsYXIsIG5vIHZlcnNpb25pbmcvcmVwbGljYXRpb24gZm9yIGFwcGVuZC1vbmx5IHRyYW5zaWVudCBsb2dz"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AccessControl": "LogDeliveryWrite",
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              },
+              "ExpirationInDays": 7,
+              "Id": "ExpireAfter7Days",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerPreferred"
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "FrontendAccessLogBucketPolicyAA93CA90": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "FrontendAccessLogBucketD05E8E55"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FrontendAccessLogBucketD05E8E55",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FrontendAccessLogBucketD05E8E55",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn"
+                  ]
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FrontendAccessLogBucketD05E8E55",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FrontendAccessLogBucketD05E8E55",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    },
+    "FrontendBucketAutoDeleteObjectsCustomResourceDB860B32": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "AutoDeleteObjectsLogGroupC1303B18",
+        "FrontendBucketPolicy1DFF75D9"
+      ],
+      "Properties": {
+        "BucketName": {
+          "Ref": "FrontendBucketEFE2E19C"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "FrontendBucketEFE2E19C": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "KMSMasterKeyID": {
+                  "Fn::GetAtt": [
+                    "FrontendEncryptionKey272BB0CA",
+                    "Arn"
+                  ]
+                },
+                "SSEAlgorithm": "aws:kms"
+              }
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Ref": "FrontendAccessLogBucketD05E8E55"
+          },
+          "LogFilePrefix": "s3-access-logs/"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "Tags": [
+          {
+            "Key": "aws-cdk:auto-delete-objects",
+            "Value": "true"
+          },
+          {
+            "Key": "aws-cdk:cr-owned:8cbaf8c9",
+            "Value": "true"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "FrontendBucketPolicy1DFF75D9": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "FrontendBucketEFE2E19C"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FrontendBucketEFE2E19C",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FrontendBucketEFE2E19C",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:PutBucketPolicy",
+                "s3:GetBucket*",
+                "s3:List*",
+                "s3:DeleteObject*"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+                    "Arn"
+                  ]
+                }
+              },
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "FrontendBucketEFE2E19C",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "FrontendBucketEFE2E19C",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": "s3:GetObject",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":cloudfront::",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":distribution/",
+                        {
+                          "Ref": "Distribution830FAC52"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "FrontendBucketEFE2E19C",
+                        "Arn"
+                      ]
+                    },
+                    "/*"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    },
+    "FrontendEncryptionKey272BB0CA": {
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Description": "KMS key for ServerlessAppFrontend-us-east-1 S3 bucket and log groups",
+        "EnableKeyRotation": true,
+        "KeyPolicy": {
+          "Statement": [
+            {
+              "Action": "kms:*",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": [
+                "kms:Encrypt*",
+                "kms:Decrypt*",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:Describe*"
+              ],
+              "Condition": {
+                "ArnLike": {
+                  "kms:EncryptionContext:aws:logs:arn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:*"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "logs.us-east-1.amazonaws.com"
+              },
+              "Resource": "*"
+            },
+            {
+              "Action": "kms:Decrypt",
+              "Condition": {
+                "ArnLike": {
+                  "AWS:SourceArn": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":cloudfront::",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":distribution/*"
+                      ]
+                    ]
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "RotationPeriodInDays": 90
+      },
+      "Type": "AWS::KMS::Key",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "InvalidateCloudFrontCache1EDC5966": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "DeployFrontendAwsCliLayerD774ED8F",
+        "DeployFrontendCustomResource3E02C3B7",
+        "InvalidateCloudFrontCacheCustomResourcePolicy484990E8"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Create": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"action\":\"createInvalidation\",\"service\":\"CloudFront\",\"parameters\":{\"DistributionId\":\"",
+              {
+                "Ref": "Distribution830FAC52"
+              },
+              "\",\"InvalidationBatch\":{\"Paths\":{\"Quantity\":1,\"Items\":[\"/*\"]},\"CallerReference\":\"",
+              {
+                "Fn::Select": [
+                  0,
+                  {
+                    "Fn::GetAtt": [
+                      "DeployFrontendCustomResource3E02C3B7",
+                      "SourceObjectKeys"
+                    ]
+                  }
+                ]
+              },
+              "\"}},\"physicalResourceId\":{\"id\":\"ServerlessAppFrontend-us-east-1-cf-invalidation\"}}"
+            ]
+          ]
+        },
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn"
+          ]
+        },
+        "Update": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"action\":\"createInvalidation\",\"service\":\"CloudFront\",\"parameters\":{\"DistributionId\":\"",
+              {
+                "Ref": "Distribution830FAC52"
+              },
+              "\",\"InvalidationBatch\":{\"Paths\":{\"Quantity\":1,\"Items\":[\"/*\"]},\"CallerReference\":\"",
+              {
+                "Fn::Select": [
+                  0,
+                  {
+                    "Fn::GetAtt": [
+                      "DeployFrontendCustomResource3E02C3B7",
+                      "SourceObjectKeys"
+                    ]
+                  }
+                ]
+              },
+              "\"}},\"physicalResourceId\":{\"id\":\"ServerlessAppFrontend-us-east-1-cf-invalidation\"}}"
+            ]
+          ]
+        }
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "InvalidateCloudFrontCacheCustomResourcePolicy484990E8": {
+      "DependsOn": [
+        "DeployFrontendAwsCliLayerD774ED8F",
+        "DeployFrontendCustomResource3E02C3B7"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "QXdzQ3VzdG9tUmVzb3VyY2UgcG9saWN5IGlzIGEgc2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgc3RhdGVtZW50IHNjb3BlZCB0byBjbG91ZGZyb250OkNyZWF0ZUludmFsaWRhdGlvbiBvbiB0aGlzIHN0YWNrJ3MgZGlzdHJpYnV0aW9uIEFSTiDigJQgbWFuYWdlZC1wb2xpY3kgcmV1c2UgYWRkcyBub3RoaW5n"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "cloudfront:CreateInvalidation",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":cloudfront::",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":distribution/",
+                    {
+                      "Ref": "Distribution830FAC52"
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "InvalidateCloudFrontCacheCustomResourcePolicy484990E8",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "RumAppMonitor": {
+      "Properties": {
+        "AppMonitorConfiguration": {
+          "AllowCookies": true,
+          "EnableXRay": true,
+          "GuestRoleArn": {
+            "Fn::GetAtt": [
+              "RumUnauthenticatedRole60F5E9A1",
+              "Arn"
+            ]
+          },
+          "IdentityPoolId": {
+            "Ref": "RumIdentityPool"
+          },
+          "SessionSampleRate": 1,
+          "Telemetries": [
+            "errors",
+            "performance",
+            "http"
+          ]
+        },
+        "CustomEvents": {
+          "Status": "ENABLED"
+        },
+        "CwLogEnabled": true,
+        "Domain": {
+          "Fn::GetAtt": [
+            "Distribution830FAC52",
+            "DomainName"
+          ]
+        },
+        "Name": "ServerlessAppFrontend-us-east-1-rum"
+      },
+      "Type": "AWS::RUM::AppMonitor"
+    },
+    "RumExtendedMetrics5A0A201E": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "RumExtendedMetricsCustomResourcePolicy33BDB00B",
+        "RumMetricsDestinationCustomResourcePolicy8DC21839",
+        "RumMetricsDestination2166457D"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Create": "{\"action\":\"batchCreateRumMetricDefinitions\",\"service\":\"rum\",\"parameters\":{\"AppMonitorName\":\"ServerlessAppFrontend-us-east-1-rum\",\"Destination\":\"CloudWatch\",\"MetricDefinitions\":[{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"deviceType\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.deviceType\":\"DeviceType\"}},{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"countryCode\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.countryCode\":\"CountryCode\"}},{\"Name\":\"Http4xxCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.http_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]},\\\"event_details\\\":{\\\"response\\\":{\\\"status\\\":[{\\\"numeric\\\":[\\\">=\\\",400,\\\"<\\\",500]}]}}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"Http5xxCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.http_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"PageViewCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.page_view_event\\\"],\\\"metadata\\\":{\\\"pageId\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.pageId\":\"PageId\"}}]},\"physicalResourceId\":{\"id\":\"ServerlessAppFrontend-us-east-1-rum/extended-metrics\"}}",
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn"
+          ]
+        },
+        "Update": "{\"action\":\"batchCreateRumMetricDefinitions\",\"service\":\"rum\",\"parameters\":{\"AppMonitorName\":\"ServerlessAppFrontend-us-east-1-rum\",\"Destination\":\"CloudWatch\",\"MetricDefinitions\":[{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"deviceType\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.deviceType\":\"DeviceType\"}},{\"Name\":\"JsErrorCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.js_error_event\\\"],\\\"metadata\\\":{\\\"countryCode\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.countryCode\":\"CountryCode\"}},{\"Name\":\"Http4xxCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.http_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]},\\\"event_details\\\":{\\\"response\\\":{\\\"status\\\":[{\\\"numeric\\\":[\\\">=\\\",400,\\\"<\\\",500]}]}}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"Http5xxCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.http_event\\\"],\\\"metadata\\\":{\\\"browserName\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.browserName\":\"BrowserName\"}},{\"Name\":\"PageViewCount\",\"EventPattern\":\"{\\\"event_type\\\":[\\\"com.amazon.rum.page_view_event\\\"],\\\"metadata\\\":{\\\"pageId\\\":[{\\\"exists\\\":true}]}}\",\"DimensionKeys\":{\"metadata.pageId\":\"PageId\"}}]},\"physicalResourceId\":{\"id\":\"ServerlessAppFrontend-us-east-1-rum/extended-metrics\"}}"
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "RumExtendedMetricsCustomResourcePolicy33BDB00B": {
+      "DependsOn": [
+        "RumMetricsDestinationCustomResourcePolicy8DC21839",
+        "RumMetricsDestination2166457D"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "rum:BatchCreateRumMetricDefinitions",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":rum:us-east-1:",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":appmonitor/ServerlessAppFrontend-us-east-1-rum"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "RumExtendedMetricsCustomResourcePolicy33BDB00B",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "RumIdentityPool": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-COG7",
+              "reason": "RUM requires unauthenticated guest credentials for anonymous browser telemetry"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AllowUnauthenticatedIdentities": true,
+        "IdentityPoolName": "ServerlessAppFrontend-us-east-1-rum"
+      },
+      "Type": "AWS::Cognito::IdentityPool"
+    },
+    "RumIdentityPoolRoleAttachment": {
+      "Properties": {
+        "IdentityPoolId": {
+          "Ref": "RumIdentityPool"
+        },
+        "Roles": {
+          "unauthenticated": {
+            "Fn::GetAtt": [
+              "RumUnauthenticatedRole60F5E9A1",
+              "Arn"
+            ]
+          }
+        }
+      },
+      "Type": "AWS::Cognito::IdentityPoolRoleAttachment"
+    },
+    "RumLogGroupCleanupCustomResourcePolicy3EBDA883": {
+      "DependsOn": [
+        "RumAppMonitor"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "TG9nLWdyb3VwIEFSTiBpbmNsdWRlcyB0aGUgc3RhbmRhcmQgOiogbG9nLXN0cmVhbSB3aWxkY2FyZCBzdWZmaXgg4oCUIHJlcXVpcmVkIGZvciBhbnkgQ2xvdWRXYXRjaCBMb2dzIHJlc291cmNlIEFSTiBwZXIgdGhlIElBTSBzZXJ2aWNlIGF1dGhvcml6YXRpb24gZG9jcy4gVGhlIHJlc291cmNlIGlzIG90aGVyd2lzZSBzY29wZWQgdG8gb25lIHNwZWNpZmljIGxvZyBncm91cCBidWlsdCBmcm9tIHRoZSBtb25pdG9yJ3MgcnVudGltZS1yZXNvbHZlZCBJRC4="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "logs:DeleteLogGroup",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":logs:us-east-1:",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":log-group:/aws/vendedlogs/RUMService_ServerlessAppFrontend-us-east-1-rum",
+                    {
+                      "Fn::Select": [
+                        0,
+                        {
+                          "Fn::Split": [
+                            "-",
+                            {
+                              "Fn::GetAtt": [
+                                "RumAppMonitor",
+                                "Id"
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    ":*"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "RumLogGroupCleanupCustomResourcePolicy3EBDA883",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "RumLogGroupCleanupF61E7AD7": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "RumAppMonitor",
+        "RumLogGroupCleanupCustomResourcePolicy3EBDA883"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIGxvZ3M6RGVsZXRlTG9nR3JvdXAgb24gb25lIGxvZy1ncm91cCBBUk47IG1hbmFnZWQtcG9saWN5IHJldXNlIGFkZHMgbm90aGluZw=="
+            },
+            {
+              "id": "AwsSolutions-IAM5",
+              "is_reason_encoded": true,
+              "reason": "TG9nLWdyb3VwIEFSTiBpbmNsdWRlcyB0aGUgc3RhbmRhcmQgOiogbG9nLXN0cmVhbSB3aWxkY2FyZCBzdWZmaXgg4oCUIHJlcXVpcmVkIGZvciBhbnkgQ2xvdWRXYXRjaCBMb2dzIHJlc291cmNlIEFSTiBwZXIgdGhlIElBTSBzZXJ2aWNlIGF1dGhvcml6YXRpb24gZG9jcy4gVGhlIHJlc291cmNlIGlzIG90aGVyd2lzZSBzY29wZWQgdG8gb25lIHNwZWNpZmljIGxvZyBncm91cCBidWlsdCBmcm9tIHRoZSBtb25pdG9yJ3MgcnVudGltZS1yZXNvbHZlZCBJRC4="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Delete": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"action\":\"deleteLogGroup\",\"service\":\"CloudWatchLogs\",\"ignoreErrorCodesMatching\":\"ResourceNotFoundException\",\"parameters\":{\"logGroupName\":\"/aws/vendedlogs/RUMService_ServerlessAppFrontend-us-east-1-rum",
+              {
+                "Fn::Select": [
+                  0,
+                  {
+                    "Fn::Split": [
+                      "-",
+                      {
+                        "Fn::GetAtt": [
+                          "RumAppMonitor",
+                          "Id"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "\"},\"physicalResourceId\":{\"id\":\"RumLogGroupCleanup\"}}"
+            ]
+          ]
+        },
+        "InstallLatestAwsSdk": false,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "RumMetricsDestination2166457D": {
+      "DeletionPolicy": "Delete",
+      "DependsOn": [
+        "RumAppMonitor",
+        "RumMetricsDestinationCustomResourcePolicy8DC21839"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "Create": "{\"action\":\"putRumMetricsDestination\",\"service\":\"rum\",\"parameters\":{\"AppMonitorName\":\"ServerlessAppFrontend-us-east-1-rum\",\"Destination\":\"CloudWatch\"},\"physicalResourceId\":{\"id\":\"ServerlessAppFrontend-us-east-1-rum/CloudWatch\"}}",
+        "Delete": "{\"action\":\"deleteRumMetricsDestination\",\"service\":\"rum\",\"parameters\":{\"AppMonitorName\":\"ServerlessAppFrontend-us-east-1-rum\",\"Destination\":\"CloudWatch\"}}",
+        "InstallLatestAwsSdk": true,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "AWS679f53fac002430cb0da5b7982bd22872D164C4C",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::AWS",
+      "UpdateReplacePolicy": "Delete"
+    },
+    "RumMetricsDestinationCustomResourcePolicy8DC21839": {
+      "DependsOn": [
+        "RumAppMonitor"
+      ],
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IGF0dGFjaGVkIHRvIHRoZSBDREsgQXdzQ3VzdG9tUmVzb3VyY2UgaGFuZGxlciDigJQgc2NvcGVkIHRvIHNwZWNpZmljIHJ1bToqIGFjdGlvbnMgb24gb25lIG1vbml0b3IgQVJOOyBtYW5hZ2VkLXBvbGljeSByZXVzZSBhZGRzIG5vdGhpbmc="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "rum:PutRumMetricsDestination",
+                "rum:DeleteRumMetricsDestination",
+                "rum:BatchCreateRumMetricDefinitions"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":rum:us-east-1:",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":appmonitor/ServerlessAppFrontend-us-east-1-rum"
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "RumMetricsDestinationCustomResourcePolicy8DC21839",
+        "Roles": [
+          {
+            "Ref": "AWS679f53fac002430cb0da5b7982bd2287ServiceRoleC1EA0FF2"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "RumUnauthenticatedRole60F5E9A1": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "NIST.800.53.R5-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IChydW06UHV0UnVtRXZlbnRzIG9uIG9uZSBtb25pdG9yIEFSTikgaXMgdGlnaHRseSBib3VuZCB0byB0aGlzIHJvbGUncyBzb2xlIHB1cnBvc2Ug4oCUIGFub255bW91cyBicm93c2VyIHRlbGVtZXRyeSB1cGxvYWQ="
+            },
+            {
+              "id": "HIPAA.Security-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IChydW06UHV0UnVtRXZlbnRzIG9uIG9uZSBtb25pdG9yIEFSTikgaXMgdGlnaHRseSBib3VuZCB0byB0aGlzIHJvbGUncyBzb2xlIHB1cnBvc2Ug4oCUIGFub255bW91cyBicm93c2VyIHRlbGVtZXRyeSB1cGxvYWQ="
+            },
+            {
+              "id": "PCI.DSS.321-IAMNoInlinePolicy",
+              "is_reason_encoded": true,
+              "reason": "U2luZ2xlIGxlYXN0LXByaXZpbGVnZSBpbmxpbmUgcG9saWN5IChydW06UHV0UnVtRXZlbnRzIG9uIG9uZSBtb25pdG9yIEFSTikgaXMgdGlnaHRseSBib3VuZCB0byB0aGlzIHJvbGUncyBzb2xlIHB1cnBvc2Ug4oCUIGFub255bW91cyBicm93c2VyIHRlbGVtZXRyeSB1cGxvYWQ="
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "ForAnyValue:StringLike": {
+                  "cognito-identity.amazonaws.com:amr": "unauthenticated"
+                },
+                "StringEquals": {
+                  "cognito-identity.amazonaws.com:aud": {
+                    "Ref": "RumIdentityPool"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": "cognito-identity.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Description": "Guest role assumed by browser RUM clients for ServerlessAppFrontend-us-east-1-rum",
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "rum:PutRumEvents",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":rum:us-east-1:",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":appmonitor/ServerlessAppFrontend-us-east-1-rum"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "AllowPutRumEvents"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "S3AccessDenied": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Recent 403 AccessDenied responses with requester and operation details",
+        "Name": "S3 - Access Denied (403)",
+        "QueryString": "SELECT request_datetime, remote_ip, requester, operation, key,\n       request_uri, error_code\nFROM s3_access_logs\nWHERE http_status = '403'\nORDER BY request_datetime DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "S3AccessLogsTable": {
+      "DependsOn": [
+        "AccessLogsDatabase"
+      ],
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseName": "serverlessappfrontend_us_east_1_access_logs",
+        "TableInput": {
+          "Description": "S3 server access logs",
+          "Name": "s3_access_logs",
+          "Parameters": {
+            "EXTERNAL": "TRUE"
+          },
+          "StorageDescriptor": {
+            "Columns": [
+              {
+                "Name": "bucket_owner",
+                "Type": "string"
+              },
+              {
+                "Name": "bucket_name",
+                "Type": "string"
+              },
+              {
+                "Name": "request_datetime",
+                "Type": "string"
+              },
+              {
+                "Name": "remote_ip",
+                "Type": "string"
+              },
+              {
+                "Name": "requester",
+                "Type": "string"
+              },
+              {
+                "Name": "request_id",
+                "Type": "string"
+              },
+              {
+                "Name": "operation",
+                "Type": "string"
+              },
+              {
+                "Name": "key",
+                "Type": "string"
+              },
+              {
+                "Name": "request_uri",
+                "Type": "string"
+              },
+              {
+                "Name": "http_status",
+                "Type": "string"
+              },
+              {
+                "Name": "error_code",
+                "Type": "string"
+              },
+              {
+                "Name": "bytes_sent",
+                "Type": "string"
+              },
+              {
+                "Name": "object_size",
+                "Type": "string"
+              },
+              {
+                "Name": "total_time",
+                "Type": "string"
+              },
+              {
+                "Name": "turn_around_time",
+                "Type": "string"
+              },
+              {
+                "Name": "referrer",
+                "Type": "string"
+              },
+              {
+                "Name": "user_agent",
+                "Type": "string"
+              },
+              {
+                "Name": "version_id",
+                "Type": "string"
+              },
+              {
+                "Name": "host_id",
+                "Type": "string"
+              },
+              {
+                "Name": "signature_version",
+                "Type": "string"
+              },
+              {
+                "Name": "cipher_suite",
+                "Type": "string"
+              },
+              {
+                "Name": "authentication_type",
+                "Type": "string"
+              },
+              {
+                "Name": "host_header",
+                "Type": "string"
+              },
+              {
+                "Name": "tls_version",
+                "Type": "string"
+              },
+              {
+                "Name": "access_point_arn",
+                "Type": "string"
+              },
+              {
+                "Name": "acl_required",
+                "Type": "string"
+              }
+            ],
+            "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+            "Location": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://",
+                  {
+                    "Ref": "FrontendAccessLogBucketD05E8E55"
+                  },
+                  "/s3-access-logs/"
+                ]
+              ]
+            },
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+            "SerdeInfo": {
+              "Parameters": {
+                "input.regex": "([^ ]*) ([^ ]*) \\[(.*?)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) (-|[0-9]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) ([^ ]*)(?: ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*))?.*$"
+              },
+              "SerializationLibrary": "org.apache.hadoop.hive.serde2.RegexSerDe"
+            }
+          },
+          "TableType": "EXTERNAL_TABLE"
+        }
+      },
+      "Type": "AWS::Glue::Table"
+    },
+    "S3ErrorRequests": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Recent failed S3 requests with error details",
+        "Name": "S3 - Error Requests",
+        "QueryString": "SELECT request_datetime, remote_ip, requester, operation, key,\n       request_uri, http_status, error_code\nFROM s3_access_logs\nWHERE http_status NOT IN ('200', '204', '206', '304', '-')\nORDER BY request_datetime DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "S3ObjectReads": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Who read which object (GET.OBJECT operations) with status and bytes",
+        "Name": "S3 - Object Read Audit",
+        "QueryString": "SELECT request_datetime, remote_ip, requester, key,\n       http_status, bytes_sent, user_agent\nFROM s3_access_logs\nWHERE operation LIKE '%GET.OBJECT%'\nORDER BY request_datetime DESC\nLIMIT 100",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "S3SlowRequests": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Highest-latency S3 requests by total_time (ms)",
+        "Name": "S3 - Slow Requests",
+        "QueryString": "SELECT request_datetime, remote_ip, operation, key, http_status,\n       total_time, turn_around_time, bytes_sent\nFROM s3_access_logs\nWHERE total_time != '-'\nORDER BY CAST(total_time AS integer) DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "S3TopOperations": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Most common S3 operations with error counts",
+        "Name": "S3 - Top Operations",
+        "QueryString": "SELECT operation, COUNT(*) as op_count,\n       COUNT(CASE WHEN http_status NOT IN ('200','204','206','304') THEN 1 END) as errors\nFROM s3_access_logs\nGROUP BY operation\nORDER BY op_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "S3TopRequesters": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Highest-traffic S3 requesters with error counts",
+        "Name": "S3 - Top Requesters",
+        "QueryString": "SELECT remote_ip, requester, COUNT(*) as request_count,\n       COUNT(CASE WHEN http_status NOT IN ('200','204','206','304') THEN 1 END) as errors\nFROM s3_access_logs\nGROUP BY remote_ip, requester\nORDER BY request_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "SecurityHeadersPolicyE1741D63": {
+      "Properties": {
+        "ResponseHeadersPolicyConfig": {
+          "Comment": "Security headers for the Serverless App frontend (managed SECURITY_HEADERS + HSTS + CSP)",
+          "Name": "ServerlessAppFrontend-us-east-1-security-headers",
+          "SecurityHeadersConfig": {
+            "ContentSecurityPolicy": {
+              "ContentSecurityPolicy": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "default-src 'self'; script-src 'self' 'unsafe-inline' https://client.rum.us-east-1.amazonaws.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dataplane.rum.us-east-1.amazonaws.com https://cognito-identity.us-east-1.amazonaws.com https://",
+                    {
+                      "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
+                    },
+                    ".execute-api.us-east-1.amazonaws.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+                  ]
+                ]
+              },
+              "Override": true
+            },
+            "ContentTypeOptions": {
+              "Override": true
+            },
+            "FrameOptions": {
+              "FrameOption": "DENY",
+              "Override": true
+            },
+            "ReferrerPolicy": {
+              "Override": true,
+              "ReferrerPolicy": "strict-origin-when-cross-origin"
+            },
+            "StrictTransportSecurity": {
+              "AccessControlMaxAgeSec": 31536000,
+              "IncludeSubdomains": true,
+              "Override": true,
+              "Preload": false
+            },
+            "XSSProtection": {
+              "ModeBlock": true,
+              "Override": true,
+              "Protection": true
+            }
+          }
+        }
+      },
+      "Type": "AWS::CloudFront::ResponseHeadersPolicy"
+    },
+    "WafApiByCountry": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "BLOCK actions grouped by client country",
+        "Name": "WAF Regional - Blocked by Country",
+        "QueryString": "SELECT httprequest.country, COUNT(*) AS block_count\nFROM waf_regional_logs\nWHERE action = 'BLOCK'\nGROUP BY httprequest.country\nORDER BY block_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafApiRecentBlocked": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Most recent BLOCK actions with client IP, country, URI, and terminating rule",
+        "Name": "WAF Regional - Recent Blocked Requests",
+        "QueryString": "SELECT from_unixtime(timestamp / 1000) AS request_time,\n       httprequest.clientip, httprequest.country, httprequest.uri,\n       terminatingruleid\nFROM waf_regional_logs\nWHERE action = 'BLOCK'\nORDER BY timestamp DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafApiTopBlockedIps": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Client IPs with the most BLOCK actions",
+        "Name": "WAF Regional - Top Blocked Client IPs",
+        "QueryString": "SELECT httprequest.clientip, httprequest.country, COUNT(*) AS block_count\nFROM waf_regional_logs\nWHERE action = 'BLOCK'\nGROUP BY httprequest.clientip, httprequest.country\nORDER BY block_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafApiTopRules": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Which rules terminated the most requests",
+        "Name": "WAF Regional - Top Terminating Rules",
+        "QueryString": "SELECT terminatingruleid, action, COUNT(*) AS hit_count\nFROM waf_regional_logs\nGROUP BY terminatingruleid, action\nORDER BY hit_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafCfByCountry": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "BLOCK actions grouped by client country",
+        "Name": "WAF CloudFront - Blocked by Country",
+        "QueryString": "SELECT httprequest.country, COUNT(*) AS block_count\nFROM waf_cloudfront_logs\nWHERE action = 'BLOCK'\nGROUP BY httprequest.country\nORDER BY block_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafCfRecentBlocked": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Most recent BLOCK actions with client IP, country, URI, and terminating rule",
+        "Name": "WAF CloudFront - Recent Blocked Requests",
+        "QueryString": "SELECT from_unixtime(timestamp / 1000) AS request_time,\n       httprequest.clientip, httprequest.country, httprequest.uri,\n       terminatingruleid\nFROM waf_cloudfront_logs\nWHERE action = 'BLOCK'\nORDER BY timestamp DESC\nLIMIT 50",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafCfTopBlockedIps": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Client IPs with the most BLOCK actions",
+        "Name": "WAF CloudFront - Top Blocked Client IPs",
+        "QueryString": "SELECT httprequest.clientip, httprequest.country, COUNT(*) AS block_count\nFROM waf_cloudfront_logs\nWHERE action = 'BLOCK'\nGROUP BY httprequest.clientip, httprequest.country\nORDER BY block_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafCfTopRules": {
+      "DependsOn": [
+        "AccessLogsWorkGroup"
+      ],
+      "Properties": {
+        "Database": "serverlessappfrontend_us_east_1_access_logs",
+        "Description": "Which rules terminated the most requests",
+        "Name": "WAF CloudFront - Top Terminating Rules",
+        "QueryString": "SELECT terminatingruleid, action, COUNT(*) AS hit_count\nFROM waf_cloudfront_logs\nGROUP BY terminatingruleid, action\nORDER BY hit_count DESC\nLIMIT 25",
+        "WorkGroup": "ServerlessAppFrontend-us-east-1-access-logs"
+      },
+      "Type": "AWS::Athena::NamedQuery"
+    },
+    "WafCloudFrontLogsTable": {
+      "DependsOn": [
+        "AccessLogsDatabase"
+      ],
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseName": "serverlessappfrontend_us_east_1_access_logs",
+        "TableInput": {
+          "Description": "AWS WAF access logs (partition-projected)",
+          "Name": "waf_cloudfront_logs",
+          "Parameters": {
+            "EXTERNAL": "TRUE",
+            "projection.enabled": "true",
+            "projection.log_time.format": "yyyy/MM/dd/HH/mm",
+            "projection.log_time.interval": "1",
+            "projection.log_time.interval.unit": "minutes",
+            "projection.log_time.range": "2025/01/01/00/00,NOW",
+            "projection.log_time.type": "date",
+            "storage.location.template": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://aws-waf-logs-",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "-b25e13ade15d-cf/AWSLogs/",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/WAFLogs/cloudfront/ServerlessAppWaf-us-east-1-cf/${log_time}"
+                ]
+              ]
+            }
+          },
+          "PartitionKeys": [
+            {
+              "Name": "log_time",
+              "Type": "string"
+            }
+          ],
+          "StorageDescriptor": {
+            "Columns": [
+              {
+                "Name": "timestamp",
+                "Type": "bigint"
+              },
+              {
+                "Name": "formatversion",
+                "Type": "int"
+              },
+              {
+                "Name": "webaclid",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingruleid",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingruletype",
+                "Type": "string"
+              },
+              {
+                "Name": "action",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingrulematchdetails",
+                "Type": "array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>"
+              },
+              {
+                "Name": "httpsourcename",
+                "Type": "string"
+              },
+              {
+                "Name": "httpsourceid",
+                "Type": "string"
+              },
+              {
+                "Name": "rulegrouplist",
+                "Type": "array<struct<rulegroupid:string,terminatingrule:struct<ruleid:string,action:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>>,nonterminatingmatchingrules:array<struct<ruleid:string,action:string,overriddenaction:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>,challengeresponse:struct<responsecode:string,solvetimestamp:string>,captcharesponse:struct<responsecode:string,solvetimestamp:string>>>,excludedrules:string>>"
+              },
+              {
+                "Name": "ratebasedrulelist",
+                "Type": "array<struct<ratebasedruleid:string,limitkey:string,maxrateallowed:int>>"
+              },
+              {
+                "Name": "nonterminatingmatchingrules",
+                "Type": "array<struct<ruleid:string,action:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>,challengeresponse:struct<responsecode:string,solvetimestamp:string>,captcharesponse:struct<responsecode:string,solvetimestamp:string>>>"
+              },
+              {
+                "Name": "requestheadersinserted",
+                "Type": "array<struct<name:string,value:string>>"
+              },
+              {
+                "Name": "responsecodesent",
+                "Type": "string"
+              },
+              {
+                "Name": "httprequest",
+                "Type": "struct<clientip:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpversion:string,httpmethod:string,requestid:string,fragment:string,scheme:string,host:string>"
+              },
+              {
+                "Name": "labels",
+                "Type": "array<struct<name:string>>"
+              },
+              {
+                "Name": "captcharesponse",
+                "Type": "struct<responsecode:string,solvetimestamp:string,failurereason:string>"
+              },
+              {
+                "Name": "challengeresponse",
+                "Type": "struct<responsecode:string,solvetimestamp:string,failurereason:string>"
+              },
+              {
+                "Name": "ja3fingerprint",
+                "Type": "string"
+              },
+              {
+                "Name": "ja4fingerprint",
+                "Type": "string"
+              },
+              {
+                "Name": "oversizefields",
+                "Type": "string"
+              },
+              {
+                "Name": "requestbodysize",
+                "Type": "int"
+              },
+              {
+                "Name": "requestbodysizeinspectedbywaf",
+                "Type": "int"
+              }
+            ],
+            "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+            "Location": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://aws-waf-logs-",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "-b25e13ade15d-cf/AWSLogs/",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/WAFLogs/cloudfront/ServerlessAppWaf-us-east-1-cf/"
+                ]
+              ]
+            },
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+            "SerdeInfo": {
+              "SerializationLibrary": "org.openx.data.jsonserde.JsonSerDe"
+            }
+          },
+          "TableType": "EXTERNAL_TABLE"
+        }
+      },
+      "Type": "AWS::Glue::Table"
+    },
+    "WafRegionalLogsTable": {
+      "DependsOn": [
+        "AccessLogsDatabase"
+      ],
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseName": "serverlessappfrontend_us_east_1_access_logs",
+        "TableInput": {
+          "Description": "AWS WAF access logs (partition-projected)",
+          "Name": "waf_regional_logs",
+          "Parameters": {
+            "EXTERNAL": "TRUE",
+            "projection.enabled": "true",
+            "projection.log_time.format": "yyyy/MM/dd/HH/mm",
+            "projection.log_time.interval": "1",
+            "projection.log_time.interval.unit": "minutes",
+            "projection.log_time.range": "2025/01/01/00/00,NOW",
+            "projection.log_time.type": "date",
+            "storage.location.template": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://aws-waf-logs-",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "-f0a2b2e853d9-api/AWSLogs/",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/WAFLogs/us-east-1/ServerlessAppBackend-us-east-1-api/${log_time}"
+                ]
+              ]
+            }
+          },
+          "PartitionKeys": [
+            {
+              "Name": "log_time",
+              "Type": "string"
+            }
+          ],
+          "StorageDescriptor": {
+            "Columns": [
+              {
+                "Name": "timestamp",
+                "Type": "bigint"
+              },
+              {
+                "Name": "formatversion",
+                "Type": "int"
+              },
+              {
+                "Name": "webaclid",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingruleid",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingruletype",
+                "Type": "string"
+              },
+              {
+                "Name": "action",
+                "Type": "string"
+              },
+              {
+                "Name": "terminatingrulematchdetails",
+                "Type": "array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>"
+              },
+              {
+                "Name": "httpsourcename",
+                "Type": "string"
+              },
+              {
+                "Name": "httpsourceid",
+                "Type": "string"
+              },
+              {
+                "Name": "rulegrouplist",
+                "Type": "array<struct<rulegroupid:string,terminatingrule:struct<ruleid:string,action:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>>,nonterminatingmatchingrules:array<struct<ruleid:string,action:string,overriddenaction:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>,challengeresponse:struct<responsecode:string,solvetimestamp:string>,captcharesponse:struct<responsecode:string,solvetimestamp:string>>>,excludedrules:string>>"
+              },
+              {
+                "Name": "ratebasedrulelist",
+                "Type": "array<struct<ratebasedruleid:string,limitkey:string,maxrateallowed:int>>"
+              },
+              {
+                "Name": "nonterminatingmatchingrules",
+                "Type": "array<struct<ruleid:string,action:string,rulematchdetails:array<struct<conditiontype:string,sensitivitylevel:string,location:string,matcheddata:array<string>>>,challengeresponse:struct<responsecode:string,solvetimestamp:string>,captcharesponse:struct<responsecode:string,solvetimestamp:string>>>"
+              },
+              {
+                "Name": "requestheadersinserted",
+                "Type": "array<struct<name:string,value:string>>"
+              },
+              {
+                "Name": "responsecodesent",
+                "Type": "string"
+              },
+              {
+                "Name": "httprequest",
+                "Type": "struct<clientip:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpversion:string,httpmethod:string,requestid:string,fragment:string,scheme:string,host:string>"
+              },
+              {
+                "Name": "labels",
+                "Type": "array<struct<name:string>>"
+              },
+              {
+                "Name": "captcharesponse",
+                "Type": "struct<responsecode:string,solvetimestamp:string,failurereason:string>"
+              },
+              {
+                "Name": "challengeresponse",
+                "Type": "struct<responsecode:string,solvetimestamp:string,failurereason:string>"
+              },
+              {
+                "Name": "ja3fingerprint",
+                "Type": "string"
+              },
+              {
+                "Name": "ja4fingerprint",
+                "Type": "string"
+              },
+              {
+                "Name": "oversizefields",
+                "Type": "string"
+              },
+              {
+                "Name": "requestbodysize",
+                "Type": "int"
+              },
+              {
+                "Name": "requestbodysizeinspectedbywaf",
+                "Type": "int"
+              }
+            ],
+            "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
+            "Location": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://aws-waf-logs-",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "-f0a2b2e853d9-api/AWSLogs/",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/WAFLogs/us-east-1/ServerlessAppBackend-us-east-1-api/"
+                ]
+              ]
+            },
+            "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+            "SerdeInfo": {
+              "SerializationLibrary": "org.openx.data.jsonserde.JsonSerDe"
+            }
+          },
+          "TableType": "EXTERNAL_TABLE"
+        }
+      },
+      "Type": "AWS::Glue::Table"
+    }
+  },
+  "Rules": {
+    "CheckBootstrapVersion": {
+      "Assertions": [
+        {
+          "Assert": {
+            "Fn::Not": [
+              {
+                "Fn::Contains": [
+                  [
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5"
+                  ],
+                  {
+                    "Ref": "BootstrapVersion"
+                  }
+                ]
+              }
+            ]
+          },
+          "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+        }
+      ]
+    }
+  }
+}
