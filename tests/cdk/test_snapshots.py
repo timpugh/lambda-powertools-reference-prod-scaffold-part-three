@@ -55,6 +55,12 @@ def _normalize(template: dict) -> str:
     text = re.sub(r"[a-f0-9]{64}", "ASSET_HASH", text)
     # Asset-parameter logical-id suffixes (8 uppercase hex CDK appends).
     text = re.sub(r"(S3Bucket|S3VersionKey|ArtifactHash)[0-9A-F]{8}", r"\1", text)
+    # Lambda version logical-id content hash (32 lowercase hex CDK derives from the
+    # function's code asset + config). It varies with the asset, which itself differs
+    # across build environments (e.g. __pycache__ in the un-bundled source dir), so it
+    # would make this snapshot non-portable between a local run and CI. Keep the stable
+    # construct-hash prefix, drop the asset-derived tail.
+    text = re.sub(r"(CurrentVersion[0-9A-F]{8})[0-9a-f]{32}", r"\1", text)
     return text + "\n"
 
 

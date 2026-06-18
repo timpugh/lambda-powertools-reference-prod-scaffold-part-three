@@ -627,7 +627,7 @@
       "Type": "AWS::Logs::LogGroup",
       "UpdateReplacePolicy": "Delete"
     },
-    "AppApiFunctionCurrentVersion01C510AC00051fab5823f34495b554499e1606d8": {
+    "AppApiFunctionCurrentVersion01C510AC": {
       "Metadata": {
         "aws:cdk:do-not-refactor": true,
         "cdk_nag": {
@@ -1969,7 +1969,7 @@
         },
         "FunctionVersion": {
           "Fn::GetAtt": [
-            "AppApiFunctionCurrentVersion01C510AC00051fab5823f34495b554499e1606d8",
+            "AppApiFunctionCurrentVersion01C510AC",
             "Version"
           ]
         },
