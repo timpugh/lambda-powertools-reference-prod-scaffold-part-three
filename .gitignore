@@ -256,8 +256,12 @@ report.html
 # Ruff cache
 .ruff_cache/
 
-# Claude Code local memory
-.claude/
+# Claude Code local memory (settings, local state) — but version shared
+# project skills. `.claude/*` + negation instead of `.claude/` because git
+# does not descend into a fully-ignored directory, so a bare `!` re-include
+# under `.claude/` would never match.
+.claude/*
+!.claude/skills/
 
 # Node tooling (CDK CLI + markdownlint via package.json)
 node_modules/
