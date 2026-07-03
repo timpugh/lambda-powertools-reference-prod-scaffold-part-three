@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-07-03
+
+### Build
+
+- Bump aws-cdk-aws-lambda-python-alpha from 2.258.1a0 to 2.261.0a0 (#92)
+- Migrate to cdk-nag 3.0.1 (policy-validation plugin engine) (#99)
+
+### CI/CD
+
+- Keep the npm audit lane reporting when pip-audit fails
+
+### Fixed
+
+- Move transitive cryptography and pydantic-settings pins past known CVEs
+- Preserve Dependabot's transitive bumps through the deps-merge re-lock
+
 ## [2.1.0] - 2026-07-03
 
 ### Added
@@ -29,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uncap /wa-review findings and require coverage accounting
 - Harden /wa-review with practices mined from this codebase
 - Harden /wa-review round two from the completed full-codebase pass
+- Release v2.1.0
 
 ## [2.0.3] - 2026-06-19
 
@@ -382,6 +399,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add error case unit tests for SSM failure, unknown route, and unsupported method
 - Separate CDK tests from unit tests so cdk-check CI job stops failing
 
+[3.0.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.1.0..v3.0.0
 [2.1.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.3..v2.1.0
 [2.0.3]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.2..v2.0.3
 [2.0.2]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.1..v2.0.2

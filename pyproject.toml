@@ -1,6 +1,6 @@
 [project]
 name = "serverless-app"
-version = "2.1.0"
+version = "3.0.0"
 description = "Production-grade AWS CDK reference architecture for Lambda + Powertools serverless applications, with multi-rule-pack cdk-nag, WAF, CloudTrail data events, CMK encryption end-to-end, and supply-chain hygiene."
 requires-python = ">=3.13"
 readme = "README.md"
