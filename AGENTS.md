@@ -2,7 +2,7 @@
 
 Starting point for AI agents working in this repository — a five-stack AWS CDK (Python) reference architecture for Lambda + Powertools serverless applications, designed to be forked via GitHub's "Use this template".
 
-This file is the condensed navigation layer. Deeper, authoritative material: [CLAUDE.md](CLAUDE.md) (design rationale and live-verified gotchas), [README.md](README.md) (full documentation), [agent-sops/ship-a-change.sop.md](agent-sops/ship-a-change.sop.md) (step-by-step process for shipping a change through every gate), and the generated knowledge base at [.agents/summary/index.md](.agents/summary/index.md).
+This file is the condensed navigation layer. Deeper, authoritative material: [CLAUDE.md](CLAUDE.md) (design rationale and live-verified gotchas), [README.md](README.md) (full documentation), the [ship-a-change skill](.claude/skills/ship-a-change/SKILL.md) (step-by-step process for shipping a change through every gate), and the generated knowledge base at [.agents/summary/index.md](.agents/summary/index.md).
 
 ## Contents
 

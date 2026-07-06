@@ -1,3 +1,8 @@
+---
+name: ship-a-change
+description: Use when implementing and shipping any change to this repo — a feature, bug fix, infrastructure change, dependency bump, API edit, or deploy. Guides the change through every gate (two-venv split, cdk-nag, committed-artifact drift gates, make pr, deployment traps) in the order the project enforces them. Not for read-only questions or reviews (use wa-review for reviews).
+---
+
 # Ship a Change to the Lambda Powertools Reference Architecture
 
 ## Overview

@@ -2,6 +2,10 @@
 
 Project-level instructions for future Claude Code sessions. Loaded on every session against this repo.
 
+The generated codebase knowledge base index is imported below so every session starts with the document-routing table; read the detail files it points to (`.agents/summary/*.md`) on demand rather than up front. Regeneration/precedence rules live in README "Generated codebase knowledge base".
+
+@.agents/summary/index.md
+
 ## Project
 
 Reference architecture for serverless AWS Lambda + Powertools applications: five-stack CDK composition (two stateful stacks — data and audit — plus WAF, backend, and frontend), five-rule-pack cdk-nag gating, end-to-end CMK encryption, WAF + CloudFront, CloudTrail data events, browser RUM with X-Ray correlation, Athena access-log analytics, and supply-chain hygiene. Designed to be forked via GitHub's "Use this template" — see the "Forking this template" section at the bottom.

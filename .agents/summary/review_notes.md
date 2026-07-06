@@ -38,7 +38,7 @@ This knowledge base coexists with four hand-maintained agent/contributor surface
 
 - `CLAUDE.md` — project instructions (deepest rationale; load-bearing gotchas with "verified live" provenance).
 - `llms.txt` — a compact agent-pointer file whose key facts match this summary.
-- `agent-sops/ship-a-change.sop.md` — a process SOP for shipping a change through every gate; the procedural companion to workflows.md.
+- `.claude/skills/ship-a-change/SKILL.md` — a process SOP (registered as a project skill) for shipping a change through every gate; the procedural companion to workflows.md.
 - `.claude/skills/wa-review/SKILL.md` — Well-Architected review skill.
 
 **Risk to manage**: five overlapping documents can drift apart. When repository behavior changes, update `CLAUDE.md`/`README.md` first (authoritative), then regenerate or hand-patch this summary, `AGENTS.md`, and `llms.txt`.
