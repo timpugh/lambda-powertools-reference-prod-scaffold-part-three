@@ -46,5 +46,5 @@ This knowledge base coexists with four hand-maintained agent/contributor surface
 ## Recommendations
 
 1. **Refresh cadence**: regenerate this summary after structural changes (new stacks, moved modules, changed gates), not for routine code changes — most content is structural and stable.
-2. **Consider linking `AGENTS.md` from `llms.txt`** (or vice versa) so non-Claude agents discover one canonical starting file.
+2. **Link `AGENTS.md` from `llms.txt`** — *(done 2026-07-06)*: llms.txt's Documentation section now lists AGENTS.md as the canonical agent starting file, with an onward link to the knowledge-base index.
 3. When deep detail on `backend_app.py`/`frontend_stack.py` matters (IAM suppressions, RUM wiring), read the module docstrings first — they carry the rationale this summary compresses.

@@ -26,6 +26,10 @@ Key facts for agents working in this repo:
 
 - [README](README.md): architecture, deploy/destroy runbooks, quality gates,
   release recipe, design decisions and known limitations
+- [AGENTS.md](AGENTS.md): the canonical starting file for AI agents — repo
+  map, hard rules, per-change gate routing; links onward to the generated
+  knowledge base ([.agents/summary/index.md](.agents/summary/index.md)) for
+  architecture, component, and workflow detail
 - [CLAUDE.md](CLAUDE.md): condensed agent-facing project rules (venv split,
   synth glob, nag-gate workflow, encryption posture, commit grammar)
 - [TODO](TODO.md): production-readiness checklist for forks
