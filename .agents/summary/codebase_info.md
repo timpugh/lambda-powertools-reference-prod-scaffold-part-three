@@ -7,7 +7,7 @@ Basic facts about the `lambda-powertools-reference` repository, gathered during 
 - **Name**: `serverless-app` (PyPI project name in `pyproject.toml`); repository `lambda-powertools-reference`
 - **Purpose**: Production-grade reference architecture for serverless AWS applications built on Lambda + AWS Lambda Powertools, deployed with AWS CDK (Python). Designed to be forked via GitHub's "Use this template".
 - **License**: Apache-2.0
-- **Primary language**: Python (requires >= 3.13)
+- **Primary language**: Python (requires >= 3.14, matching the Lambda runtime)
 - **Secondary tooling languages**: Node.js (pinned AWS CDK CLI + markdownlint via `package.json`), Bash (automation scripts), YAML (CI), HTML/JavaScript (static frontend page with CloudWatch RUM snippet)
 
 ## Technology stack

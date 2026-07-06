@@ -73,7 +73,7 @@ PRs additionally get an oasdiff breaking-change gate and a sticky CloudFormation
 - **Per-stack CMKs with confused-deputy-guarded service grants** (`aws:SourceAccount` + `aws:SourceArn`) — use the `nag_utils.py` grant helpers, and read CLAUDE.md's encryption section before touching key policies.
 - **Out-of-CFN resources get cleanup custom resources** (`RumLogGroupCleanup`, `AppInsightsDashboardCleanup` pattern: `on_delete` SDK call, ARN-scoped IAM, ignore `ResourceNotFoundException`).
 - **Telemetry contract**: `tenant_id` is EMF *metadata*, not a dimension — the `{service}` dimension set is pinned by a unit test; changing it blinds the dashboard and the AppConfig rollback alarm.
-- **Lambda targets `PYTHON_3_14`/arm64** while the workstation toolchain targets 3.13 — handler code must satisfy both.
+- **Everything is Python 3.14**: the Lambda runtime (`PYTHON_3_14`, arm64) and the workstation toolchain (`requires-python >= 3.14`, ruff `py314`, mypy `3.14`) are deliberately aligned — bump them together.
 
 ## Deployment traps
 

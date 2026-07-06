@@ -13,7 +13,7 @@ Thanks for contributing to the Lambda Powertools Reference architecture. This gu
 
 ## Development setup
 
-Prerequisites: [uv](https://docs.astral.sh/uv/), Node.js (the pinned CDK CLI and markdownlint are npm packages invoked via `npx`), Python 3.13+, and Docker (only for `make cdk-synth`/deploys — Lambda bundling runs in a container).
+Prerequisites: [uv](https://docs.astral.sh/uv/), Node.js (the pinned CDK CLI and markdownlint are npm packages invoked via `npx`), Python 3.14+ (matching the Lambda runtime; uv manages the interpreter), and Docker (only for `make cdk-synth`/deploys — Lambda bundling runs in a container).
 
 ```bash
 make install   # both venvs + npm ci + pre-commit hooks

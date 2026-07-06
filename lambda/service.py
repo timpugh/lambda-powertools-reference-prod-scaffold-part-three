@@ -93,7 +93,7 @@ def build_greeting(
     # in metrics rather than being silently absorbed by the fallback path.
     try:
         enhanced = feature_flags.evaluate(name="enhanced_greeting", context=flag_context, default=False)
-    except (ConfigurationStoreError, SchemaValidationError, StoreClientError):
+    except ConfigurationStoreError, SchemaValidationError, StoreClientError:
         # exc_info=True puts the underlying exception in the log record — without
         # it a permanently broken AppConfig integration (bad IAM, bad config, KMS
         # denial) is indistinguishable in CloudWatch from a transient network

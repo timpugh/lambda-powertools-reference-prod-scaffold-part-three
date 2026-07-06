@@ -12,10 +12,10 @@ Cross-document facts verified consistent:
 - **Coverage policy** (100% branch gate on `lambda/` in the unit suite only; combined cross-venv coverage is informational) — consistent; matches `pyproject.toml` `addopts` and the Makefile's `--override-ini` handling.
 - **Deployment traps** (`appconfig_monitor` cold-deploy abort; `'**'` glob) — described identically in architecture.md, interfaces.md, workflows.md; matches `cdk.json`, `Makefile`, and `app.py` comments.
 
-Inconsistencies noticed **in the repository itself** (not introduced by this documentation):
+Inconsistencies noticed **in the repository itself** (not introduced by this documentation) — both **resolved on 2026-07-06**:
 
-1. **PITR window wording**: `TODO.md` says "PITR alone is a 35-day rolling window", while `data_stack.py` configures `recovery_period_in_days=1`. TODO.md appears to describe PITR's maximum capability, not this table's configured window. This documentation follows the code (1 day).
-2. **Two Python versions in play**: the workstation toolchain targets Python 3.13 (`requires-python >= 3.13`, ruff/mypy `py313`), while the Lambda runtime is `PYTHON_3_14`. Not a bug (handler code must satisfy both), but easy to trip over when using 3.14-only features in `lambda/`.
+1. **PITR window wording** *(resolved)*: `TODO.md` said "PITR alone is a 35-day rolling window", while `data_stack.py` configures `recovery_period_in_days=1`. TODO.md and README now distinguish the configured 1-day window from the feature's 35-day cap.
+2. **Two Python versions in play** *(resolved)*: the workstation toolchain targeted Python 3.13 (`requires-python >= 3.13`, ruff/mypy `py313`) while the Lambda runtime is `PYTHON_3_14`. The toolchain floors are now aligned to 3.14 (`requires-python >= 3.14`, ruff `py314`, mypy `3.14`) — the local venvs already ran 3.14, so only the config floors and prose moved.
 
 ## Completeness check
 
@@ -46,6 +46,5 @@ This knowledge base coexists with four hand-maintained agent/contributor surface
 ## Recommendations
 
 1. **Refresh cadence**: regenerate this summary after structural changes (new stacks, moved modules, changed gates), not for routine code changes — most content is structural and stable.
-2. **Close the PITR wording gap** in `TODO.md` (say "the configured 1-day PITR window" or "PITR's up-to-35-day capability") to stop the number from being quoted wrongly.
-3. **Consider linking `AGENTS.md` from `llms.txt`** (or vice versa) so non-Claude agents discover one canonical starting file.
-4. When deep detail on `backend_app.py`/`frontend_stack.py` matters (IAM suppressions, RUM wiring), read the module docstrings first — they carry the rationale this summary compresses.
+2. **Consider linking `AGENTS.md` from `llms.txt`** (or vice versa) so non-Claude agents discover one canonical starting file.
+3. When deep detail on `backend_app.py`/`frontend_stack.py` matters (IAM suppressions, RUM wiring), read the module docstrings first — they carry the rationale this summary compresses.

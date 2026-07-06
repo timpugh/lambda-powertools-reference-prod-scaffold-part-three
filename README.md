@@ -55,7 +55,7 @@ This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, 
 
 - [Node.js](https://nodejs.org/) — the CDK CLI and markdownlint are npm packages, pinned in `package.json` and installed by `make install` (`npm ci`). All invocations go through `npx`, so no global `npm install -g aws-cdk` — the pinned version is the one that runs, locally and in CI, and Dependabot's npm ecosystem tracks the pin.
 - [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) — used by `aws logs tail` for streaming Lambda logs and shared by the CDK CLI for credentials
-- [Python 3.13+](https://www.python.org/downloads/) for local development (uv manages the interpreter); the Lambda itself runs on the Python 3.14 runtime
+- [Python 3.14+](https://www.python.org/downloads/) for local development (uv manages the interpreter) — the same version line as the Lambda runtime, so local tests exercise what production runs
 - [uv](https://docs.astral.sh/uv/) — Python package and environment manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - A container runtime for bundling Lambda dependencies — either:
   - [Finch](https://runfinch.com/) — AWS-supported, open-source, license-friendly (recommended)
@@ -1384,7 +1384,7 @@ All tool configuration is consolidated in `pyproject.toml`. Here is a summary of
 
 | Setting | Value | Purpose |
 |---|---|---|
-| `target-version` | `py313` | Enables Python 3.13-specific lint rules and syntax modernization |
+| `target-version` | `py314` | Enables Python 3.14-specific lint rules and syntax modernization (matches the Lambda runtime) |
 | `line-length` | `120` | Maximum line length enforced by the formatter |
 | `dummy-variable-rgx` | `^(_+\|...)$` | Allows `_`-prefixed variables to be unused without triggering a lint warning |
 
@@ -1883,7 +1883,7 @@ These are gaps surfaced by an audit pass against AWS public documentation that I
 
 - **DynamoDB `deletion_protection_enabled` defaults off, behind one flag.** Per the [DynamoDB deletion-protection docs](https://docs.aws.amazon.com/help-panel/amazondynamodb/latest/console/hp-deletion-protection.html), this is recommended for important tables. The idempotency table defaults to `RemovalPolicy.DESTROY` with deletion protection off because the template ships destroy-friendly — but the production switch is already wired: `-c retain_data=true` flips the table (and its CMK) to `RemovalPolicy.RETAIN`, turns on `deletion_protection`, and enables stack termination protection, all together. See [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data).
 
-- **AWS Backup plan for RTO/RPO data governance.** The post highlights constructs that enforce backup and resilience policies. This template relies on DynamoDB point-in-time recovery (a rolling sub-35-day window); a `retain_data=true` production fork should additionally enroll the table in an AWS Backup plan for long-term and cross-region/cross-account copies — see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [`TODO.md`](TODO.md). The `DynamoDBInBackupPlan` nag suppressions already live on the data stack so the gap is explicit.
+- **AWS Backup plan for RTO/RPO data governance.** The post highlights constructs that enforce backup and resilience policies. This template relies on DynamoDB point-in-time recovery (configured here to a 1-day rolling window; the feature caps at 35 days); a `retain_data=true` production fork should additionally enroll the table in an AWS Backup plan for long-term and cross-region/cross-account copies — see [Stateful data stack and `retain_data`](#stateful-data-stack-and-retain_data) and [`TODO.md`](TODO.md). The `DynamoDBInBackupPlan` nag suppressions already live on the data stack so the gap is explicit.
 
 - **API Gateway request validation not configured.** `AwsSolutions-APIG2` is suppressed. Powertools' `enable_validation=True` validates at the Lambda layer, so malformed requests still cost a Lambda invocation. Adding API Gateway request models rejects invalid input before it reaches the function.
 

@@ -12,7 +12,7 @@ The hard gates a fork needs to clear before customer traffic touches it. Most it
 - [ ] API Gateway request validation — `AwsSolutions-APIG2` suppressed
 - [x] API Gateway throttling (per-stage rate + burst) — implemented via `throttling_rate_limit=100` / `throttling_burst_limit=200` on the Prod stage in `BackendApp`; `Serverless-APIGWDefaultThrottling` suppression retired
 - [ ] CORS `allow_origin` restricted from `*` to the specific frontend domain
-- [ ] AWS Backup plan for DynamoDB — `DynamoDBInBackupPlan` (NIST/HIPAA) suppressed on `DataStack` (the table owner); PITR alone is a 35-day rolling window with no cross-region/cross-account copies
+- [ ] AWS Backup plan for DynamoDB — `DynamoDBInBackupPlan` (NIST/HIPAA) suppressed on `DataStack` (the table owner); PITR here is configured to a 1-day rolling window (records TTL out after an hour; the feature caps at 35 days) with no cross-region/cross-account copies
 - [~] DynamoDB deletion protection paired with `RemovalPolicy.RETAIN` — *structure done, one flag from production:* the table and its CMK live in `DataStack`, and `-c retain_data=true` flips both to `RETAIN`, turns on table deletion protection, and enables stack termination protection. Default `false` keeps the template destroy-friendly. The remaining gate is simply *setting* `retain_data=true` for a production deployment
 - [x] Lambda reserved concurrency — implemented via `reserved_concurrent_executions=100` on `ApiFunction`; `NIST.800.53.R5-LambdaConcurrency` / `HIPAA.Security-LambdaConcurrency` suppressions retired
 
@@ -131,7 +131,7 @@ Per-service hardening items grouped by AWS service so each block can be tackled 
 The table and its dedicated CMK live in their own stack, [`DataStack`](infrastructure/data_stack.py), so their lifecycle is independent of the stateless compute (CDK best practice: keep stateful resources in their own stack). See [README "Stateful data stack and `retain_data`"](README.md#stateful-data-stack-and-retain_data).
 
 - [~] **Deletion protection + `RemovalPolicy.RETAIN`** — *wired behind one flag.* `deletion_protection=True`, `RemovalPolicy.RETAIN` (table + CMK), and stack termination protection all ride the `retain_data` switch (`-c retain_data=true`, plumbed `app.py` → `AppStage` → `DataStack`). Default `false` keeps the idempotency cache (regenerable data) destroy-friendly for dev/ephemeral environments; a production fork sets it `true`.
-- [ ] **AWS Backup plan** — AWS Backup integration for compliance/long-term retention. PITR alone covers <35 days; AWS Backup supports years. A `retain_data=true` production fork should add this; the `DynamoDBInBackupPlan` nag suppressions live on `DataStack`.
+- [ ] **AWS Backup plan** — AWS Backup integration for compliance/long-term retention. PITR alone caps at 35 days (this table configures the 1-day minimum to match its 1-hour TTL); AWS Backup supports years. A `retain_data=true` production fork should add this; the `DynamoDBInBackupPlan` nag suppressions live on `DataStack`.
 
 ### S3
 
