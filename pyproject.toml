@@ -1,6 +1,6 @@
 [project]
 name = "serverless-app"
-version = "3.0.0"
+version = "3.0.1"
 description = "Production-grade AWS CDK reference architecture for Lambda + Powertools serverless applications, with multi-rule-pack cdk-nag, WAF, CloudTrail data events, CMK encryption end-to-end, and supply-chain hygiene."
 # Matches the Lambda runtime (Runtime.PYTHON_3_14 in backend_app.py) so local
 # venvs, lint targets, and unit tests exercise the same version line production

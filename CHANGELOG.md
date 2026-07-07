@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1] - 2026-07-07
+
+### Build
+
+- Bump pytest from 9.0.3 to 9.1.1 (#109)
+
+### CI/CD
+
+- Add workflow_dispatch trigger to OpenSSF Scorecard workflow (#114)
+- Wire optional SCORECARD_TOKEN for the Branch-Protection check (#115)
+
+### Documentation
+
+- Record fuzzing as a deliberate non-adoption in TODO.md
+- Add ship-a-change agent SOP and fix stale doc references
+- Add generated codebase knowledge base, AGENTS.md, and CONTRIBUTING.md
+- Register agent SOPs as project skills, auto-load knowledge-base index
+- Verify workflow summaries and complete the derived-surfaces list
+- Link AGENTS.md from llms.txt as the canonical agent entry point
+
+### Fixed
+
+- Align toolchain to Python 3.14 and correct PITR-window wording
+
 ## [3.0.0] - 2026-07-03
 
 ### Build
@@ -20,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Move transitive cryptography and pydantic-settings pins past known CVEs
 - Preserve Dependabot's transitive bumps through the deps-merge re-lock
+
+### Maintenance
+
+- Release v3.0.0
 
 ## [2.1.0] - 2026-07-03
 
@@ -399,6 +427,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add error case unit tests for SSM failure, unknown route, and unsupported method
 - Separate CDK tests from unit tests so cdk-check CI job stops failing
 
+[3.0.1]: https://github.com/timpugh/lambda-powertools-reference/compare/v3.0.0..v3.0.1
 [3.0.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.1.0..v3.0.0
 [2.1.0]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.3..v2.1.0
 [2.0.3]: https://github.com/timpugh/lambda-powertools-reference/compare/v2.0.2..v2.0.3
