@@ -69,7 +69,7 @@ metrics = Metrics()
 # key "max_attempts" counts retries-after-initial and is stored as
 # total_max_attempts = max_attempts + 1 — an off-by-one that silently inflates
 # the budget (this codebase shipped 5 total attempts while the comment claimed
-# 4). total_max_attempts pins the total unambiguously: 1 initial + 2 retries.
+# 4). total_max_attempts pins the total unambiguously: 1 initial + 1 retry.
 # Retrying is
 # safe because the write path (DynamoDB via @idempotent) is idempotent on the
 # client-supplied Idempotency-Key, and the SSM/AppConfig calls are reads. This
