@@ -284,7 +284,20 @@ class FrontendStack(Stack):
             enforce_ssl=True,
             server_access_logs_bucket=access_log_bucket,
             server_access_logs_prefix="s3-access-logs/",
-            versioned=False,
+            # Versioning gives in-bucket recovery if assets are overwritten out-of-band
+            # (git stays the source of truth; this is the belt to that suspender) and is
+            # a prerequisite for any future replication. The 30-day noncurrent-version
+            # expiry bounds the storage cost of redeploy churn. auto_delete_objects
+            # removes ALL versions on destroy, so teardown stays clean.
+            versioned=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    id="ExpireNoncurrentVersions",
+                    enabled=True,
+                    noncurrent_version_expiration=Duration.days(30),
+                    abort_incomplete_multipart_upload_after=Duration.days(1),
+                ),
+            ],
             removal_policy=RemovalPolicy.DESTROY,
             auto_delete_objects=True,
         )
@@ -689,16 +702,12 @@ class FrontendStack(Stack):
 
         # ── Stack-level cdk-nag suppressions (genuinely stack-wide) ─────────────
         replication_reason = "S3 replication not needed for sample app — static assets are redeployable"
-        versioning_reason = "S3 versioning not needed for sample app — static assets are redeployable via cdk deploy"
         stack_suppressions = [
             ("AwsSolutions-CFR1", "Geo restriction not required for sample app"),
             ("AwsSolutions-CFR4", "Using default CloudFront certificate — no custom domain for sample app"),
             ("NIST.800.53.R5-S3BucketReplicationEnabled", replication_reason),
-            ("NIST.800.53.R5-S3BucketVersioningEnabled", versioning_reason),
             ("HIPAA.Security-S3BucketReplicationEnabled", replication_reason),
-            ("HIPAA.Security-S3BucketVersioningEnabled", versioning_reason),
             ("PCI.DSS.321-S3BucketReplicationEnabled", replication_reason),
-            ("PCI.DSS.321-S3BucketVersioningEnabled", versioning_reason),
         ]
         acknowledge_rules(
             self,

@@ -850,6 +850,32 @@ class TestFrontendStack:
             },
         )
 
+    def test_frontend_bucket_versioned_with_noncurrent_expiry(self, frontend_template: Template) -> None:
+        # Versioning gives in-bucket recovery for the deployed assets (git remains
+        # the source of truth); the 30-day noncurrent expiry bounds version storage.
+        frontend_template.has_resource_properties(
+            "AWS::S3::Bucket",
+            Match.object_like(
+                {
+                    "VersioningConfiguration": {"Status": "Enabled"},
+                    "LifecycleConfiguration": Match.object_like(
+                        {
+                            "Rules": Match.array_with(
+                                [
+                                    Match.object_like(
+                                        {
+                                            "NoncurrentVersionExpiration": {"NoncurrentDays": 30},
+                                            "Status": "Enabled",
+                                        }
+                                    )
+                                ]
+                            )
+                        }
+                    ),
+                }
+            ),
+        )
+
     def test_access_log_bucket_uses_s3_managed_encryption(self, frontend_template: Template) -> None:
         # Access log bucket must use SSE-S3 (S3 log delivery cannot write to KMS-encrypted targets)
         frontend_template.has_resource_properties(

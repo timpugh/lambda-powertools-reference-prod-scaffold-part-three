@@ -188,24 +188,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -323,24 +311,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -452,24 +428,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -593,24 +557,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -676,24 +628,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -726,24 +666,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -801,24 +729,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -877,24 +793,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -937,24 +841,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -996,24 +888,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1068,24 +948,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1128,24 +996,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1187,24 +1043,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1261,24 +1105,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1312,24 +1144,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1363,24 +1183,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1414,24 +1222,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1465,24 +1261,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1516,24 +1300,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -1837,24 +1609,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2014,24 +1774,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2175,24 +1923,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2348,24 +2084,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2592,24 +2316,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2727,24 +2439,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2791,24 +2491,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2846,24 +2534,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -2970,24 +2646,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3072,24 +2736,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3478,24 +3130,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3532,24 +3172,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3567,6 +3195,20 @@
                 },
                 "SSEAlgorithm": "aws:kms"
               }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+              },
+              "Id": "ExpireNoncurrentVersions",
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 30
+              },
+              "Status": "Enabled"
             }
           ]
         },
@@ -3591,7 +3233,10 @@
             "Key": "aws-cdk:cr-owned:8cbaf8c9",
             "Value": "true"
           }
-        ]
+        ],
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
       },
       "Type": "AWS::S3::Bucket",
       "UpdateReplacePolicy": "Delete"
@@ -3613,24 +3258,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3782,24 +3415,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -3937,24 +3558,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4052,24 +3661,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4129,24 +3726,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4220,24 +3805,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4289,24 +3862,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4367,24 +3928,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4412,24 +3961,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4489,24 +4026,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4588,24 +4113,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4681,24 +4194,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4749,24 +4250,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4839,24 +4328,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4938,24 +4415,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -4989,24 +4454,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5175,24 +4628,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5226,24 +4667,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5277,24 +4706,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5328,24 +4745,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5379,24 +4784,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5427,24 +4820,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5516,24 +4897,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5567,24 +4936,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5618,24 +4975,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5669,24 +5014,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5720,24 +5053,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5771,24 +5092,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5822,24 +5131,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5873,24 +5170,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -5924,24 +5209,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
@@ -6127,24 +5400,12 @@
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "NIST.800.53.R5-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "HIPAA.Security-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
             },
             {
-              "id": "HIPAA.Security-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
-            },
-            {
               "id": "PCI.DSS.321-S3BucketReplicationEnabled",
               "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
-            },
-            {
-              "id": "PCI.DSS.321-S3BucketVersioningEnabled",
-              "reason": "S3 versioning not needed for sample app \u2014 static assets are redeployable via cdk deploy"
             }
           ]
         }
