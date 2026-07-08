@@ -25,10 +25,12 @@
 ### Task 1: Frontend bucket versioning + noncurrent-version expiry
 
 **Files:**
+
 - Modify: `infrastructure/frontend_stack.py:278-290` (bucket), `:691-706` (stack suppressions)
 - Test: `tests/cdk/test_stacks.py` (class `TestFrontendStack`)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: no API change; `FrontendBucket` gains `VersioningConfiguration` + lifecycle.
 
@@ -104,10 +106,12 @@ Then in the stack-level suppressions block (`stack_suppressions` near line 691):
 ### Task 2: SSM greeting-parameter path via CDK context
 
 **Files:**
+
 - Modify: `app.py`, `infrastructure/app_stage.py`, `infrastructure/backend_stack.py`, `infrastructure/backend_app.py:199-203`
 - Test: `tests/cdk/test_stage.py`
 
 **Interfaces:**
+
 - Produces: `validate_ssm_param_path(raw: str | None) -> str | None` in `infrastructure/app_stage.py`; `AppStage(..., ssm_param_path: str | None = None)`; `BackendStack(..., ssm_param_path: str | None = None)`; `BackendApp(..., ssm_param_path: str | None = None)`. Default `None` keeps CDK auto-naming (no template change in default shapes).
 
 - [ ] **Step 1: Write the failing tests** — in `tests/cdk/test_stage.py`:
@@ -207,6 +211,7 @@ ssm_param_path: str | None = validate_ssm_param_path(app.node.try_get_context("s
 ### Task 3: Athena `MinimumEncryptionConfiguration` (contingent on CFN support)
 
 **Files:**
+
 - Modify: `infrastructure/frontend_stack.py:1204-1238` (workgroup); possibly only `TODO.md`
 - Test: `tests/cdk/test_stacks.py` (`TestFrontendStack`)
 
@@ -219,9 +224,10 @@ ssm_param_path: str | None = validate_ssm_param_path(app.node.try_get_context("s
 ```
 
 Also search AWS docs (`aws___search_documentation`, topic `cloudformation`, phrase "AWS::Athena::WorkGroup MinimumEncryptionConfiguration") to confirm the CFN schema carries the field. Decision gate:
-  - L1 exposes it → use the typed property (Step 3, variant A).
-  - CFN supports it but the pinned L1 doesn't → raw override (variant B).
-  - CFN does not support it → skip implementation; update the TODO.md entry with the dated finding ("checked 2026-07-08: CFN schema still lacks the field; workgroup-enforced SSE_KMS remains the posture") and commit that as `docs:` — task done.
+
+- L1 exposes it → use the typed property (Step 3, variant A).
+- CFN supports it but the pinned L1 doesn't → raw override (variant B).
+- CFN does not support it → skip implementation; update the TODO.md entry with the dated finding ("checked 2026-07-08: CFN schema still lacks the field; workgroup-enforced SSE_KMS remains the posture") and commit that as `docs:` — task done.
 
 - [ ] **Step 2: Write the failing test** (only if supported):
 
@@ -269,6 +275,7 @@ workgroup.add_property_override(
 ### Task 4: Lambda fault-rate + DynamoDB throttle alarms (MonitoringFacade flags)
 
 **Files:**
+
 - Modify: `infrastructure/backend_app.py:731-754` (`_build_monitoring`)
 - Test: `tests/cdk/test_stacks.py` (`TestBackendStack`)
 
@@ -329,10 +336,12 @@ monitoring.monitor_dynamo_table(
 ### Task 5: WAF BlockedRequests alarms (+ shared operational-alarm routing helper)
 
 **Files:**
+
 - Modify: `infrastructure/nag_utils.py` (new helper), `infrastructure/backend_app.py` (new `_attach_waf_alarms`), `infrastructure/app_stage.py` (pass `cf_web_acl_name`), `infrastructure/backend_stack.py` (forward it)
 - Test: `tests/cdk/test_stacks.py`
 
 **Interfaces:**
+
 - Produces: `route_operational_alarm(alarm: cloudwatch.Alarm, topic: sns.ITopic | None) -> None` in `nag_utils.py` (topic → `SnsAction`; None → the two `CloudWatchAlarmAction` suppressions). Consumed again in Task 6.
 - Produces: `BackendApp(..., cf_web_acl_name: str | None = None)` / `BackendStack(..., cf_web_acl_name: str | None = None)`; `AppStage` passes `cf_web_acl_name=f"{waf_stack_name}-cf"` (a plain string — same no-cross-stack-ref technique as the WAF log locations).
 
@@ -444,10 +453,12 @@ def _attach_waf_alarms(self, cf_web_acl_name: str | None) -> None:
 ### Task 6: Athena query-failure + RUM session-spike alarms (frontend)
 
 **Files:**
+
 - Modify: `infrastructure/frontend_stack.py` (signature + new `_attach_analytics_alarms`), `infrastructure/app_stage.py` (pass `alarm_topic`)
 - Test: `tests/cdk/test_stacks.py` (`TestFrontendStack`), `tests/cdk/test_stage.py`
 
 **Interfaces:**
+
 - Consumes: `route_operational_alarm` (Task 5); `BackendStack.app.alarm_topic` (`sns.Topic | None`, existing).
 - Produces: `FrontendStack(..., alarm_topic: sns.ITopic | None = None)`. `AppStage` passes `alarm_topic=self.backend.app.alarm_topic` (frontend already depends on backend — no new edge; in non-prod it's None).
 
@@ -533,10 +544,12 @@ Store `self._alarm_topic = alarm_topic` in `__init__`. `app_stage.py`: pass `ala
 ### Task 7: CloudWatch spend budget (RUM cost backstop, prod only)
 
 **Files:**
+
 - Modify: `infrastructure/nag_utils.py` (`grant_budgets_to_key`), `infrastructure/backend_app.py` (`_build_alarm_topic` + new budget)
 - Test: `tests/cdk/test_stacks.py`
 
 **Interfaces:**
+
 - Produces: `grant_budgets_to_key(key: kms.Key, *, account: str, region: str) -> None` in `nag_utils.py`.
 
 - [ ] **Step 1: Verify the cost-filter service name** — docs search "AWS Budgets cost filter Service dimension Amazon CloudWatch value name" (Cost Explorer service names; expect `"Amazon CloudWatch"` — pin whatever the docs show into Step 3).
@@ -662,6 +675,7 @@ def _attach_cloudwatch_spend_budget(self, topic: sns.Topic) -> None:
 ### Task 8: Lambda Insights on ApiFunction
 
 **Files:**
+
 - Modify: `infrastructure/backend_app.py:370-432` (function), `:1170-1242` (suppressions)
 - Test: `tests/cdk/test_stacks.py`
 
@@ -719,6 +733,7 @@ If `make test-cdk` reports a differently rendered finding id, copy the exact id 
 ### Task 9: AWS Backup plan for DynamoDB (`retain_data=true` only)
 
 **Files:**
+
 - Modify: `infrastructure/data_stack.py`
 - Test: `tests/cdk/test_stacks.py` (`TestDataStack`, fixtures `data_template` / `data_template_retained` exist)
 
@@ -809,10 +824,12 @@ else:
 ### Task 10: Audit-bucket compliance tier (`retain_data=true` only)
 
 **Files:**
+
 - Modify: `infrastructure/nag_utils.py:527-586` (`create_sse_s3_log_bucket`), `infrastructure/audit_stack.py:131-143`
 - Test: `tests/cdk/test_stacks.py` (add a retained-audit fixture + tests; mirror `data_template_retained`)
 
 **Interfaces:**
+
 - Produces: `create_sse_s3_log_bucket(..., versioned: bool = False, object_lock_default_retention: s3.ObjectLockRetention | None = None, transitions: list[s3.Transition] | None = None)` — defaults preserve all existing call sites byte-for-byte.
 
 - [ ] **Step 1: Write the failing tests** (add an `audit_template_retained` module fixture mirroring how `data_template_retained` is built, then):
@@ -954,10 +971,12 @@ cloudtrail_log_bucket = create_sse_s3_log_bucket(
 ### Task 11: WAF log header redaction + drop-ALLOW logging filter
 
 **Files:**
+
 - Modify: `infrastructure/nag_utils.py` (shared constants), `infrastructure/waf_stack.py:135-142`, `infrastructure/backend_app.py:954-962`
 - Test: `tests/cdk/test_stacks.py` (both `TestWafStack` and `TestBackendStack`)
 
 **Interfaces:**
+
 - Produces in `nag_utils.py`: `waf_log_redacted_fields() -> list[wafv2.CfnLoggingConfiguration.FieldToMatchProperty]` and `WAF_LOG_DROP_ALLOW_FILTER: dict` (shared so the two ACLs never drift — same R0801 rationale as `build_managed_threat_rules`).
 
 - [ ] **Step 1: Write the failing tests** (one per stack class; same body, different fixture):
@@ -1032,6 +1051,7 @@ If synth rejects the raw `logging_filter` dict shape, check the L1's expected pr
 ### Task 12: API Gateway EDGE→REGIONAL + request validator
 
 **Files:**
+
 - Modify: `infrastructure/backend_app.py:507-582`, `infrastructure/backend_stack.py:161` (drop APIG2 suppression)
 - Test: `tests/cdk/test_stacks.py`
 
@@ -1100,10 +1120,12 @@ In `backend_stack.py`, delete the `AwsSolutions-APIG2` suppression line and leav
 ### Task 13: Origin-verify secret + WAF RejectNonCloudFront rule
 
 **Files:**
+
 - Modify: `infrastructure/backend_app.py` (secret + `_attach_regional_waf`), `infrastructure/backend_stack.py` (expose secret)
 - Test: `tests/cdk/test_stacks.py`
 
 **Interfaces:**
+
 - Produces: `BackendApp.origin_verify_secret` / `BackendStack.origin_verify_secret` (`secretsmanager.ISecret`) — consumed by Task 14 via `AppStage`.
 - Removes: the `RateLimitDirectCallers` WAF rule (fully superseded — every non-CloudFront caller is now blocked outright, not merely rate-limited).
 
@@ -1231,10 +1253,12 @@ acknowledge_rules(
 ### Task 14: CloudFront `/api/*` behavior, URL rewrite, CSP, and relative apiUrl
 
 **Files:**
+
 - Modify: `infrastructure/frontend_stack.py` (signature, distribution, CSP, config.json), `infrastructure/app_stage.py` (pass secret, drop `api_url`)
 - Test: `tests/cdk/test_stacks.py` (`TestFrontendStack`)
 
 **Interfaces:**
+
 - Consumes: `BackendStack.origin_verify_secret` (Task 13), `api_id` (existing).
 - Changes: `FrontendStack.__init__` **drops `api_url`** (config.json now ships the relative `/api`) and **adds `origin_verify_secret: secretsmanager.ISecret`**. `AppStage` updates the call site accordingly. `BackendStack.api_url` stays (used by `ApiUrlOutput`).
 
@@ -1385,6 +1409,7 @@ config.json: `"apiUrl": "/api",` (comment: relative path — same-origin through
 ### Task 15: Remove CORS (Lambda + API Gateway preflight) and regenerate OpenAPI
 
 **Files:**
+
 - Modify: `lambda/app.py:109-127,384-417`, `infrastructure/backend_app.py:572-582`
 - Test: `tests/unit/test_handler.py:173-174,459`; `docs/openapi.json` (regenerated)
 
@@ -1413,10 +1438,12 @@ assert ret["headers"]["Content-Type"] == "application/json"
 ### Task 16: Integration tests — CloudFront path + direct-URL 403
 
 **Files:**
+
 - Modify: `tests/integration/test_api_gateway.py`, `tests/integration/test_frontend.py:62-69`, `pyproject.toml:273` (env block)
 - Test: these ARE the tests (they skip without a live stack; CI stays green).
 
 **Interfaces:**
+
 - Consumes: `CloudFrontDomainName` output (frontend stack, existing), `ApiUrlOutput` (backend, existing).
 
 - [ ] **Step 1: pyproject env** — next to `AWS_BACKEND_STACK_NAME=ServerlessAppBackend-us-east-1` add `"AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1",`.
@@ -1441,11 +1468,13 @@ Update the module docstring (CloudFront is now the front door; the direct URL mu
 ### Task 17: AppConfig Lambda extension layer + localhost feature-flag store
 
 **Files:**
+
 - Create: `lambda/extension_store.py`, `tests/unit/test_extension_store.py`
 - Modify: `infrastructure/backend_app.py` (layer + env var), `lambda/app.py:150-166`
 - Test: `tests/unit/test_extension_store.py`, existing `tests/unit/test_handler.py`
 
 **Interfaces:**
+
 - Produces: `AppConfigExtensionStore(application: str, environment: str, name: str, max_age: int = 300, endpoint: str = "http://localhost:2772")` — a Powertools `StoreProvider` with `get_configuration() -> dict` and `get_raw_configuration` property; raises `ConfigurationStoreError` on any fetch/parse failure (so `service.build_greeting`'s existing fallback + `FeatureFlagEvaluationFailure` metric path is unchanged).
 
 - [ ] **Step 1: Verify the layer ARN** — docs search (`aws___search_documentation`, phrase "AWS AppConfig Lambda extension ARM64 layer ARN us-east-1 versions"). Copy the current us-east-1 ARM64 ARN verbatim (account `027255383542`, layer `AWS-AppConfig-Extension-Arm64`).
@@ -1642,6 +1671,7 @@ Add to the function's `environment` block: `"AWS_APPCONFIG_EXTENSION_PREFETCH_LI
 ### Task 18: Documentation — README, TODO.md, CLAUDE.md
 
 **Files:**
+
 - Modify: `README.md`, `TODO.md`, `CLAUDE.md`
 
 - [ ] **Step 1: TODO.md** — update every touched item, mirroring the existing `[x]`/`[~]` conventions:
