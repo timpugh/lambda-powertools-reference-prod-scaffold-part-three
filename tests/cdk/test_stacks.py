@@ -532,8 +532,14 @@ class TestBackendStack:
         # CloudFront-scoped one lives here too because its metrics are only in
         # us-east-1 (which is this fixture's region).
         alarms = backend_template.find_resources("AWS::CloudWatch::Alarm")
-        blocked = [a for a in alarms.values() if a["Properties"].get("MetricName") == "BlockedRequests"]
-        assert len(blocked) == 2, f"expected regional + CloudFront BlockedRequests alarms, got {len(blocked)}"
+        blocked = [a["Properties"] for a in alarms.values() if a["Properties"].get("MetricName") == "BlockedRequests"]
+        # The WebACL dimension is the ACL's VisibilityConfig metric NAME (not the ACL
+        # name), and Region appears only on the regional alarm — CloudFront WAF
+        # metrics carry no Region dimension (AWS WAF metrics reference).
+        dim_sets = [{d["Name"]: d["Value"] for d in p["Dimensions"]} for p in blocked]
+        assert {"Region": "us-east-1", "Rule": "ALL", "WebACL": "TestBackendStackApiRegionalWebACL"} in dim_sets
+        assert {"Rule": "ALL", "WebACL": "TestWafStackWebACL"} in dim_sets
+        assert len(blocked) == 2
 
     def test_appinsights_dashboard_cleanup_targets_real_dashboard_name(self, backend_template: Template) -> None:
         # Application Insights names its auto-created dashboard
