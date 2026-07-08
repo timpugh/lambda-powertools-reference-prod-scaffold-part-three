@@ -2923,6 +2923,81 @@
       },
       "Type": "AWS::CloudWatch::Alarm"
     },
+    "AppCloudFrontWafBlockedRequestsAlarm33F7EAD0": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG2",
+              "reason": "Request validation not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-COG4",
+              "reason": "Cognito authorizer not needed for sample app"
+            },
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination \u2014 structured JSON logging is configured via logging_format=JSON on the Lambda"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 the smallest 0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve stale values across SSM parameter and AppConfig feature-flag changes."
+            },
+            {
+              "id": "HIPAA.Security-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            },
+            {
+              "id": "PCI.DSS.321-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Sustained BlockedRequests spike on the CloudFront WebACL \u2014 possible attack ramp",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "Rule",
+            "Value": "ALL"
+          },
+          {
+            "Name": "WebACL",
+            "Value": "ServerlessAppWaf-us-east-1WebACL"
+          }
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "BlockedRequests",
+        "Namespace": "AWS/WAFV2",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 100,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
     "AppEncryptionKey7F644894": {
       "DeletionPolicy": "Delete",
       "Metadata": {
@@ -4578,6 +4653,85 @@
           }
         ],
         "Threshold": 1,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppRegionalWafBlockedRequestsAlarm131E47C5": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG2",
+              "reason": "Request validation not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-COG4",
+              "reason": "Cognito authorizer not needed for sample app"
+            },
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination \u2014 structured JSON logging is configured via logging_format=JSON on the Lambda"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 the smallest 0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve stale values across SSM parameter and AppConfig feature-flag changes."
+            },
+            {
+              "id": "HIPAA.Security-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            },
+            {
+              "id": "PCI.DSS.321-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Sustained BlockedRequests spike on the regional (API Gateway) WebACL \u2014 possible attack ramp",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "Region",
+            "Value": "us-east-1"
+          },
+          {
+            "Name": "Rule",
+            "Value": "ALL"
+          },
+          {
+            "Name": "WebACL",
+            "Value": "ServerlessAppBackend-us-east-1ApiRegionalWebACL"
+          }
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "BlockedRequests",
+        "Namespace": "AWS/WAFV2",
+        "Period": 300,
+        "Statistic": "Sum",
+        "Threshold": 100,
         "TreatMissingData": "notBreaching"
       },
       "Type": "AWS::CloudWatch::Alarm"

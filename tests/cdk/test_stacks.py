@@ -86,7 +86,18 @@ def backend_template() -> Template:
     """Synthesize BackendStack and return its CloudFormation template."""
     app = cdk.App(context=_NO_BUNDLING)
     data = DataStack(app, "TestBackendData", env=_TEST_ENV)
-    stack = BackendStack(app, "TestBackendStack", idempotency_table=data.idempotency_table, env=_TEST_ENV)
+    stack = BackendStack(
+        app,
+        "TestBackendStack",
+        idempotency_table=data.idempotency_table,
+        # A plain string standing in for the Stage-computed CloudFront WebACL
+        # metric name (see WafStack's visibility_config) — exercises the
+        # CloudFront BlockedRequests alarm branch, which is gated on
+        # cf_web_acl_metric_name being present AND the stack's region being
+        # us-east-1 (true for this fixture — see _TEST_REGION).
+        cf_web_acl_metric_name="TestWafStackWebACL",
+        env=_TEST_ENV,
+    )
     return Template.from_stack(stack)
 
 
@@ -515,6 +526,14 @@ class TestBackendStack:
         assert scope_down["FieldToMatch"]["SingleHeader"]["Name"] == "x-forwarded-for"
         assert scope_down["ComparisonOperator"] == "GT"
         assert scope_down["Size"] == 0
+
+    def test_waf_blocked_requests_alarms_exist(self, backend_template: Template) -> None:
+        # Spike alarms on both WebACLs (TODO "WAF — BlockedRequests"); the
+        # CloudFront-scoped one lives here too because its metrics are only in
+        # us-east-1 (which is this fixture's region).
+        alarms = backend_template.find_resources("AWS::CloudWatch::Alarm")
+        blocked = [a for a in alarms.values() if a["Properties"].get("MetricName") == "BlockedRequests"]
+        assert len(blocked) == 2, f"expected regional + CloudFront BlockedRequests alarms, got {len(blocked)}"
 
     def test_appinsights_dashboard_cleanup_targets_real_dashboard_name(self, backend_template: Template) -> None:
         # Application Insights names its auto-created dashboard

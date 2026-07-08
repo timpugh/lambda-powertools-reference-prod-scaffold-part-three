@@ -49,12 +49,15 @@ from aws_cdk import (
     Stack,
     Validations,
 )
+from aws_cdk import aws_cloudwatch as cloudwatch
+from aws_cdk import aws_cloudwatch_actions as cloudwatch_actions
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_lambda_destinations as destinations
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
+from aws_cdk import aws_sns as sns
 from aws_cdk import aws_sqs as sqs
 from aws_cdk import aws_wafv2 as wafv2
 from cdk_nag import (
@@ -264,6 +267,27 @@ def grant_cloudwatch_alarms_to_key(key: kms.Key, *, account: str, region: str) -
                 },
             },
         )
+    )
+
+
+def route_operational_alarm(alarm: cloudwatch.Alarm, topic: sns.ITopic | None) -> None:
+    """Wire an operational alarm to the environment's paging posture.
+
+    Mirrors the MonitoringFacade defaults for alarms created OUTSIDE the facade:
+    production passes the CMK-encrypted alarm topic (the alarm pages); non-prod
+    passes None (the alarm is a dashboard signal only) and gets the same scoped
+    CloudWatchAlarmAction acknowledgments the facade subtree carries.
+    """
+    if topic is not None:
+        alarm.add_alarm_action(cloudwatch_actions.SnsAction(topic))
+        return
+    reason = "Ephemeral/dev environment — alarms are dashboard signals only; no paging channel by design"
+    acknowledge_rules(
+        alarm,
+        [
+            {"id": "NIST.800.53.R5-CloudWatchAlarmAction", "reason": reason},
+            {"id": "HIPAA.Security-CloudWatchAlarmAction", "reason": reason},
+        ],
     )
 
 
