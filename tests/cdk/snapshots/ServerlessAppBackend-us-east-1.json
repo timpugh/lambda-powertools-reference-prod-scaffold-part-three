@@ -3867,7 +3867,7 @@
               {
                 "Ref": "AppApiFunctionDE515850"
               },
-              "\",{\"label\":\"Faults (avg)\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":18,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Rates\",\"region\":\"",
+              "\",{\"label\":\"Faults (avg)\"}]],\"annotations\":{\"horizontal\":[{\"label\":\"Faults (avg) > 5 for 3 datapoints within 15 minutes\",\"value\":5,\"yAxis\":\"left\"}]},\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Rate\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":5,\"x\":18,\"y\":2,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Rates\",\"region\":\"",
               {
                 "Ref": "AWS::Region"
               },
@@ -4043,7 +4043,7 @@
               {
                 "Ref": "AWS::AccountId"
               },
-              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":18,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors\",\"region\":\"",
+              "\",\"region\":\"us-east-1\",\"stat\":\"Sum\"}]],\"annotations\":{\"horizontal\":[{\"label\":\"Read > 1 for 3 datapoints within 15 minutes\",\"value\":1,\"yAxis\":\"left\"},{\"label\":\"Write > 1 for 3 datapoints within 15 minutes\",\"value\":1,\"yAxis\":\"left\"}]},\"yAxis\":{\"left\":{\"min\":0,\"label\":\"Count\",\"showUnits\":false}}}},{\"type\":\"metric\",\"width\":6,\"height\":6,\"x\":18,\"y\":35,\"properties\":{\"view\":\"timeSeries\",\"title\":\"Errors\",\"region\":\"",
               {
                 "Ref": "AWS::Region"
               },
@@ -4131,6 +4131,93 @@
       },
       "Type": "AWS::CloudWatch::Dashboard"
     },
+    "AppMonitoringServerlessAppBackenduseast1ApiFunctionFaultRateerror0F3FB0D6": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG2",
+              "reason": "Request validation not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-COG4",
+              "reason": "Cognito authorizer not needed for sample app"
+            },
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination \u2014 structured JSON logging is configured via logging_format=JSON on the Lambda"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 the smallest 0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve stale values across SSM parameter and AppConfig feature-flag changes."
+            },
+            {
+              "id": "HIPAA.Security-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            },
+            {
+              "id": "PCI.DSS.321-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "ActionsEnabled": true,
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Fault rate is too high.",
+        "AlarmName": "ServerlessAppBackend-us-east-1-ApiFunction-Fault-Rate-error",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "DatapointsToAlarm": 3,
+        "EvaluationPeriods": 3,
+        "Metrics": [
+          {
+            "Id": "m1",
+            "Label": "Faults (avg)",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "FunctionName",
+                    "Value": {
+                      "Ref": "AppApiFunctionDE515850"
+                    }
+                  }
+                ],
+                "MetricName": "Errors",
+                "Namespace": "AWS/Lambda"
+              },
+              "Period": 300,
+              "Stat": "Average"
+            },
+            "ReturnData": true
+          }
+        ],
+        "Threshold": 5,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
     "AppMonitoringServerlessAppBackenduseast1ApiFunctionLatencyP90p90BC0B58EC": {
       "Metadata": {
         "cdk_nag": {
@@ -4214,6 +4301,192 @@
           }
         ],
         "Threshold": 3000,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppMonitoringServerlessAppBackenduseast1IdempotencyTableV2ReadThrottledEventscritical9091B20F": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG2",
+              "reason": "Request validation not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-COG4",
+              "reason": "Cognito authorizer not needed for sample app"
+            },
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination \u2014 structured JSON logging is configured via logging_format=JSON on the Lambda"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 the smallest 0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve stale values across SSM parameter and AppConfig feature-flag changes."
+            },
+            {
+              "id": "HIPAA.Security-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            },
+            {
+              "id": "PCI.DSS.321-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "ActionsEnabled": true,
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Read throttled events above threshold.",
+        "AlarmName": "ServerlessAppBackend-us-east-1-IdempotencyTableV2-Read-Throttled-Events-critical",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "DatapointsToAlarm": 3,
+        "EvaluationPeriods": 3,
+        "Metrics": [
+          {
+            "Expression": "FILL(readThrottles,0)",
+            "Id": "expr_1",
+            "Label": "Read",
+            "ReturnData": true
+          },
+          {
+            "Id": "readThrottles",
+            "Label": "Read",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+                    }
+                  }
+                ],
+                "MetricName": "ReadThrottleEvents",
+                "Namespace": "AWS/DynamoDB"
+              },
+              "Period": 300,
+              "Stat": "Sum"
+            },
+            "ReturnData": false
+          }
+        ],
+        "Threshold": 1,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
+    "AppMonitoringServerlessAppBackenduseast1IdempotencyTableV2WriteThrottledEventscritical839E13C4": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-APIG2",
+              "reason": "Request validation not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-APIG4",
+              "reason": "Authorization not needed for sample app"
+            },
+            {
+              "id": "AwsSolutions-COG4",
+              "reason": "Cognito authorizer not needed for sample app"
+            },
+            {
+              "id": "CdkNagValidationFailure",
+              "reason": "Serverless-APIGWStructuredLogging validation fails due to intrinsic function reference in access log destination \u2014 structured JSON logging is configured via logging_format=JSON on the Lambda"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 the smallest 0.5 GB cluster is ~$14/month for a sample app. Caching GET /greeting would also serve stale values across SSM parameter and AppConfig feature-flag changes."
+            },
+            {
+              "id": "HIPAA.Security-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "HIPAA.Security-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            },
+            {
+              "id": "PCI.DSS.321-APIGWSSLEnabled",
+              "reason": "Client-side SSL certificates not required for sample app"
+            },
+            {
+              "id": "PCI.DSS.321-APIGWCacheEnabledAndEncrypted",
+              "reason": "API Gateway cache cluster intentionally disabled for cost reasons \u2014 see NIST.800.53.R5-APIGWCacheEnabledAndEncrypted rationale above."
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "ActionsEnabled": true,
+        "AlarmActions": [
+          {
+            "Ref": "AppAlarmTopicAD260C2E"
+          }
+        ],
+        "AlarmDescription": "Write throttled events above threshold.",
+        "AlarmName": "ServerlessAppBackend-us-east-1-IdempotencyTableV2-Write-Throttled-Events-critical",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "DatapointsToAlarm": 3,
+        "EvaluationPeriods": 3,
+        "Metrics": [
+          {
+            "Expression": "FILL(writeThrottles,0)",
+            "Id": "expr_1",
+            "Label": "Write",
+            "ReturnData": true
+          },
+          {
+            "Id": "writeThrottles",
+            "Label": "Write",
+            "MetricStat": {
+              "Metric": {
+                "Dimensions": [
+                  {
+                    "Name": "TableName",
+                    "Value": {
+                      "Fn::ImportValue": "ServerlessAppData-us-east-1:ExportsOutputRefIdempotencyTableV203A5298EA9078EF6"
+                    }
+                  }
+                ],
+                "MetricName": "WriteThrottleEvents",
+                "Namespace": "AWS/DynamoDB"
+              },
+              "Period": 300,
+              "Stat": "Sum"
+            },
+            "ReturnData": false
+          }
+        ],
+        "Threshold": 1,
         "TreatMissingData": "notBreaching"
       },
       "Type": "AWS::CloudWatch::Alarm"

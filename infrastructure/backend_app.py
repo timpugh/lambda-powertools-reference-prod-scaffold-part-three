@@ -75,6 +75,7 @@ from cdk_monitoring_constructs import (
     MetricStatistic,
     MonitoringFacade,
     SnsAlarmActionStrategy,
+    ThrottledEventsThreshold,
 )
 from constructs import Construct
 
@@ -741,6 +742,9 @@ class BackendApp(Construct):
         monitoring.monitor_lambda_function(
             lambda_function=self.function,
             add_latency_p90_alarm={"p90": LatencyThreshold(max_latency=Duration.seconds(3))},
+            # 5% of invocations erroring is systematic failure, not a cold-start
+            # blip — reference value, size to real traffic in a fork.
+            add_fault_rate_alarm={"error": ErrorRateThreshold(max_error_rate=5)},
         )
         # Surfaces recent ERROR-level records next to the Lambda metrics so an
         # alarm investigation starts on the dashboard, not in Logs Insights.
@@ -761,7 +765,22 @@ class BackendApp(Construct):
             alarm_friendly_name="RestApi",
             add5_xx_fault_rate_alarm={"internal_error": ErrorRateThreshold(max_error_rate=1)},
         )
-        monitoring.monitor_dynamo_table(table=self.idempotency_table)
+        monitoring.monitor_dynamo_table(
+            table=self.idempotency_table,
+            # Any sustained throttling on the idempotency table delays every
+            # request (two serial writes per request ride the handler's bounded
+            # retry budget) — the tightest threshold the facade emits
+            # (GreaterThanThreshold 1) pages on more than one throttled event
+            # per period. These kwargs take ThrottledEventsThreshold (verified
+            # against the installed cdk-monitoring-constructs signature), not
+            # ErrorCountThreshold.
+            add_read_throttled_events_count_alarm={
+                "critical": ThrottledEventsThreshold(max_throttled_events_threshold=1)
+            },
+            add_write_throttled_events_count_alarm={
+                "critical": ThrottledEventsThreshold(max_throttled_events_threshold=1)
+            },
+        )
 
         # ── Business KPIs ─────────────────────────────────────────────────────
         # The handler emits GreetingRequests (Powertools EMF) into the ServerlessApp

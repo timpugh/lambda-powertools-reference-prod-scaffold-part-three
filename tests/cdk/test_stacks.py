@@ -598,6 +598,24 @@ class TestBackendStack:
             assert actions, f"{logical_id} has no AlarmActions — it would fire silently"
             assert "AlarmTopic" in json.dumps(actions), f"{logical_id} must publish to the alarm topic"
 
+    def test_lambda_fault_rate_and_ddb_throttle_alarms_exist(self, backend_template: Template) -> None:
+        # TODO.md "CloudWatch alarms — still open" items: Lambda error-rate and
+        # DynamoDB throttle alarms via the existing MonitoringFacade calls.
+        #
+        # Kwarg-name note (verified against the installed cdk-monitoring-constructs
+        # signatures): monitor_dynamo_table's add_read_throttled_events_count_alarm /
+        # add_write_throttled_events_count_alarm take ThrottledEventsThreshold
+        # (max_throttled_events_threshold=...), not ErrorCountThreshold as the task
+        # brief assumed. monitor_lambda_function's add_fault_rate_alarm takes
+        # ErrorRateThreshold as expected.
+        alarms = backend_template.find_resources("AWS::CloudWatch::Alarm")
+        names = json.dumps([a["Properties"].get("AlarmName") for a in alarms.values()])
+        # "ApiFunction-" scopes the match to the Lambda's alarm — a bare
+        # "Fault-Rate" would match the pre-existing RestApi 5xx fault-rate alarm.
+        assert "ApiFunction-Fault-Rate" in names, "expected a Lambda fault-rate alarm"
+        descriptions = " ".join(json.dumps(a["Properties"]) for a in alarms.values())
+        assert "throttle" in descriptions.lower(), "expected DynamoDB throttled-events alarms"
+
     def test_deployment_control_alarm_has_no_sns_action(self, backend_template: Template) -> None:
         # The CodeDeploy canary alarm is consumed by CodeDeploy, which polls its
         # state to decide on rollback — it's not a paging channel, so it carries

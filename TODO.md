@@ -24,7 +24,7 @@ The hard gates a fork needs to clear before customer traffic touches it. Most it
 
 **Operations gates:**
 
-- [~] Alarms wired to a pageable channel — *routing done:* every alarm (Lambda p90 latency, API Gateway 5xx fault rate) publishes to a CMK-encrypted SNS topic in the `prod` environment (`AlarmTopicName` CfnOutput). *Still open:* attaching subscriptions (email / Chatbot / PagerDuty) — deliberately manual since they need out-of-band confirmation
+- [~] Alarms wired to a pageable channel — *routing done:* every alarm (Lambda p90 latency + fault rate, API Gateway 5xx fault rate, DynamoDB read/write throttled events) publishes to a CMK-encrypted SNS topic in the `prod` environment (`AlarmTopicName` CfnOutput). *Still open:* attaching subscriptions (email / Chatbot / PagerDuty) — deliberately manual since they need out-of-band confirmation
 - [~] Audit-grade log retention — *operational done:* app log groups at 90 days; WAF + CloudTrail logs now go to **S3** (90-day lifecycle, cheaper than CloudWatch). *Still open for compliance:* tier the S3 audit buckets to Glacier/Deep Archive at 1–7 years + Object Lock, behind `retain_data`
 - [ ] Live integration tests in CI as a post-deploy gate
 
@@ -67,7 +67,7 @@ The hard gates a fork needs to clear before customer traffic touches it. Most it
 
 ## Observability
 
-- [~] **CloudWatch alarms** — *in place:* Lambda p90 latency (> 3s) and API Gateway 5xx fault-rate (> 1%) alarms via `MonitoringFacade`, publishing to the CMK-encrypted SNS topic in prod, plus an ERROR-log widget and an hourly `GreetingRequests` business-KPI widget on the dashboard. *Still open:* Lambda error-rate and DynamoDB throttle alarms (add via `add_fault_rate_alarm=` / `add_consumed_capacity_alarm=` on the existing facade calls)
+- [x] **CloudWatch alarms** — Lambda p90 latency (> 3s) and fault-rate (> 5%), API Gateway 5xx fault-rate (> 1%), and DynamoDB read/write throttled-events (> 1 per period) alarms via `MonitoringFacade`, publishing to the CMK-encrypted SNS topic in prod, plus an ERROR-log widget and an hourly `GreetingRequests` business-KPI widget on the dashboard. (The DynamoDB alarms watch throttled events — the failure signal — rather than `add_consumed_capacity_alarm=`, which is a capacity signal that means little on an on-demand table.)
 - [ ] **Dead letter queue (DLQ) on the application Lambda** — `ApiFunction` is invoked synchronously by API Gateway so a function-level DLQ doesn't apply today. The `AwsCustomResource` provider singletons (which CFN invokes async) already have an SQS DLQ wired via `attach_async_failure_destination()`. If the application Lambda ever takes async event sources (EventBridge, SNS, S3 events), wire `on_failure` on those source mappings or invocation configs.
 - [ ] **Structured error reporting** — integrate with an error tracking service (e.g. Sentry) for aggregated error visibility
 - [~] **CloudWatch Logs retention** — *operational tier done:* the app log groups (Lambda, API Gateway access/execution) retain **90 days**; CDK-provider/singleton groups stay at 7. *Still open for compliance scope:* raise the **S3 archive** horizon for audit-relevant logs (CloudTrail, access logs) to 365 days–7 years via Glacier/Deep Archive tiering, and add Object Lock — all `retain_data`-gated. The `CloudTrailLogsBucket` lifecycle (90-day expiration, in `AuditStack`) moves in lockstep. See [README "Audit stack and log retention"](README.md#audit-stack-and-log-retention).
