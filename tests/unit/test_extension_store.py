@@ -1,5 +1,6 @@
 """Unit tests for the AppConfig-extension-backed feature-flag store."""
 
+import http.client
 import io
 import json
 
@@ -45,6 +46,25 @@ def test_http_error_raises_store_error(monkeypatch, store):
     monkeypatch.setattr("extension_store.urllib.request.urlopen", boom)
     with pytest.raises(ConfigurationStoreError):
         store.get_configuration()
+
+
+def test_http_protocol_error_raises_store_error(monkeypatch, store):
+    def boom(url, timeout):
+        raise http.client.BadStatusLine("garbage")
+
+    monkeypatch.setattr("extension_store.urllib.request.urlopen", boom)
+    with pytest.raises(ConfigurationStoreError):
+        store.get_configuration()
+
+
+def test_cache_expires_after_max_age(monkeypatch, store):
+    calls = _stub_urlopen(monkeypatch, b"{}")
+    fake_now = [1000.0]
+    monkeypatch.setattr("extension_store.time.monotonic", lambda: fake_now[0])
+    store.get_configuration()
+    fake_now[0] += 301  # past the 300s max_age
+    store.get_configuration()
+    assert len(calls) == 2, "an expired cache must refetch"
 
 
 def test_bad_json_raises_store_error(monkeypatch, store):

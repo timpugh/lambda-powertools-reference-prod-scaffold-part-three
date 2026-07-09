@@ -14,9 +14,14 @@ handles (default flag values + the ``FeatureFlagEvaluationFailure`` metric).
 
 A small monotonic-clock TTL cache mirrors the ``max_age`` posture of the SDK
 store this replaces; the extension caches too, so this mostly saves the
-localhost round-trip on hot paths.
+localhost round-trip on hot paths. This is a freshness-over-latency trade,
+deliberately without stale-serve or backoff: once the TTL lapses, every
+evaluation pays the full 2s urlopen timeout while the extension endpoint is
+down, before falling through to the service layer's default (fail → raise →
+default flag values).
 """
 
+import http.client
 import json
 import time
 import urllib.request
@@ -63,7 +68,10 @@ class AppConfigExtensionStore(StoreProvider):
             with urllib.request.urlopen(self._url, timeout=2) as response:  # nosec B310  # noqa: S310
                 body = response.read()
             config = json.loads(body)
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            # BadStatusLine/IncompleteRead are http.client.HTTPException, not
+            # OSError (CPython only wraps OSError into URLError) — they must
+            # not escape the store's failure contract.
             raise ConfigurationStoreError(f"Unable to fetch configuration from the AppConfig extension: {exc}") from exc
         if not isinstance(config, dict):
             raise ConfigurationStoreError("AppConfig extension returned a non-object configuration document")

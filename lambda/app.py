@@ -57,12 +57,12 @@ metrics = Metrics()
 # Shared botocore retry config applied to every AWS SDK client this handler uses
 # (SSM, DynamoDB). AppConfig reads no longer go through an SDK client at all —
 # see the AppConfigExtensionStore construction below — so this config no
-# longer applies to feature-flag fetches. botocore retries transient failures
-# by default, but
-# pinning the policy here makes the posture explicit and tunable rather than
-# implicit in the SDK default — the same "visible in code, not implicit in the
-# runtime default" rationale behind setting recursive_loop="Terminate" on the
-# function in CDK. "adaptive" mode adds client-side rate limiting on top of
+# longer applies to feature-flag fetches. botocore retries transient failures by
+# default, but pinning the policy here makes the posture explicit and tunable
+# rather than implicit in the SDK default — the same "visible in code, not
+# implicit in the runtime default" rationale behind setting
+# recursive_loop="Terminate" on the function in CDK. "adaptive" mode adds
+# client-side rate limiting on top of
 # exponential backoff with jitter, which backs off proactively when a dependency
 # starts returning throttling (429) responses; its token-bucket state is useful
 # here because the clients are module-scoped (constructed once below) and reused
