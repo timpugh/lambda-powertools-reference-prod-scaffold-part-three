@@ -125,9 +125,40 @@ class AuditStack(Stack):
 
         # ── CloudTrail log bucket ────────────────────────────────────────────
         # SSE-S3 at rest (CloudTrail delivery can't target a KMS-CMK *bucket*),
-        # with the trail writing each object SSE-KMS under the audit CMK. 90-day
-        # lifecycle bounds storage; a compliance fork extends it (and adds AWS
-        # Backup / Object Lock — see TODO.md). Built via the shared log-sink helper.
+        # with the trail writing each object SSE-KMS under the audit CMK. Default
+        # shape: 90-day lifecycle, no versioning, destroy-friendly. Compliance
+        # tier rides retain_data: 7-year expiry with Glacier@90d / Deep Archive@365d
+        # tiering, versioning, and Object Lock (GOVERNANCE, 1-year default
+        # retention — write-once for the audit horizon a fork's compliance scope
+        # needs; raise to COMPLIANCE mode + longer retention deliberately).
+        # CAUTION: Object Lock is creation-time-only — flipping retain_data on an
+        # already-deployed stack REPLACES this bucket (documented in README); flip
+        # it before real audit data accumulates. Built via the shared log-sink helper.
+        #
+        # NOTE: suppression_reason below still says "no versioning/replication"
+        # even though retain_data=True now versions the bucket — kept verbatim
+        # to match the committed prod snapshot (retain_data=False leaves this
+        # bucket unversioned, so the text is accurate there; the reason only
+        # governs suppressed rules, which already exclude Versioning when
+        # versioned=True — see create_sse_s3_log_bucket).
+        #
+        # Precomputed as a single if/else (rather than three inline ternaries)
+        # to keep __init__'s cyclomatic complexity within the project's xenon
+        # budget — one branch instead of three for the same retain_data gate.
+        if retain_data:
+            cloudtrail_expiration_days = 2555
+            cloudtrail_object_lock_retention: s3.ObjectLockRetention | None = s3.ObjectLockRetention.governance(
+                Duration.days(365)
+            )
+            cloudtrail_transitions: list[s3.Transition] | None = [
+                s3.Transition(storage_class=s3.StorageClass.GLACIER, transition_after=Duration.days(90)),
+                s3.Transition(storage_class=s3.StorageClass.DEEP_ARCHIVE, transition_after=Duration.days(365)),
+            ]
+        else:
+            cloudtrail_expiration_days = 90
+            cloudtrail_object_lock_retention = None
+            cloudtrail_transitions = None
+
         cloudtrail_log_bucket = create_sse_s3_log_bucket(
             self,
             "CloudTrailLogsBucket",
@@ -137,9 +168,12 @@ class AuditStack(Stack):
                 "create circular audit trails, no versioning/replication for an append-only, "
                 "integrity-validated log sink"
             ),
-            expiration_days=90,
+            expiration_days=cloudtrail_expiration_days,
             removal_policy=removal_policy,
             auto_delete=auto_delete,
+            versioned=retain_data,
+            object_lock_default_retention=cloudtrail_object_lock_retention,
+            transitions=cloudtrail_transitions,
         )
 
         cloudtrail_log_group = logs.LogGroup(

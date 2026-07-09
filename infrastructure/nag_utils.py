@@ -584,6 +584,9 @@ def create_sse_s3_log_bucket(
     auto_delete: bool,
     bucket_name: str | None = None,
     object_ownership: s3.ObjectOwnership | None = None,
+    versioned: bool = False,
+    object_lock_default_retention: s3.ObjectLockRetention | None = None,
+    transitions: list[s3.Transition] | None = None,
 ) -> s3.Bucket:
     """Create a standardized SSE-S3 **log-sink** bucket (+ the log-bucket nag suppressions).
 
@@ -596,6 +599,13 @@ def create_sse_s3_log_bucket(
     varies — name, ACL ownership, lifecycle length, removal policy, auto-delete —
     is passed in.
 
+    ``versioned``/``object_lock_default_retention``/``transitions`` serve the
+    ``retain_data`` compliance tier on the CloudTrail bucket — Object Lock is
+    creation-time-only, so flipping it on an existing deployment REPLACES the
+    bucket. All three default to the unversioned, non-tiered shape so every
+    other call site (the frontend access-log bucket, both WAF log buckets) is
+    unaffected.
+
     Args:
         scope: Construct scope to create the bucket under.
         construct_id: The bucket's construct id.
@@ -605,6 +615,12 @@ def create_sse_s3_log_bucket(
         auto_delete: Whether to empty the bucket on stack delete (must be False when RETAIN).
         bucket_name: Explicit name (only where AWS forces it, e.g. WAF's aws-waf-logs- prefix).
         object_ownership: Set BUCKET_OWNER_PREFERRED where ACL-based log delivery needs it.
+        versioned: Enable S3 versioning (required for Object Lock). Default False.
+        object_lock_default_retention: Default Object Lock retention mode/period.
+            Object Lock can only be enabled at bucket creation — leave None unless
+            the bucket is meant to be write-once for its retention window.
+        transitions: Storage-class transitions (e.g. Glacier, Deep Archive) applied
+            ahead of the lifecycle rule's expiration.
 
     Returns:
         The created bucket.
@@ -617,22 +633,26 @@ def create_sse_s3_log_bucket(
         encryption=s3.BucketEncryption.S3_MANAGED,
         enforce_ssl=True,
         object_ownership=object_ownership,
-        versioned=False,
+        versioned=versioned,
+        object_lock_default_retention=object_lock_default_retention,
         lifecycle_rules=[
             s3.LifecycleRule(
                 id=f"ExpireAfter{expiration_days}Days",
                 enabled=True,
                 expiration=Duration.days(expiration_days),
+                transitions=transitions,
+                # Versioned buckets: expiry only adds a delete marker; the
+                # noncurrent rule is what actually reclaims storage.
+                noncurrent_version_expiration=Duration.days(expiration_days) if versioned else None,
                 abort_incomplete_multipart_upload_after=Duration.days(1),
             ),
         ],
         removal_policy=removal_policy,
         auto_delete_objects=auto_delete,
     )
-    acknowledge_rules(
-        bucket,
-        [{"id": rule, "reason": suppression_reason} for rule in _LOG_SINK_SUPPRESSION_RULES],
-    )
+    # Versioning suppressions only apply while the bucket is actually unversioned.
+    rules = [r for r in _LOG_SINK_SUPPRESSION_RULES if not (versioned and "Versioning" in r)]
+    acknowledge_rules(bucket, [{"id": rule, "reason": suppression_reason} for rule in rules])
     return bucket
 
 

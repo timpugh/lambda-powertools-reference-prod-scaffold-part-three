@@ -1310,6 +1310,51 @@ class TestAuditStack:
         # would defeat retention by emptying the bucket on a stack delete).
         audit_template_retained.resource_count_is("Custom::S3AutoDeleteObjects", 0)
 
+    # ── compliance tier (Object Lock + archive tiering, retain_data-gated) ───────
+
+    def test_default_audit_bucket_shape_unchanged(self, audit_template: Template) -> None:
+        buckets = audit_template.find_resources("AWS::S3::Bucket")
+        assert all("ObjectLockConfiguration" not in b["Properties"] for b in buckets.values())
+
+    def test_retained_audit_bucket_has_object_lock_and_archive_tiering(self, audit_template_retained: Template) -> None:
+        # Compliance tier (TODO "Audit-grade log retention"): versioning + Object
+        # Lock (GOVERNANCE 1y) + Glacier@90d -> Deep Archive@365d -> expire @ 7y.
+        audit_template_retained.has_resource_properties(
+            "AWS::S3::Bucket",
+            Match.object_like(
+                {
+                    "VersioningConfiguration": {"Status": "Enabled"},
+                    "ObjectLockEnabled": True,
+                    "ObjectLockConfiguration": Match.object_like(
+                        {"Rule": {"DefaultRetention": {"Mode": "GOVERNANCE", "Days": 365}}}
+                    ),
+                    "LifecycleConfiguration": Match.object_like(
+                        {
+                            "Rules": Match.array_with(
+                                [
+                                    Match.object_like(
+                                        {
+                                            "ExpirationInDays": 2555,
+                                            "Transitions": Match.array_with(
+                                                [
+                                                    Match.object_like(
+                                                        {"StorageClass": "GLACIER", "TransitionInDays": 90}
+                                                    ),
+                                                    Match.object_like(
+                                                        {"StorageClass": "DEEP_ARCHIVE", "TransitionInDays": 365}
+                                                    ),
+                                                ]
+                                            ),
+                                        }
+                                    )
+                                ]
+                            )
+                        }
+                    ),
+                }
+            ),
+        )
+
 
 # ── Logical ID stability for stateful resources ───────────────────────────────
 # CDK best practice: never let the logical ID of a stateful resource drift.

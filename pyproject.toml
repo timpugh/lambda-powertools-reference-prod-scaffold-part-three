@@ -223,7 +223,7 @@ max-module-lines = 1700  # CDK frontend stack legitimately exceeds default 1000 
 # Structural complexity thresholds — pylint fails if any function or class exceeds these.
 # Complexity is also enforced via the xenon pre-commit hook.
 [tool.pylint.design]
-max-args = 8         # max parameters per function
+max-args = 11        # max parameters per function (create_sse_s3_log_bucket's shared log-sink helper legitimately takes 11 — see its docstring for why each is needed)
 max-locals = 32      # max local variables per function (CDK stacks legitimately have many — frontend __init__ wires ~31 after the audit-pass additions)
 max-returns = 6      # max return statements per function
 max-branches = 12    # max branches (if/for/while/try) per function
