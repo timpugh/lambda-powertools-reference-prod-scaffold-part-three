@@ -20,10 +20,14 @@ not the frontend's — so retaining audit logs in production retains the audit k
 not the frontend key (which also encrypts the destroy-friendly asset bucket).
 
 **retain_data.** Default ``False`` keeps the bucket and CMK ``DESTROY`` (clean
-teardown). ``True`` flips both to ``RETAIN`` and turns on stack termination
-protection — the production posture for long-lived audit data. (A 90-day S3
-lifecycle bounds storage either way; a compliance fork extends it and adds AWS
-Backup / Object Lock — see TODO.md.)
+teardown, 90-day S3 lifecycle, no versioning). ``True`` flips both to
+``RETAIN``, turns on stack termination protection, and lifts the bucket into
+its compliance tier: versioning, S3 Object Lock (GOVERNANCE, 1-year default
+retention), Glacier@90d / Deep Archive@365d tiering, and a 7-year expiry — see
+``create_sse_s3_log_bucket`` in ``nag_utils.py``. Object Lock is
+creation-time-only, so flipping this flag on an already-deployed stack
+REPLACES the bucket; flip it before real audit data accumulates. A compliance
+fork can still extend the horizon further or add AWS Backup — see TODO.md.
 """
 
 from typing import Any
