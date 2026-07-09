@@ -118,8 +118,8 @@ def frontend_template() -> Template:
     stack = FrontendStack(
         app,
         "TestFrontendStack",
-        api_url=backend.api_url,
         api_id=backend.api_id,
+        origin_verify_secret=backend.origin_verify_secret,
         waf_acl_arn=waf.web_acl_arn,
         cf_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0001-cf/AWSLogs/123456789012/WAFLogs/cloudfront/test-cf/",
         regional_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0002-api/AWSLogs/123456789012/WAFLogs/us-east-1/test-api/",
@@ -142,8 +142,8 @@ def _build_frontend(app: cdk.App, stack_suffix: str) -> FrontendStack:
     return FrontendStack(
         app,
         f"{stack_suffix}Frontend",
-        api_url=backend.api_url,
         api_id=backend.api_id,
+        origin_verify_secret=backend.origin_verify_secret,
         waf_acl_arn=waf.web_acl_arn,
         cf_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0001-cf/AWSLogs/123456789012/WAFLogs/cloudfront/test-cf/",
         regional_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0002-api/AWSLogs/123456789012/WAFLogs/us-east-1/test-api/",
@@ -1088,11 +1088,10 @@ class TestFrontendStack:
     def test_response_headers_policy_sets_hsts_and_csp(self, frontend_template: Template) -> None:
         # Custom ResponseHeadersPolicy adds HSTS + CSP on top of the four headers
         # the AWS-managed SECURITY_HEADERS policy provided. Assert both security
-        # headers the managed policy omitted are present and overriding. The CSP
-        # value is an Fn::Join (it interpolates the API Gateway id token to pin the
-        # exact execute-api host), so assert the joined fragments rather than a
-        # plain string: the leading fragment carries default-src + script-src, and
-        # a later fragment carries the pinned execute-api host (no `*` wildcard).
+        # headers the managed policy omitted are present and overriding. Same-origin
+        # /api means the CSP no longer interpolates the execute-api host token, so
+        # (with this fixture's concrete account/region env) it renders as a plain
+        # literal string rather than an Fn::Join.
         frontend_template.has_resource_properties(
             "AWS::CloudFront::ResponseHeadersPolicy",
             {
@@ -1108,17 +1107,7 @@ class TestFrontendStack:
                             ),
                             "ContentSecurityPolicy": Match.object_like(
                                 {
-                                    "ContentSecurityPolicy": {
-                                        "Fn::Join": [
-                                            "",
-                                            Match.array_with(
-                                                [
-                                                    Match.string_like_regexp("default-src 'self'"),
-                                                    Match.string_like_regexp(r"\.execute-api\."),
-                                                ]
-                                            ),
-                                        ]
-                                    },
+                                    "ContentSecurityPolicy": Match.string_like_regexp("default-src 'self'"),
                                     "Override": True,
                                 }
                             ),
@@ -1128,19 +1117,71 @@ class TestFrontendStack:
             },
         )
 
-    def test_csp_pins_exact_api_host_not_wildcard(self, frontend_template: Template) -> None:
-        # F90: connect-src must target this API's exact host ({id}.execute-api...),
-        # not `*.execute-api...` which would match every API in the region/account.
+    def test_csp_connect_src_has_no_execute_api_host(self, frontend_template: Template) -> None:
+        # Same-origin /api means the CSP no longer needs the execute-api host —
+        # the browser only ever talks to CloudFront's own origin.
         policies = frontend_template.find_resources("AWS::CloudFront::ResponseHeadersPolicy")
-        (policy,) = policies.values()
-        csp = policy["Properties"]["ResponseHeadersPolicyConfig"]["SecurityHeadersConfig"]["ContentSecurityPolicy"][
-            "ContentSecurityPolicy"
-        ]
-        # csp is an Fn::Join; flatten its string fragments and assert no wildcard host.
-        fragments = [p for p in csp["Fn::Join"][1] if isinstance(p, str)]
-        joined = " ".join(fragments)
-        assert "*.execute-api." not in joined, "CSP connect-src must pin the exact API host, not a wildcard"
-        assert ".execute-api." in joined
+        csp = json.dumps(policies)
+        assert "execute-api" not in csp, "same-origin /api means the CSP no longer needs the execute-api host"
+
+    def test_api_behavior_proxies_to_api_gateway(self, frontend_template: Template) -> None:
+        # Same-origin API: /api/* rides the distribution to the execute-api origin
+        # with caching disabled and all-viewer-except-host forwarding (API Gateway
+        # must receive its own Host header; RUM's X-Amzn-Trace-Id passes through).
+        frontend_template.has_resource_properties(
+            "AWS::CloudFront::Distribution",
+            Match.object_like(
+                {
+                    "DistributionConfig": Match.object_like(
+                        {
+                            "CacheBehaviors": Match.array_with(
+                                [
+                                    Match.object_like(
+                                        {
+                                            "PathPattern": "/api/*",
+                                            # Managed CachingDisabled / AllViewerExceptHostHeader policy ids
+                                            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+                                            "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+                                            "ViewerProtocolPolicy": "https-only",
+                                        }
+                                    )
+                                ]
+                            )
+                        }
+                    )
+                }
+            ),
+        )
+
+    def test_api_origin_injects_origin_verify_header(self, frontend_template: Template) -> None:
+        frontend_template.has_resource_properties(
+            "AWS::CloudFront::Distribution",
+            Match.object_like(
+                {
+                    "DistributionConfig": Match.object_like(
+                        {
+                            "Origins": Match.array_with(
+                                [
+                                    Match.object_like(
+                                        {
+                                            "OriginPath": "/Prod",
+                                            "OriginCustomHeaders": Match.array_with(
+                                                [Match.object_like({"HeaderName": "x-origin-verify"})]
+                                            ),
+                                        }
+                                    )
+                                ]
+                            )
+                        }
+                    )
+                }
+            ),
+        )
+
+    def test_api_path_rewrite_function_exists(self, frontend_template: Template) -> None:
+        # CloudFront does NOT strip the matched path pattern: /api/greeting would
+        # reach the origin as /Prod/api/greeting without this viewer-request rewrite.
+        frontend_template.resource_count_is("AWS::CloudFront::Function", 1)
 
     def test_distribution_uses_custom_response_headers_policy(self, frontend_template: Template) -> None:
         # The distribution must reference our policy, not the AWS-managed one.

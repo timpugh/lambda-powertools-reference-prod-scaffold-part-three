@@ -711,6 +711,44 @@
       },
       "Type": "AWS::Athena::WorkGroup"
     },
+    "ApiPathRewriteFunction525AAB5C": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-CFR1",
+              "reason": "Geo restriction not required for sample app"
+            },
+            {
+              "id": "AwsSolutions-CFR4",
+              "reason": "Using default CloudFront certificate \u2014 no custom domain for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AutoPublish": true,
+        "FunctionCode": "function handler(event) {\n  var request = event.request;\n  request.uri = request.uri.replace(/^\\/api/, '');\n  if (request.uri === '') { request.uri = '/'; }\n  return request;\n}",
+        "FunctionConfig": {
+          "Comment": "Strip the /api prefix before forwarding to the API Gateway origin",
+          "Runtime": "cloudfront-js-2.0"
+        },
+        "Name": "us-east-1ServerlessAppFrohRewriteFunction2D903153"
+      },
+      "Type": "AWS::CloudFront::Function"
+    },
     "AthenaFailedQueriesAlarmDE79E960": {
       "Metadata": {
         "cdk_nag": {
@@ -2630,26 +2668,6 @@
               "Fn::Join": [
                 "",
                 [
-                  "\"https://",
-                  {
-                    "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
-                  },
-                  ".execute-api.us-east-1.",
-                  {
-                    "Ref": "AWS::URLSuffix"
-                  },
-                  "/",
-                  {
-                    "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF"
-                  },
-                  "/\""
-                ]
-              ]
-            },
-            "<<marker:0xbaba:1>>": {
-              "Fn::Join": [
-                "",
-                [
                   "\"",
                   {
                     "Fn::GetAtt": [
@@ -2661,7 +2679,7 @@
                 ]
               ]
             },
-            "<<marker:0xbaba:2>>": {
+            "<<marker:0xbaba:1>>": {
               "Fn::Join": [
                 "",
                 [
@@ -2717,6 +2735,36 @@
       },
       "Properties": {
         "DistributionConfig": {
+          "CacheBehaviors": [
+            {
+              "AllowedMethods": [
+                "GET",
+                "HEAD",
+                "OPTIONS",
+                "PUT",
+                "PATCH",
+                "POST",
+                "DELETE"
+              ],
+              "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+              "Compress": true,
+              "FunctionAssociations": [
+                {
+                  "EventType": "viewer-request",
+                  "FunctionARN": {
+                    "Fn::GetAtt": [
+                      "ApiPathRewriteFunction525AAB5C",
+                      "FunctionARN"
+                    ]
+                  }
+                }
+              ],
+              "OriginRequestPolicyId": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+              "PathPattern": "/api/*",
+              "TargetOriginId": "ServerlessAppuseast1stageServerlessAppFrontenduseast1DistributionOrigin29AAF750F",
+              "ViewerProtocolPolicy": "https-only"
+            }
+          ],
           "CustomErrorResponses": [
             {
               "ErrorCode": 403,
@@ -2769,6 +2817,44 @@
               "S3OriginConfig": {
                 "OriginAccessIdentity": ""
               }
+            },
+            {
+              "CustomOriginConfig": {
+                "OriginProtocolPolicy": "https-only",
+                "OriginSSLProtocols": [
+                  "TLSv1.2"
+                ]
+              },
+              "DomainName": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
+                    },
+                    ".execute-api.us-east-1.amazonaws.com"
+                  ]
+                ]
+              },
+              "Id": "ServerlessAppuseast1stageServerlessAppFrontenduseast1DistributionOrigin29AAF750F",
+              "OriginCustomHeaders": [
+                {
+                  "HeaderName": "x-origin-verify",
+                  "HeaderValue": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "{{resolve:secretsmanager:",
+                        {
+                          "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppOriginVerifySecret32717393F5A203EE"
+                        },
+                        ":SecretString:::}}"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "OriginPath": "/Prod"
             }
           ],
           "WebACLId": {
@@ -4946,18 +5032,7 @@
           "Name": "ServerlessAppFrontend-us-east-1-security-headers",
           "SecurityHeadersConfig": {
             "ContentSecurityPolicy": {
-              "ContentSecurityPolicy": {
-                "Fn::Join": [
-                  "",
-                  [
-                    "default-src 'self'; script-src 'self' 'unsafe-inline' https://client.rum.us-east-1.amazonaws.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dataplane.rum.us-east-1.amazonaws.com https://cognito-identity.us-east-1.amazonaws.com https://",
-                    {
-                      "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
-                    },
-                    ".execute-api.us-east-1.amazonaws.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
-                  ]
-                ]
-              },
+              "ContentSecurityPolicy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://client.rum.us-east-1.amazonaws.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://dataplane.rum.us-east-1.amazonaws.com https://cognito-identity.us-east-1.amazonaws.com; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
               "Override": true
             },
             "ContentTypeOptions": {

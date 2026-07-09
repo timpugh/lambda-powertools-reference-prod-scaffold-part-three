@@ -295,14 +295,14 @@ class AppStage(cdk.Stage):
             self,
             frontend_stack_name,
             stack_name=frontend_stack_name,
-            api_url=self.backend.api_url,
             api_id=self.backend.api_id,
+            origin_verify_secret=self.backend.origin_verify_secret,
             waf_acl_arn=self.waf.web_acl_arn,
             cf_waf_logs_location=cf_waf_logs_location,
             regional_waf_logs_location=regional_waf_logs_location,
             # Legitimate cross-stack ref along the existing frontend -> backend
-            # edge (the frontend already depends on the backend for api_url/
-            # api_id above) — not a new dependency edge. None in non-prod.
+            # edge (the frontend already depends on the backend for api_id/
+            # origin_verify_secret above) — not a new dependency edge. None in non-prod.
             alarm_topic=self.backend.app.alarm_topic,
             env=target_env,
             tags=stack_tags,

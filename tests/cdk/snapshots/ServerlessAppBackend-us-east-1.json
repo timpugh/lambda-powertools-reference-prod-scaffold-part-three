@@ -76,20 +76,20 @@
         "Ref": "AppAlarmTopicAD260C2E"
       }
     },
+    "ExportsOutputRefAppOriginVerifySecret32717393F5A203EE": {
+      "Export": {
+        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppOriginVerifySecret32717393F5A203EE"
+      },
+      "Value": {
+        "Ref": "AppOriginVerifySecret32717393"
+      }
+    },
     "ExportsOutputRefAppRestApiB4885DCD4DD8D922": {
       "Export": {
         "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"
       },
       "Value": {
         "Ref": "AppRestApiB4885DCD"
-      }
-    },
-    "ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF": {
-      "Export": {
-        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF"
-      },
-      "Value": {
-        "Ref": "AppRestApiDeploymentStageProd56399416"
       }
     },
     "FunctionArnOutput": {

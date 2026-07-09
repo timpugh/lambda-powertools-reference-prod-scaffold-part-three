@@ -44,6 +44,9 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy,
 )
 from aws_cdk import (
+    aws_secretsmanager as secretsmanager,
+)
+from aws_cdk import (
     aws_sns as sns,
 )
 from aws_cdk import (
@@ -205,8 +208,8 @@ class FrontendStack(Stack):
         scope: Construct,
         construct_id: str,
         *,
-        api_url: str,
         api_id: str,
+        origin_verify_secret: secretsmanager.ISecret,
         waf_acl_arn: str,
         cf_waf_logs_location: str,
         regional_waf_logs_location: str,
@@ -218,9 +221,9 @@ class FrontendStack(Stack):
         Args:
             scope: The CDK construct scope.
             construct_id: The unique identifier for this stack.
-            api_url: The backend API Gateway URL, injected into config.json at deploy time.
-            api_id: The backend API Gateway REST API ID, used to pin the CSP connect-src
-                to the exact execute-api host instead of a region-wide wildcard.
+            api_id: The backend API Gateway REST API ID — the /api/* behavior's origin domain.
+            origin_verify_secret: injected as the x-origin-verify custom origin header; the
+                regional WAF blocks requests without it — see BackendApp._attach_regional_waf.
             waf_acl_arn: ARN of the WAF WebACL from WafStack (always in us-east-1).
             cf_waf_logs_location: ``s3://…/`` prefix of the CloudFront WebACL's WAF logs,
                 for the Athena Glue table (computed by the Stage — see its docstring).
@@ -231,7 +234,6 @@ class FrontendStack(Stack):
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
-        self._api_id = api_id
         self._cf_waf_logs_location = cf_waf_logs_location
         self._regional_waf_logs_location = regional_waf_logs_location
         self._alarm_topic = alarm_topic
@@ -335,9 +337,18 @@ class FrontendStack(Stack):
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
                 response_headers_policy=response_headers_policy,
             ),
+            additional_behaviors={
+                # Same-origin API proxy — see _build_api_origin_behavior's docstring.
+                "/api/*": self._build_api_origin_behavior(api_id, origin_verify_secret),
+            },
             default_root_object="index.html",
             error_responses=[
-                # Return index.html for 403/404 so SPA client-side routing works
+                # Return index.html for 403/404 so SPA client-side routing works.
+                # NOTE: custom error responses are distribution-wide — a 403/404 emitted by
+                # the /api/* origin (e.g. a WAF managed-rule block, an unknown API route) is
+                # also rewritten to index.html+200. The API's own contract codes (400/409/500)
+                # are unaffected. Accepted for this reference app; a fork that needs raw API
+                # 403/404s should move the SPA fallback into a CloudFront Function instead.
                 cloudfront.ErrorResponse(
                     http_status=403,
                     response_http_status=200,
@@ -487,7 +498,8 @@ class FrontendStack(Stack):
                 s3deploy.Source.json_data(
                     "config.json",
                     {
-                        "apiUrl": api_url,
+                        # Relative path, same-origin through the /api/* behavior — no CORS needed.
+                        "apiUrl": "/api",
                         "rum": {
                             "appMonitorId": rum_app_monitor.attr_id,
                             "identityPoolId": rum_identity_pool.ref,
@@ -529,11 +541,10 @@ class FrontendStack(Stack):
         # decisions" for the longer write-up.
         #
         # NOTE: CloudFront caps CallerReference at 128 characters, so we cannot fold
-        # the api_url (or other identifiers) into it — the content-hashed object key
-        # alone is already ~68 chars. If a backend-only API replacement changes
-        # config.json's contents, that path is covered because Source.json_data
-        # writes config.json as part of the BucketDeployment asset, so its hash —
-        # and thus this object key — changes when api_url changes.
+        # identifiers (e.g. RUM monitor/identity pool ids) into it — the content-hashed
+        # object key alone is already ~68 chars. A deploy that changes config.json's
+        # contents (apiUrl is now a fixed literal and never varies) is still covered:
+        # its Source.json_data hash — and thus this object key — changes with it.
         #
         # Rollback caveat (accepted): CloudFront treats a repeated CallerReference
         # as an idempotent replay of the earlier invalidation, so rolling assets
@@ -792,8 +803,9 @@ class FrontendStack(Stack):
         scripts would be blocked. Everything else is locked down:
         default-src/object-src/base-uri/frame-ancestors are constrained, and
         script-src/connect-src are scoped to the exact AWS endpoints the page talks
-        to (RUM client script + data plane, Cognito Identity for guest credentials,
-        and this stack's specific execute-api host for the API call). To reach a
+        to (RUM client script + data plane, Cognito Identity for guest credentials).
+        The API call is same-origin (routed through the /api/* behavior), so
+        connect-src no longer needs an execute-api entry at all. To reach a
         strict (nonce/hash) CSP without ``'unsafe-inline'``, externalize the two
         inline scripts into ``'self'``-served .js assets first — CloudFront cannot
         mint per-response nonces, and static hashes would break on any edit.
@@ -802,10 +814,6 @@ class FrontendStack(Stack):
         The RUM client script URL is hardcoded to us-east-1 in frontend/index.html
         regardless of deploy region, so script-src pins us-east-1 specifically
         while connect-src follows ``self.region`` for the data plane and Cognito.
-        The execute-api host is pinned to this API's exact ID (``self._api_id``, a
-        CDK token resolved to ``{id}.execute-api.{region}.amazonaws.com`` at synth)
-        rather than a ``*.execute-api`` wildcard, so an injected script can only
-        reach this app's own API — not every API in the region/account.
         """
         csp = (
             "default-src 'self'; "
@@ -813,8 +821,7 @@ class FrontendStack(Stack):
             "style-src 'self' 'unsafe-inline'; "
             "connect-src 'self' "
             f"https://dataplane.rum.{self.region}.amazonaws.com "
-            f"https://cognito-identity.{self.region}.amazonaws.com "
-            f"https://{self._api_id}.execute-api.{self.region}.amazonaws.com; "
+            f"https://cognito-identity.{self.region}.amazonaws.com; "
             "img-src 'self' data:; "
             "font-src 'self'; "
             "object-src 'none'; "
@@ -852,6 +859,54 @@ class FrontendStack(Stack):
                     override=True,
                 ),
             ),
+        )
+
+    def _build_api_origin_behavior(
+        self, api_id: str, origin_verify_secret: secretsmanager.ISecret
+    ) -> cloudfront.BehaviorOptions:
+        """Build the /api/* CacheBehavior — a same-origin proxy to API Gateway.
+
+        CloudFront does not strip the matched path pattern, and origin_path below
+        prepends /Prod — without the rewrite function, /api/greeting would reach
+        API Gateway as /Prod/api/greeting (404). Caching is disabled and forwarding
+        is all-viewer-except-host (API Gateway needs its own Host header).
+        """
+        api_rewrite_fn = cloudfront.Function(
+            self,
+            "ApiPathRewriteFunction",
+            comment="Strip the /api prefix before forwarding to the API Gateway origin",
+            runtime=cloudfront.FunctionRuntime.JS_2_0,
+            code=cloudfront.FunctionCode.from_inline(
+                "function handler(event) {\n"
+                "  var request = event.request;\n"
+                "  request.uri = request.uri.replace(/^\\/api/, '');\n"
+                "  if (request.uri === '') { request.uri = '/'; }\n"
+                "  return request;\n"
+                "}"
+            ),
+        )
+        api_origin = origins.HttpOrigin(
+            f"{api_id}.execute-api.{self.region}.amazonaws.com",
+            origin_path="/Prod",
+            protocol_policy=cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
+            custom_headers={
+                # Resolved at deploy via a CFN dynamic reference — the same value the
+                # regional WAF's RejectNonCloudFront rule matches on.
+                "x-origin-verify": origin_verify_secret.secret_value.unsafe_unwrap(),
+            },
+        )
+        return cloudfront.BehaviorOptions(
+            origin=api_origin,
+            viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
+            allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
+            cache_policy=cloudfront.CachePolicy.CACHING_DISABLED,
+            origin_request_policy=cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+            function_associations=[
+                cloudfront.FunctionAssociation(
+                    event_type=cloudfront.FunctionEventType.VIEWER_REQUEST,
+                    function=api_rewrite_fn,
+                )
+            ],
         )
 
     def _wire_rum_metrics_extras(
