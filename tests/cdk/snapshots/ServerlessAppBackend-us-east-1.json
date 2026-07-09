@@ -68,6 +68,14 @@
       "Description": "CloudWatch dashboard URL for this stack",
       "Value": "https://us-east-1.console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards/dashboard/ServerlessAppBackend-us-east-1"
     },
+    "ExportsOutputRefAppAlarmTopicAD260C2EA44BA33B": {
+      "Export": {
+        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppAlarmTopicAD260C2EA44BA33B"
+      },
+      "Value": {
+        "Ref": "AppAlarmTopicAD260C2E"
+      }
+    },
     "ExportsOutputRefAppRestApiB4885DCD4DD8D922": {
       "Export": {
         "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiB4885DCD4DD8D922"

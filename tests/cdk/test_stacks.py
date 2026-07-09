@@ -103,7 +103,14 @@ def backend_template() -> Template:
 
 @pytest.fixture(scope="module")
 def frontend_template() -> Template:
-    """Synthesize FrontendStack and return its CloudFormation template."""
+    """Synthesize FrontendStack and return its CloudFormation template.
+
+    ``backend`` defaults ``is_production_env=True``, so ``backend.app.alarm_topic``
+    is a real topic here — this is the prod shape for the frontend's own alarms
+    (see ``test_frontend_alarms_route_to_topic_in_prod``). The dev-shape
+    (``alarm_topic=None``) suppression path is covered by the nag-clean assertions
+    in ``test_stage.py``, which synthesize the frontend through ``AppStage``.
+    """
     app = cdk.App(context=_NO_BUNDLING)
     waf = WafStack(app, "TestFrontendWaf", env=_WAF_ENV)
     data = DataStack(app, "TestFrontendData", env=_TEST_ENV)
@@ -116,6 +123,7 @@ def frontend_template() -> Template:
         waf_acl_arn=waf.web_acl_arn,
         cf_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0001-cf/AWSLogs/123456789012/WAFLogs/cloudfront/test-cf/",
         regional_waf_logs_location="s3://aws-waf-logs-123456789012-deadbeef0002-api/AWSLogs/123456789012/WAFLogs/us-east-1/test-api/",
+        alarm_topic=backend.app.alarm_topic,
         env=_TEST_ENV,
         cross_region_references=True,
     )
@@ -1166,6 +1174,20 @@ class TestFrontendStack:
         frontend_template.has_resource(
             "AWS::Athena::WorkGroup",
             {"Properties": Match.object_like({"RecursiveDeleteOption": True})},
+        )
+
+    # ── Analytics alarms (Athena query failures + RUM session spikes) ───────────
+
+    def test_athena_and_rum_alarms_exist(self, frontend_template: Template) -> None:
+        alarms = frontend_template.find_resources("AWS::CloudWatch::Alarm")
+        names = [a["Properties"].get("MetricName") for a in alarms.values()]
+        assert "TotalExecutionTime" in names, "expected the Athena failed-queries alarm"
+        assert "SessionCount" in names, "expected the RUM session-spike alarm"
+
+    def test_frontend_alarms_route_to_topic_in_prod(self, frontend_template: Template) -> None:
+        alarms = frontend_template.find_resources("AWS::CloudWatch::Alarm")
+        assert all(a["Properties"].get("AlarmActions") for a in alarms.values()), (
+            "every frontend alarm must carry an SNS action in the prod shape"
         )
 
 

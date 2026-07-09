@@ -17,6 +17,9 @@ from aws_cdk import (
     aws_cloudfront_origins as origins,
 )
 from aws_cdk import (
+    aws_cloudwatch as cloudwatch,
+)
+from aws_cdk import (
     aws_cognito as cognito,
 )
 from aws_cdk import (
@@ -41,6 +44,9 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy,
 )
 from aws_cdk import (
+    aws_sns as sns,
+)
+from aws_cdk import (
     custom_resources as cr,
 )
 from constructs import Construct
@@ -54,6 +60,7 @@ from infrastructure.nag_utils import (
     create_auto_delete_objects_log_group,
     create_sse_s3_log_bucket,
     grant_logs_service_to_key,
+    route_operational_alarm,
     suppress_cdk_singletons,
 )
 
@@ -203,6 +210,7 @@ class FrontendStack(Stack):
         waf_acl_arn: str,
         cf_waf_logs_location: str,
         regional_waf_logs_location: str,
+        alarm_topic: sns.ITopic | None = None,
         **kwargs: Any,
     ) -> None:
         """Provision all frontend AWS resources.
@@ -218,12 +226,15 @@ class FrontendStack(Stack):
                 for the Athena Glue table (computed by the Stage — see its docstring).
             regional_waf_logs_location: ``s3://…/`` prefix of the regional (API Gateway)
                 WebACL's WAF logs, for the Athena Glue table.
+            alarm_topic: the backend's CMK-encrypted alarm topic (None in non-prod) —
+                the backend CMK already carries the CloudWatch-via-SNS grant.
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
         self._api_id = api_id
         self._cf_waf_logs_location = cf_waf_logs_location
         self._regional_waf_logs_location = regional_waf_logs_location
+        self._alarm_topic = alarm_topic
 
         apply_compliance_aspects(self)
 
@@ -366,6 +377,7 @@ class FrontendStack(Stack):
         # so such a change must also change the name in the same commit — see
         # the AppConfig profile note in backend_app.py.
         rum_monitor_name = f"{self.stack_name}-rum"
+        self._rum_monitor_name = rum_monitor_name
         rum_monitor_arn = f"arn:{self.partition}:rum:{self.region}:{self.account}:appmonitor/{rum_monitor_name}"
         rum_unauth_role = iam.Role(
             self,
@@ -1478,6 +1490,56 @@ LIMIT 100""",
             description="Athena workgroup for querying access logs",
             value=workgroup_name,
         )
+
+        self._attach_analytics_alarms(workgroup_name, self._rum_monitor_name)
+
+    def _attach_analytics_alarms(self, workgroup_name: str, rum_monitor_name: str) -> None:
+        """Alarm on Athena query failures and RUM session spikes.
+
+        Athena: publish_cloud_watch_metrics_enabled is already on for the
+        workgroup; >=3 FAILED DML queries in an hour means the saved queries (or
+        the Glue schemas under them) are broken — worth a look, not a page storm.
+        RUM: the identity pool is necessarily public (browser RUM), so ingestion
+        volume is the abuse signal — a session spike far above sample-app baseline
+        is either real traffic or someone minting guest credentials (see TODO
+        "Bound RUM ingestion cost"). The spend backstop is the AWS Budgets guard
+        in the backend stack. Thresholds are reference values.
+        """
+        athena_failed = cloudwatch.Alarm(
+            self,
+            "AthenaFailedQueriesAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/Athena",
+                metric_name="TotalExecutionTime",
+                dimensions_map={"WorkGroup": workgroup_name, "QueryState": "FAILED", "QueryType": "DML"},
+                statistic="SampleCount",
+                period=Duration.hours(1),
+            ),
+            threshold=3,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarm_description="Repeated Athena query failures in the access-logs workgroup",
+        )
+        route_operational_alarm(athena_failed, self._alarm_topic)
+
+        rum_sessions = cloudwatch.Alarm(
+            self,
+            "RumSessionSpikeAlarm",
+            metric=cloudwatch.Metric(
+                namespace="AWS/RUM",
+                metric_name="SessionCount",
+                dimensions_map={"application_name": rum_monitor_name},
+                statistic="Sum",
+                period=Duration.hours(1),
+            ),
+            threshold=1000,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+            alarm_description="RUM session volume far above sample-app baseline — possible guest-credential abuse",
+        )
+        route_operational_alarm(rum_sessions, self._alarm_topic)
 
     def _create_waf_glue_table(
         self,

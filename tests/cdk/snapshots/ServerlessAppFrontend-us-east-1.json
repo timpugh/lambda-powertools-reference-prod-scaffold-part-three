@@ -711,6 +711,65 @@
       },
       "Type": "AWS::Athena::WorkGroup"
     },
+    "AthenaFailedQueriesAlarmDE79E960": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-CFR1",
+              "reason": "Geo restriction not required for sample app"
+            },
+            {
+              "id": "AwsSolutions-CFR4",
+              "reason": "Using default CloudFront certificate \u2014 no custom domain for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppAlarmTopicAD260C2EA44BA33B"
+          }
+        ],
+        "AlarmDescription": "Repeated Athena query failures in the access-logs workgroup",
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Dimensions": [
+          {
+            "Name": "QueryState",
+            "Value": "FAILED"
+          },
+          {
+            "Name": "QueryType",
+            "Value": "DML"
+          },
+          {
+            "Name": "WorkGroup",
+            "Value": "ServerlessAppFrontend-us-east-1-access-logs"
+          }
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "TotalExecutionTime",
+        "Namespace": "AWS/Athena",
+        "Period": 3600,
+        "Statistic": "SampleCount",
+        "Threshold": 3,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
+    },
     "AutoDeleteObjectsLogGroupC1303B18": {
       "DeletionPolicy": "Delete",
       "Metadata": {
@@ -4298,6 +4357,57 @@
         ]
       },
       "Type": "AWS::IAM::Policy"
+    },
+    "RumSessionSpikeAlarmDCCA7828": {
+      "Metadata": {
+        "cdk_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "AwsSolutions-CFR1",
+              "reason": "Geo restriction not required for sample app"
+            },
+            {
+              "id": "AwsSolutions-CFR4",
+              "reason": "Using default CloudFront certificate \u2014 no custom domain for sample app"
+            },
+            {
+              "id": "NIST.800.53.R5-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "HIPAA.Security-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            },
+            {
+              "id": "PCI.DSS.321-S3BucketReplicationEnabled",
+              "reason": "S3 replication not needed for sample app \u2014 static assets are redeployable"
+            }
+          ]
+        }
+      },
+      "Properties": {
+        "AlarmActions": [
+          {
+            "Fn::ImportValue": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppAlarmTopicAD260C2EA44BA33B"
+          }
+        ],
+        "AlarmDescription": "RUM session volume far above sample-app baseline \u2014 possible guest-credential abuse",
+        "ComparisonOperator": "GreaterThanThreshold",
+        "Dimensions": [
+          {
+            "Name": "application_name",
+            "Value": "ServerlessAppFrontend-us-east-1-rum"
+          }
+        ],
+        "EvaluationPeriods": 1,
+        "MetricName": "SessionCount",
+        "Namespace": "AWS/RUM",
+        "Period": 3600,
+        "Statistic": "Sum",
+        "Threshold": 1000,
+        "TreatMissingData": "notBreaching"
+      },
+      "Type": "AWS::CloudWatch::Alarm"
     },
     "RumUnauthenticatedRole60F5E9A1": {
       "Metadata": {

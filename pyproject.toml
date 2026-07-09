@@ -218,7 +218,7 @@ disable = [
 
 [tool.pylint.format]
 max-line-length = 120  # must match [tool.ruff] line-length above
-max-module-lines = 1600  # CDK frontend stack legitimately exceeds default 1000 — many resources, each with its own nag suppressions, plus the audit-pass additions (KMS confused-deputy guards, CloudTrail bucket Deny, async DLQ wiring, RUM log-group cleanup CR), the hardening additions (custom HSTS + CSP ResponseHeadersPolicy), the review-pass additions (exact-API-host CSP, auto-delete-provider warning, extracted helper docstrings), and the 2026-06 review fixes (CloudTrail data-event scoping, BucketDeployment DLQ, auto-delete log-group race ordering, invalidation rollback caveat)
+max-module-lines = 1700  # CDK frontend stack legitimately exceeds default 1000 — many resources, each with its own nag suppressions, plus the audit-pass additions (KMS confused-deputy guards, CloudTrail bucket Deny, async DLQ wiring, RUM log-group cleanup CR), the hardening additions (custom HSTS + CSP ResponseHeadersPolicy), the review-pass additions (exact-API-host CSP, auto-delete-provider warning, extracted helper docstrings), the 2026-06 review fixes (CloudTrail data-event scoping, BucketDeployment DLQ, auto-delete log-group race ordering, invalidation rollback caveat), and the Athena query-failure + RUM session-spike operational alarms
 
 # Structural complexity thresholds — pylint fails if any function or class exceeds these.
 # Complexity is also enforced via the xenon pre-commit hook.

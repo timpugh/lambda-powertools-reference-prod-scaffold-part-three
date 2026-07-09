@@ -300,6 +300,10 @@ class AppStage(cdk.Stage):
             waf_acl_arn=self.waf.web_acl_arn,
             cf_waf_logs_location=cf_waf_logs_location,
             regional_waf_logs_location=regional_waf_logs_location,
+            # Legitimate cross-stack ref along the existing frontend -> backend
+            # edge (the frontend already depends on the backend for api_url/
+            # api_id above) — not a new dependency edge. None in non-prod.
+            alarm_topic=self.backend.app.alarm_topic,
             env=target_env,
             tags=stack_tags,
             # Enables CDK's SSM-based cross-region reference bridging.
