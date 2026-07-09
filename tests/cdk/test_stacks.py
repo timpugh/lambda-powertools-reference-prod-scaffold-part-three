@@ -446,6 +446,12 @@ class TestBackendStack:
             {"ReservedConcurrentExecutions": 100},
         )
 
+    def test_lambda_insights_enabled(self, backend_template: Template) -> None:
+        # Insights = extension layer + the managed policy on the execution role.
+        fn = backend_template.find_resources("AWS::Lambda::Function", {"Properties": {"Handler": "app.lambda_handler"}})
+        layers = json.dumps(next(iter(fn.values()))["Properties"].get("Layers", []))
+        assert "LambdaInsightsExtension" in layers, "expected the Lambda Insights extension layer"
+
     def test_api_gateway_stage_has_throttling(self, backend_template: Template) -> None:
         # Stage-level throttling retires the Serverless-APIGWDefaultThrottling
         # suppression. Asserted via MethodSettings on the wildcard path/method.

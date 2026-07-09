@@ -1101,6 +1101,10 @@
               "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
             },
             {
+              "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy]",
+              "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)"
+            },
+            {
               "id": "AwsSolutions-APIG2",
               "reason": "Request validation not needed for sample app"
             },
@@ -1215,6 +1219,10 @@
               "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
             },
             {
+              "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy]",
+              "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)"
+            },
+            {
               "id": "AwsSolutions-APIG2",
               "reason": "Request validation not needed for sample app"
             },
@@ -1291,6 +1299,9 @@
             "Arn"
           ]
         },
+        "Layers": [
+          "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension-Arm64:25"
+        ],
         "LoggingConfig": {
           "LogFormat": "JSON",
           "LogGroup": {
@@ -1374,6 +1385,10 @@
             {
               "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]",
               "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy]",
+              "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)"
             },
             {
               "id": "AwsSolutions-APIG2",
@@ -1488,6 +1503,10 @@
               "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
             },
             {
+              "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy]",
+              "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)"
+            },
+            {
               "id": "AwsSolutions-APIG2",
               "reason": "Request validation not needed for sample app"
             },
@@ -1555,6 +1574,18 @@
                 ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
               ]
             ]
+          },
+          {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
+              ]
+            ]
           }
         ]
       },
@@ -1619,6 +1650,10 @@
             {
               "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]",
               "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution"
+            },
+            {
+              "id": "AwsSolutions-IAM4[Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy]",
+              "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)"
             },
             {
               "id": "AwsSolutions-APIG2",

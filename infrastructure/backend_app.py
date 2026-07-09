@@ -421,6 +421,13 @@ class BackendApp(Construct):
             # Retires the NIST.800.53.R5-LambdaConcurrency /
             # HIPAA.Security-LambdaConcurrency suppressions below.
             reserved_concurrent_executions=100,
+            # Lambda Insights: CPU/memory-utilization/network enhanced metrics via the
+            # extension layer (~$0.50/month for this one function). The extension writes
+            # to the REGIONAL, account-shared /aws/lambda-insights log group — deliberately
+            # NOT owned or cleaned up by this stack (claiming a shared-name regional group
+            # would collide with any other Insights user in the account; same principle as
+            # the account-wide constructs this template avoids — see CLAUDE.md).
+            insights_version=_lambda.LambdaInsightsVersion.VERSION_1_0_498_0,
             tracing=_lambda.Tracing.ACTIVE,
             log_group=lambda_log_group,
             logging_format=_lambda.LoggingFormat.JSON,
@@ -1372,6 +1379,13 @@ class BackendApp(Construct):
                     "reason": "AWSLambdaBasicExecutionRole is the minimal managed policy for Lambda execution",
                     "applies_to": [
                         "Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                    ],
+                },
+                {
+                    "id": "AwsSolutions-IAM4",
+                    "reason": "CloudWatchLambdaInsightsExecutionRolePolicy is the AWS-documented policy for the Insights extension (log + metric writes)",
+                    "applies_to": [
+                        "Policy::arn:<AWS::Partition>:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
                     ],
                 },
                 # Default policy has KMS wildcard actions (required for CMK use).
