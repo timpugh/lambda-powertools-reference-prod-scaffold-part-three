@@ -269,7 +269,7 @@ def test_env_model_appconfig_max_age_default_and_wiring(lambda_app_module):
     env = lambda_app_module.EnvVars.model_validate(values)
 
     assert env.APPCONFIG_MAX_AGE_SECONDS == 300
-    assert lambda_app_module.app_config_store.cache_seconds == 300
+    assert lambda_app_module.app_config_store.max_age == 300
 
 
 def test_resolve_tenant_id_defaults_to_anonymous(apigw_event, lambda_app_module):

@@ -98,6 +98,17 @@ from infrastructure.nag_utils import (
     waf_log_redacted_fields,
 )
 
+# AWS-published AppConfig Lambda extension layer (ARM64), per region. The ARN is
+# region- and version-pinned by AWS (account 027255383542) — take new entries
+# verbatim from "Using AWS AppConfig Agent with AWS Lambda" in the AppConfig
+# user guide. Fail-loud mapping: an unmapped region must break synth, not
+# silently deploy a Lambda whose flag store points at a dead localhost port.
+# us-east-1 entry: layer version 2.0.18836, published 06/22/2026 (AppConfig
+# user guide, "Lambda extension versions" table).
+_APPCONFIG_EXTENSION_ARM64_LAYER_ARNS: dict[str, str] = {
+    "us-east-1": "arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension-Arm64:261",
+}
+
 
 class BackendApp(Construct):
     """Domain-level backend application.
@@ -461,8 +472,17 @@ class BackendApp(Construct):
                 # defaults to 300 anyway; set explicitly so the caching posture
                 # is visible and tunable here rather than buried in code.
                 "APPCONFIG_MAX_AGE_SECONDS": "300",
+                # Prefetch at extension start = flags are ready before the
+                # first invocation, instead of the extension needing a first
+                # on-demand poll to warm its cache.
+                "AWS_APPCONFIG_EXTENSION_PREFETCH_LIST": (
+                    f"/applications/{self.app_config_app.name}/environments/{app_config_env.name}"
+                    f"/configurations/{app_config_profile.name}"
+                ),
             },
         )
+
+        self._attach_appconfig_extension_layer(stack)
 
         # Recursive-loop detection. Default is Terminate, but the L2 PythonFunction
         # construct doesn't surface this property — set it explicitly on the
@@ -1025,6 +1045,30 @@ class BackendApp(Construct):
                     ],
                 )
             ],
+        )
+
+    def _attach_appconfig_extension_layer(self, stack: Stack) -> None:
+        """Attach the AWS-published AppConfig Lambda extension layer.
+
+        The extension polls AppConfig in the background and serves cached flag
+        data over ``http://localhost:2772`` (consumed by
+        ``lambda/extension_store.py``'s ``AppConfigExtensionStore``), so
+        handler invocations never call the AppConfig data plane directly.
+        Region lookup fails loudly (see ``_APPCONFIG_EXTENSION_ARM64_LAYER_ARNS``)
+        rather than silently deploying a function whose flag store has nothing
+        listening on that port. The existing AppConfig IAM grant
+        (``StartConfigurationSession`` / ``GetLatestConfiguration`` on the
+        profile ARN) already covers the extension — it calls AppConfig using
+        the function's own role.
+        """
+        extension_layer_arn = _APPCONFIG_EXTENSION_ARM64_LAYER_ARNS.get(stack.region)
+        if extension_layer_arn is None:
+            raise ValueError(
+                f"No AppConfig extension layer ARN mapped for region {stack.region!r} — "
+                "add it to _APPCONFIG_EXTENSION_ARM64_LAYER_ARNS from the AppConfig Lambda extension docs."
+            )
+        self.function.add_layers(
+            _lambda.LayerVersion.from_layer_version_arn(self, "AppConfigExtensionLayer", extension_layer_arn)
         )
 
     def _attach_greeting_resource(self) -> None:

@@ -17,13 +17,12 @@ scripts/generate_openapi.py), and Event Source Data Classes.
 import os
 from typing import Any, cast
 
-import boto3
 from aws_lambda_powertools import Logger, Metrics, Tracer
 from aws_lambda_powertools.event_handler import APIGatewayRestResolver
 from aws_lambda_powertools.event_handler.exceptions import InternalServerError
 from aws_lambda_powertools.logging import correlation_paths
 from aws_lambda_powertools.utilities.data_classes import APIGatewayProxyEvent
-from aws_lambda_powertools.utilities.feature_flags import AppConfigStore, FeatureFlags
+from aws_lambda_powertools.utilities.feature_flags import FeatureFlags
 from aws_lambda_powertools.utilities.idempotency import (
     DynamoDBPersistenceLayer,
     idempotent,
@@ -36,6 +35,7 @@ from aws_lambda_powertools.utilities.idempotency.exceptions import (
 from aws_lambda_powertools.utilities.parameters import SSMProvider
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.config import Config
+from extension_store import AppConfigExtensionStore
 from models import (
     EnvVars,
     GreetingResponse,
@@ -55,7 +55,10 @@ tracer = Tracer()
 metrics = Metrics()
 
 # Shared botocore retry config applied to every AWS SDK client this handler uses
-# (SSM, AppConfig, DynamoDB). botocore retries transient failures by default, but
+# (SSM, DynamoDB). AppConfig reads no longer go through an SDK client at all —
+# see the AppConfigExtensionStore construction below — so this config no
+# longer applies to feature-flag fetches. botocore retries transient failures
+# by default, but
 # pinning the policy here makes the posture explicit and tunable rather than
 # implicit in the SDK default — the same "visible in code, not implicit in the
 # runtime default" rationale behind setting recursive_loop="Terminate" on the
@@ -71,7 +74,7 @@ metrics = Metrics()
 # 4). total_max_attempts pins the total unambiguously: 1 initial + 1 retry.
 # Retrying is
 # safe because the write path (DynamoDB via @idempotent) is idempotent on the
-# client-supplied Idempotency-Key, and the SSM/AppConfig calls are reads. This
+# client-supplied Idempotency-Key, and the SSM read is a read. This
 # implements the AWS "retry with backoff" prescriptive-guidance pattern without
 # hand-rolling a retry loop — see README "Patterns deliberately not used".
 # connect/read timeouts bound each ATTEMPT: the retry budget above only helps
@@ -79,7 +82,7 @@ metrics = Metrics()
 # six times the function's own 10s timeout, so a single hung connection would
 # otherwise consume the whole invocation (502 to the caller) before the first
 # retry ever fired. Bounding the attempt turns a hang into a fast, retryable
-# error; 0.5s/1s is generous for the small same-region SSM/AppConfig/DynamoDB
+# error; 0.5s/1s is generous for the small same-region SSM/DynamoDB
 # calls this handler makes.
 # Budget math (keep it under the function timeout when tuning). The @idempotent
 # layer makes TWO sequential DynamoDB writes per request — save_inprogress
@@ -88,7 +91,7 @@ metrics = Metrics()
 # per call so even two serial browned-out DynamoDB calls stay under the 10s
 # function timeout: total_max_attempts=2 bounds ONE call at 2 x (0.5 + 1)
 # attempt-timeouts + ~1s of backoff ≈ 4s, so the two writes together reach ~8s
-# < 10s, with headroom for the SSM/AppConfig reads in between. (History:
+# < 10s, with headroom for the SSM read in between. (History:
 # total_max_attempts=3 put one call at ~7.5s, so the two writes reached ~15s and
 # timed out on a DynamoDB brownout — an API Gateway 502, off the OpenAPI
 # contract with no CORS header, feeding the canary rollback alarm during
@@ -132,21 +135,19 @@ idempotency_config = IdempotencyConfig(
     expires_after_seconds=3600,
 )
 
-# Feature Flags setup.
-# AppConfigStore is given an explicit appconfigdata client built with the shared
-# retry config. Passing boto_config= (or sdk_config=) to AppConfigStore instead
-# routes through a parameter that Powertools v3 deprecated and emits a warning,
-# so an explicit client is the clean way to apply the retry policy here.
-# max_age lifts the fetched-configuration TTL from the Powertools default of
-# 5 seconds — which would re-poll the AppConfig data plane every 5s per warm
-# container — to the same 300s posture as the SSM read in service.py. Tunable per
-# environment via APPCONFIG_MAX_AGE_SECONDS.
-app_config_store = AppConfigStore(
-    environment=_ENV.APPCONFIG_ENV_NAME,
+# Feature flags via the AppConfig Lambda extension (localhost:2772): the layer
+# polls AppConfig in the background, so flag reads never call the AppConfig
+# data plane from handler code. Failures raise ConfigurationStoreError, which
+# service.build_greeting already degrades gracefully (default value +
+# FeatureFlagEvaluationFailure metric) — no new failure mode. max_age keeps
+# the same 300s caching posture as the SDK-backed AppConfigStore this
+# replaces (see the module docstring on AppConfigExtensionStore for why the
+# extension already caches too, so this is mostly a hot-path optimization).
+app_config_store = AppConfigExtensionStore(
     application=_ENV.APPCONFIG_APP_NAME,
+    environment=_ENV.APPCONFIG_ENV_NAME,
     name=_ENV.APPCONFIG_PROFILE_NAME,
     max_age=_ENV.APPCONFIG_MAX_AGE_SECONDS,
-    boto3_client=boto3.client("appconfigdata", config=boto_config),
 )
 feature_flags = FeatureFlags(store=app_config_store)
 

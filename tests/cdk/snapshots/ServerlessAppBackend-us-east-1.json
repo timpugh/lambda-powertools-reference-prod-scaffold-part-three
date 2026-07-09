@@ -1249,6 +1249,7 @@
             "APPCONFIG_ENV_NAME": "ServerlessAppBackend-us-east-1-env",
             "APPCONFIG_MAX_AGE_SECONDS": "300",
             "APPCONFIG_PROFILE_NAME": "ServerlessAppBackend-us-east-1-flags",
+            "AWS_APPCONFIG_EXTENSION_PREFETCH_LIST": "/applications/ServerlessAppBackend-us-east-1-features/environments/ServerlessAppBackend-us-east-1-env/configurations/ServerlessAppBackend-us-east-1-flags",
             "GREETING_PARAM_NAME": {
               "Ref": "AppGreetingParameterD5E6E64F"
             },
@@ -1268,7 +1269,8 @@
           ]
         },
         "Layers": [
-          "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension-Arm64:25"
+          "arn:aws:lambda:us-east-1:580247275435:layer:LambdaInsightsExtension-Arm64:25",
+          "arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension-Arm64:261"
         ],
         "LoggingConfig": {
           "LogFormat": "JSON",
