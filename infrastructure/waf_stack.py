@@ -15,12 +15,14 @@ from aws_cdk import (
 from constructs import Construct
 
 from infrastructure.nag_utils import (
+    WAF_LOG_DROP_ALLOW_FILTER,
     acknowledge_rules,
     apply_compliance_aspects,
     build_managed_threat_rules,
     create_auto_delete_objects_log_group,
     create_waf_logs_bucket,
     grant_logs_service_to_key,
+    waf_log_redacted_fields,
 )
 
 
@@ -137,6 +139,8 @@ class WafStack(Stack):
             "WAFLogging",
             log_destination_configs=[waf_logs_bucket.bucket_arn],
             resource_arn=web_acl.attr_arn,
+            redacted_fields=waf_log_redacted_fields(),
+            logging_filter=WAF_LOG_DROP_ALLOW_FILTER,
         )
         if waf_logs_bucket.policy is not None:
             waf_logging.node.add_dependency(waf_logs_bucket.policy)

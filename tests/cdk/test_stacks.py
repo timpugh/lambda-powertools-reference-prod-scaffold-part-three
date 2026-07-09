@@ -250,6 +250,28 @@ class TestWafStack:
         names = json.dumps([b["Properties"].get("BucketName") for b in buckets.values()], default=str)
         assert "aws-waf-logs-" in names, "WAF log bucket name must start with aws-waf-logs-"
 
+    def test_waf_logging_redacts_credentials_and_drops_allow(self, waf_template: Template) -> None:
+        # WAF logs carry full request headers by default; Authorization/Cookie
+        # must be redacted before landing in the aws-waf-logs-* bucket (TODO
+        # "WAF logging — redacted_fields"). ALLOW records are dropped so log
+        # volume scales with threat traffic, not legitimate traffic (TODO
+        # "logging_filter") — traffic analytics stay available via the
+        # CloudFront/S3 access-log Athena tables.
+        waf_template.has_resource_properties(
+            "AWS::WAFv2::LoggingConfiguration",
+            Match.object_like(
+                {
+                    "RedactedFields": Match.array_with(
+                        [
+                            Match.object_like({"SingleHeader": {"Name": "authorization"}}),
+                            Match.object_like({"SingleHeader": {"Name": "cookie"}}),
+                        ]
+                    ),
+                    "LoggingFilter": Match.object_like({"DefaultBehavior": "KEEP"}),
+                }
+            ),
+        )
+
     def test_waf_log_bucket_has_delivery_policy(self, waf_template: Template) -> None:
         # WAF→S3 needs the delivery service principal granted write + ACL-check.
         waf_template.has_resource_properties(
@@ -512,6 +534,25 @@ class TestBackendStack:
                     )
                 }
             },
+        )
+
+    def test_waf_logging_redacts_credentials_and_drops_allow(self, backend_template: Template) -> None:
+        # Same redaction/drop-ALLOW posture as the CloudFront ACL in WafStack —
+        # both LoggingConfigurations share nag_utils.waf_log_redacted_fields()
+        # and WAF_LOG_DROP_ALLOW_FILTER so the two never drift.
+        backend_template.has_resource_properties(
+            "AWS::WAFv2::LoggingConfiguration",
+            Match.object_like(
+                {
+                    "RedactedFields": Match.array_with(
+                        [
+                            Match.object_like({"SingleHeader": {"Name": "authorization"}}),
+                            Match.object_like({"SingleHeader": {"Name": "cookie"}}),
+                        ]
+                    ),
+                    "LoggingFilter": Match.object_like({"DefaultBehavior": "KEEP"}),
+                }
+            ),
         )
 
     def test_regional_waf_has_managed_rule_sets(self, backend_template: Template) -> None:

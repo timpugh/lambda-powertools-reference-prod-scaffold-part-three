@@ -380,6 +380,37 @@ def build_managed_threat_rules(metric_prefix: str) -> list[wafv2.CfnWebACL.RuleP
     ]
 
 
+def waf_log_redacted_fields() -> list[wafv2.CfnLoggingConfiguration.FieldToMatchProperty]:
+    """Headers scrubbed from WAF logs at write time (both WebACLs share this).
+
+    WAF logs carry full request headers by default; if the API ever accepts an
+    Authorization header or a session cookie, it must not land in the
+    aws-waf-logs-* buckets unredacted (TODO "WAF logging — redacted_fields").
+    A function (not a module constant) so each CfnLoggingConfiguration gets its
+    own property instances.
+    """
+    return [
+        wafv2.CfnLoggingConfiguration.FieldToMatchProperty(single_header={"Name": "authorization"}),
+        wafv2.CfnLoggingConfiguration.FieldToMatchProperty(single_header={"Name": "cookie"}),
+    ]
+
+
+# Drop ALLOW logs, keep BLOCK/COUNT/CAPTCHA/CHALLENGE: log volume then scales
+# with threat traffic, not with legitimate traffic (TODO "logging_filter").
+# Traffic analytics stay available via the CloudFront/S3 access-log tables;
+# the WAF Athena queries analyze blocked traffic and are unaffected.
+WAF_LOG_DROP_ALLOW_FILTER: dict[str, object] = {
+    "DefaultBehavior": "KEEP",
+    "Filters": [
+        {
+            "Behavior": "DROP",
+            "Requirement": "MEETS_ALL",
+            "Conditions": [{"ActionCondition": {"Action": "ALLOW"}}],
+        }
+    ],
+}
+
+
 def attach_async_failure_destination(
     scope: IConstruct,
     singleton_id: str,

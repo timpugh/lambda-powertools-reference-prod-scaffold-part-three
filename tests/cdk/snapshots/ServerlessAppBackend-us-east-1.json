@@ -2067,6 +2067,34 @@
             ]
           }
         ],
+        "LoggingFilter": {
+          "DefaultBehavior": "KEEP",
+          "Filters": [
+            {
+              "Behavior": "DROP",
+              "Conditions": [
+                {
+                  "ActionCondition": {
+                    "Action": "ALLOW"
+                  }
+                }
+              ],
+              "Requirement": "MEETS_ALL"
+            }
+          ]
+        },
+        "RedactedFields": [
+          {
+            "SingleHeader": {
+              "Name": "authorization"
+            }
+          },
+          {
+            "SingleHeader": {
+              "Name": "cookie"
+            }
+          }
+        ],
         "ResourceArn": {
           "Fn::GetAtt": [
             "AppApiRegionalWebACL03074A4B",

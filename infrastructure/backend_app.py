@@ -83,6 +83,7 @@ from cdk_monitoring_constructs import (
 from constructs import Construct
 
 from infrastructure.nag_utils import (
+    WAF_LOG_DROP_ALLOW_FILTER,
     acknowledge_rules,
     build_managed_threat_rules,
     create_auto_delete_objects_log_group,
@@ -91,6 +92,7 @@ from infrastructure.nag_utils import (
     grant_cloudwatch_alarms_to_key,
     grant_logs_service_to_key,
     route_operational_alarm,
+    waf_log_redacted_fields,
 )
 
 
@@ -1126,6 +1128,8 @@ class BackendApp(Construct):
             "ApiRegionalWafLogging",
             log_destination_configs=[regional_waf_logs_bucket.bucket_arn],
             resource_arn=regional_acl.attr_arn,
+            redacted_fields=waf_log_redacted_fields(),
+            logging_filter=WAF_LOG_DROP_ALLOW_FILTER,
         )
         # Order after the bucket policy so WAF leaves the CDK-managed policy alone.
         if regional_waf_logs_bucket.policy is not None:
