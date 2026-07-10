@@ -384,6 +384,22 @@ _delete-straggler-log-groups:
 # Where the pre-destroy log-group snapshot is written ("<region> <name>" lines).
 # Env+region-scoped filename so concurrent teardowns of different deployments
 # never clobber each other's snapshots.
+#
+# RESUME-SAFETY: _snapshot-log-groups (below) MERGES its fresh CFN query into
+# whatever this file already contains instead of truncating it. That matters
+# across a failed-then-retried `make destroy-clean` on the SAME deployment: a
+# partial teardown attempt can have already destroyed one or more stacks, and
+# a later attempt's fresh query can no longer see those stacks at all — so
+# truncating on the re-run would silently drop the names it captured while
+# they still existed. Live-proven 2026-07-10: `make destroy-clean ENV=verify2`
+# deleted the Audit stack in attempt 1, then failed later on a frontend
+# bucket straggler; the re-run's (then-truncating) snapshot query no longer
+# saw the Audit stack, losing its log group names — including the S3
+# auto-delete provider group, whose physical name CloudFormation truncates
+# the ENV portion of ("verify", not "verify2"), so it escaped both the
+# exact-name sweep (name no longer in the snapshot) and the env-prefixed
+# sweep (prefix cut short). One log group survived the teardown and had to
+# be deleted by hand.
 LOG_GROUP_SNAPSHOT := /tmp/log-group-snapshot$(ENVSEG)-$(REGION).txt
 
 # Records the exact physical names of every CFN-owned log group in the
@@ -392,23 +408,44 @@ LOG_GROUP_SNAPSHOT := /tmp/log-group-snapshot$(ENVSEG)-$(REGION).txt
 # but CloudFormation knows each group's exact physical ID while the stack
 # still exists. Missing stacks contribute nothing (fresh teardown re-runs are
 # no-ops). The WAF stack is queried in us-east-1 (it always lives there).
+#
+# MERGES rather than truncates: the fresh query lands in a scratch file, then
+# gets combined with any pre-existing snapshot (deduped) before being written
+# back. This is what makes a re-run after a partial `destroy-clean` failure
+# resume-safe — see the RESUME-SAFETY note on LOG_GROUP_SNAPSHOT above for the
+# live incident this closes. Carrying forward names from stacks the earlier
+# attempt already destroyed is harmless: _delete-snapshotted-log-groups
+# tolerates absent groups (`2>/dev/null || true`), so a stale entry just
+# no-ops on delete instead of getting lost.
 _snapshot-log-groups:
 	@echo "Snapshotting CFN-owned log groups (for the post-destroy exact-name sweep)..."
-	@: > $(LOG_GROUP_SNAPSHOT)
+	@: > $(LOG_GROUP_SNAPSHOT).fresh
 	@for s in "ServerlessAppBackend$(ENVSEG)-$(REGION)" "ServerlessAppFrontend$(ENVSEG)-$(REGION)" "ServerlessAppAudit$(ENVSEG)-$(REGION)"; do \
 		aws cloudformation list-stack-resources --stack-name "$$s" --region $(REGION) \
 			--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
-			--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/$(REGION) /" >> $(LOG_GROUP_SNAPSHOT) || true; \
+			--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/$(REGION) /" >> $(LOG_GROUP_SNAPSHOT).fresh || true; \
 	done
 	@aws cloudformation list-stack-resources --stack-name "ServerlessAppWaf$(ENVSEG)-$(REGION)" --region us-east-1 \
 		--query "StackResourceSummaries[?ResourceType=='AWS::Logs::LogGroup'].PhysicalResourceId" \
-		--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/us-east-1 /" >> $(LOG_GROUP_SNAPSHOT) || true
-	@echo "  $$(wc -l < $(LOG_GROUP_SNAPSHOT) | tr -d ' ') log group(s) snapshotted"
+		--output text 2>/dev/null | tr '\t' '\n' | sed "s/^/us-east-1 /" >> $(LOG_GROUP_SNAPSHOT).fresh || true
+	@if [ -f $(LOG_GROUP_SNAPSHOT) ]; then \
+		cat $(LOG_GROUP_SNAPSHOT) $(LOG_GROUP_SNAPSHOT).fresh | sort -u > $(LOG_GROUP_SNAPSHOT).merged; \
+	else \
+		sort -u $(LOG_GROUP_SNAPSHOT).fresh > $(LOG_GROUP_SNAPSHOT).merged; \
+	fi
+	@mv $(LOG_GROUP_SNAPSHOT).merged $(LOG_GROUP_SNAPSHOT)
+	@rm -f $(LOG_GROUP_SNAPSHOT).fresh
+	@echo "  $$(wc -l < $(LOG_GROUP_SNAPSHOT) | tr -d ' ') log group(s) snapshotted (cumulative across any earlier partial-teardown attempts)"
 
 # Deletes any snapshotted group that exists again after destroy — i.e. the
 # groups async log delivery re-created under their exact pre-destroy names,
 # including the truncated-function-name ones the prefix sweep can't see.
 # Exact names only; cannot touch any other deployment's groups by construction.
+# Safe to run against a snapshot that's stale or over-broad (e.g. one carried
+# forward, per the merge in _snapshot-log-groups, from a stack an earlier
+# teardown attempt already deleted): `delete-log-group` on a name that isn't
+# there just fails quietly (`2>/dev/null || true`), so extra entries are
+# harmless.
 _delete-snapshotted-log-groups:
 	@echo "Sweeping re-created CFN-owned log groups by exact name..."
 	@if [ -s $(LOG_GROUP_SNAPSHOT) ]; then \
