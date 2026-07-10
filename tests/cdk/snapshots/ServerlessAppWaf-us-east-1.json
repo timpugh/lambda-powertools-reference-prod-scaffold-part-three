@@ -294,7 +294,23 @@
           {
             "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
           }
-        ]
+        ],
+        "PermissionsBoundary": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/cdk-scaffold-boundary"
+            ]
+          ]
+        }
       },
       "Type": "AWS::IAM::Role"
     },

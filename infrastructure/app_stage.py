@@ -55,6 +55,14 @@ from infrastructure.waf_stack import WafStack
 # the long-lived deployment.
 DEFAULT_ENV_NAME = "prod"
 
+# The IAM permissions boundary every app-created role carries (and the CDK
+# bootstrap roles carry via `cdk bootstrap --custom-permissions-boundary`).
+# The policy itself is the standalone CFN template in
+# infrastructure/bootstrap/cdk-scaffold-boundary.json — deploy it with
+# `make bootstrap-boundary` BEFORE any deploy of this app; a role that
+# references a missing policy fails at deploy with an IAM error.
+BOUNDARY_POLICY_NAME = "cdk-scaffold-boundary"
+
 # CloudFormation stack names allow only alphanumerics and hyphens, max 128
 # chars; env names are embedded in stack names so they inherit the constraint.
 _ENV_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
@@ -204,7 +212,12 @@ class AppStage(cdk.Stage):
         ssm_param_path: str | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(scope, construct_id, **kwargs)
+        super().__init__(
+            scope,
+            construct_id,
+            permissions_boundary=cdk.PermissionsBoundary.from_name(BOUNDARY_POLICY_NAME),
+            **kwargs,
+        )
 
         validate_env_name(env_name)
         validate_ssm_param_path(ssm_param_path)

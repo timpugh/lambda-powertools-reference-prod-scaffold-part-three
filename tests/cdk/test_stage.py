@@ -366,3 +366,25 @@ class TestNagCompliance:
             f"TemplateConventionChecks is not attached to the {stack_attr} stack — "
             "apply_compliance_aspects was likely dropped from its constructor"
         )
+
+
+class TestPermissionsBoundary:
+    """Every role the app creates must carry the cdk-scaffold-boundary.
+
+    The boundary policy's DenyRoleCreationWithoutBoundary statement makes
+    an unbounded role a deploy-time failure once the CFN exec role is
+    bounded — this test moves that failure to synth time.
+    """
+
+    @pytest.mark.parametrize("stack_attr", ["waf", "data", "backend", "frontend", "audit"])
+    def test_every_role_carries_the_boundary(self, prod_stage: AppStage, stack_attr: str) -> None:
+        template = Template.from_stack(getattr(prod_stage, stack_attr))
+        roles = template.find_resources("AWS::IAM::Role")
+        unbounded = [
+            logical_id for logical_id, role in roles.items() if "PermissionsBoundary" not in role.get("Properties", {})
+        ]
+        assert not unbounded, f"roles without the permissions boundary in {stack_attr}: {unbounded}"
+
+    def test_backend_actually_has_roles(self, prod_stage: AppStage) -> None:
+        # Guard against the parametrized test passing vacuously.
+        assert Template.from_stack(prod_stage.backend).find_resources("AWS::IAM::Role")
