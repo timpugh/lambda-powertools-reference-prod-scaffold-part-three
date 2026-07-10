@@ -110,6 +110,17 @@ def _pipeline_stages(template: Template) -> list[dict]:
     return next(iter(pipelines_found.values()))["Properties"]["Stages"]
 
 
+def _flatten_fn_join(resource: dict) -> str:
+    """Flatten an ``Fn::Join`` ARN resource to its literal string content.
+
+    Ref-dicts (e.g. ``{"Ref": "AWS::Partition"}``) are skipped, so the result
+    is just the concatenated string parts — enough to substring-match the
+    stack name baked into the ARN.
+    """
+    _, parts = resource["Fn::Join"]
+    return "".join(part for part in parts if isinstance(part, str))
+
+
 class TestStageLadder:
     def test_dev_deploys_before_prod(self, pipeline_template: Template) -> None:
         names = [s["Name"] for s in _pipeline_stages(pipeline_template)]
@@ -133,27 +144,30 @@ class TestStageLadder:
     def test_integration_gate_can_read_only_the_dev_stacks(self, pipeline_template: Template) -> None:
         # The test step's role may DescribeStacks on the two dev stacks and
         # nothing broader — the prod stacks are deliberately out of reach.
-        pipeline_template.has_resource_properties(
-            "AWS::IAM::Policy",
-            Match.object_like(
-                {
-                    "PolicyDocument": Match.object_like(
-                        {
-                            "Statement": Match.array_with(
-                                [
-                                    Match.object_like(
-                                        {
-                                            "Action": "cloudformation:DescribeStacks",
-                                            "Resource": [
-                                                Match.object_like({}),
-                                                Match.object_like({}),
-                                            ],
-                                        }
-                                    )
-                                ]
-                            )
-                        }
-                    )
-                }
-            ),
+        #
+        # Match.object_like({}) matches ANY dict, so a shape-only assertion
+        # here would pass even if both ARNs pointed at prod. Instead, pin the
+        # literal ARN content: find the DescribeStacks statement whose
+        # Resource is a list (the CDK-Pipelines self-mutation role also
+        # grants this action, but on the scalar "Resource": "*" — excluded
+        # below by the list check, and asserted to be the only other one),
+        # then flatten each Fn::Join resource and match the exact stack name.
+        policies = pipeline_template.find_resources("AWS::IAM::Policy")
+        list_resource_statements = [
+            statement
+            for policy in policies.values()
+            for statement in policy["Properties"]["PolicyDocument"]["Statement"]
+            for action in [statement.get("Action")]
+            if "cloudformation:DescribeStacks" in (action if isinstance(action, list) else [action])
+            if isinstance(statement.get("Resource"), list)
+        ]
+        assert len(list_resource_statements) == 1, (
+            "expected exactly one list-scoped cloudformation:DescribeStacks "
+            f"statement (the dev-stacks grant); found {len(list_resource_statements)}"
         )
+
+        resources = list_resource_statements[0]["Resource"]
+        assert len(resources) == 2
+        flattened = [_flatten_fn_join(resource) for resource in resources]
+        assert any(arn.endswith("stack/ServerlessAppBackend-dev-us-east-1/*") for arn in flattened)
+        assert any(arn.endswith("stack/ServerlessAppFrontend-dev-us-east-1/*") for arn in flattened)
