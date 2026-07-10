@@ -126,7 +126,7 @@ class BackendApp(Construct):
         is_production_env: bool = True,
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
-        cf_web_acl_metric_name: str | None = None,
+        cf_web_acl_name: str | None = None,
     ) -> None:
         """Build the application construct.
 
@@ -163,10 +163,12 @@ class BackendApp(Construct):
                 **Caution:** set it before the first deploy, or accept parameter
                 replacement (changing ``parameter_name`` on a deployed stack
                 replaces the parameter and re-creates its value as "hello world").
-            cf_web_acl_metric_name: CloudFront WebACL metric name (its
-                ``VisibilityConfig.MetricName``, e.g. ``f"{waf_stack_name}WebACL"``),
-                passed by the Stage for the by-name BlockedRequests alarm; None
-                skips it.
+            cf_web_acl_name: CloudFront WebACL's **name** (e.g.
+                ``f"{waf_stack_name}-cf"``, its explicit ``name=`` in
+                ``WafStack``, NOT its ``VisibilityConfig.MetricName``), passed
+                by the Stage for the by-name BlockedRequests alarm; None skips
+                it. See ``_attach_waf_alarms`` for the live-verified dimension
+                finding this rests on.
         """
         super().__init__(scope, construct_id)
 
@@ -762,7 +764,7 @@ class BackendApp(Construct):
 
         # BlockedRequests spike alarms on both WebACLs. Created after _build_monitoring
         # so the prod alarm topic exists to route to.
-        self._attach_waf_alarms(cf_web_acl_metric_name)
+        self._attach_waf_alarms(cf_web_acl_name)
 
         # Prod-only cost backstop for RUM's uncapped ingestion — needs the alarm
         # topic to notify, so only attached where one exists.
@@ -965,23 +967,34 @@ class BackendApp(Construct):
         )
         return topic
 
-    def _attach_waf_alarms(self, cf_web_acl_metric_name: str | None) -> None:
+    def _attach_waf_alarms(self, cf_web_acl_name: str | None) -> None:
         """Alarm on BlockedRequests spikes for the regional and CloudFront WebACLs.
 
         A sustained block spike is a leading indicator of an attack ramp (TODO
-        "WAF — CloudWatch alarms"). Metrics are addressed by WebACL *metric name*
-        (the CloudWatch ``WebACL`` dimension value is a WebACL's
-        ``VisibilityConfig.MetricName``, NOT its resource name — both are
-        deterministic strings) — no construct reference, no cross-stack or
-        cross-region reference. The ``Region`` dimension is required for every
-        protected resource type EXCEPT CloudFront distributions (AWS WAF
-        CloudWatch metrics reference), so the regional alarm carries it and the
-        CloudFront alarm omits it. The CloudFront ACL publishes its metrics only
-        in us-east-1, so its alarm is created only when this stack IS in
-        us-east-1 (the default deployment); other regions keep the regional alarm
-        and document the gap. There is deliberately NO WCU alarm: WAFv2 publishes
-        no WCU-consumption metric — WCU is static rule capacity (see TODO.md).
-        Threshold is a reference value — size to real traffic in a fork.
+        "WAF — CloudWatch alarms"). Metrics are addressed by WebACL *name* — both
+        deterministic strings, no construct reference, no cross-stack or
+        cross-region reference needed. **Live-verified 2026-07-09** against a
+        deployed environment (``aws cloudwatch list-metrics --namespace
+        AWS/WAFV2 --metric-name BlockedRequests``): the CloudWatch ``WebACL``
+        dimension value is the WebACL's **name** (e.g. ``f"{stack_name}-api"``
+        for the regional ACL, ``f"{waf_stack_name}-cf"`` for the CloudFront
+        ACL) — NOT its ``VisibilityConfig.MetricName``. The ACL-level
+        ``VisibilityConfig.MetricName`` (e.g. ``f"{waf_stack_name}WebACL"``)
+        only ever appears as a **``Rule`` dimension value**, on the WebACL's
+        default-action metrics — which is what makes the AWS docs phrase "the
+        metric name of the WebACL" misleading. Do not "correct" this back to
+        the metric name — an unacknowledged alarm on a nonexistent dimension
+        combination never fires (``treat_missing_data=NOT_BREACHING``), which
+        is exactly the silent failure this fix addresses. The ``Region``
+        dimension is required for every protected resource type EXCEPT
+        CloudFront distributions (AWS WAF CloudWatch metrics reference), so the
+        regional alarm carries it and the CloudFront alarm omits it. The
+        CloudFront ACL publishes its metrics only in us-east-1, so its alarm is
+        created only when this stack IS in us-east-1 (the default deployment);
+        other regions keep the regional alarm and document the gap. There is
+        deliberately NO WCU alarm: WAFv2 publishes no WCU-consumption metric —
+        WCU is static rule capacity (see TODO.md). Threshold is a reference
+        value — size to real traffic in a fork.
         """
         stack = Stack.of(self)
 
@@ -1007,16 +1020,19 @@ class BackendApp(Construct):
         _blocked_alarm(
             "RegionalWafBlockedRequestsAlarm",
             "Sustained BlockedRequests spike on the regional (API Gateway) WebACL — possible attack ramp",
-            {"Region": stack.region, "WebACL": f"{stack.stack_name}ApiRegionalWebACL", "Rule": "ALL"},
+            # WebACL = the ACL's name (matches the explicit name= on the
+            # regional CfnWebACL in _attach_regional_waf) — see this method's
+            # docstring for the live-verified dimension finding.
+            {"Region": stack.region, "WebACL": f"{stack.stack_name}-api", "Rule": "ALL"},
         )
-        if cf_web_acl_metric_name is not None and stack.region == "us-east-1":
+        if cf_web_acl_name is not None and stack.region == "us-east-1":
             _blocked_alarm(
                 "CloudFrontWafBlockedRequestsAlarm",
                 "Sustained BlockedRequests spike on the CloudFront WebACL — possible attack ramp",
                 # No Region dimension — CLOUDFRONT-scope metrics are the one
                 # protected-resource type that omits it (AWS WAF CloudWatch
                 # metrics reference), and they only publish in us-east-1 anyway.
-                {"WebACL": cf_web_acl_metric_name, "Rule": "ALL"},
+                {"WebACL": cf_web_acl_name, "Rule": "ALL"},
             )
 
     def _attach_cloudwatch_spend_budget(self, topic: sns.Topic) -> None:

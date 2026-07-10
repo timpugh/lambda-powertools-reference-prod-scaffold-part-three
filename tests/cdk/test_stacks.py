@@ -91,11 +91,11 @@ def backend_template() -> Template:
         "TestBackendStack",
         idempotency_table=data.idempotency_table,
         # A plain string standing in for the Stage-computed CloudFront WebACL
-        # metric name (see WafStack's visibility_config) — exercises the
-        # CloudFront BlockedRequests alarm branch, which is gated on
-        # cf_web_acl_metric_name being present AND the stack's region being
-        # us-east-1 (true for this fixture — see _TEST_REGION).
-        cf_web_acl_metric_name="TestWafStackWebACL",
+        # *name* (see WafStack's explicit name=f"{stack_name}-cf" on the
+        # CfnWebACL) — exercises the CloudFront BlockedRequests alarm branch,
+        # which is gated on cf_web_acl_name being present AND the stack's
+        # region being us-east-1 (true for this fixture — see _TEST_REGION).
+        cf_web_acl_name="TestWafStack-cf",
         env=_TEST_ENV,
     )
     return Template.from_stack(stack)
@@ -628,12 +628,14 @@ class TestBackendStack:
         # us-east-1 (which is this fixture's region).
         alarms = backend_template.find_resources("AWS::CloudWatch::Alarm")
         blocked = [a["Properties"] for a in alarms.values() if a["Properties"].get("MetricName") == "BlockedRequests"]
-        # The WebACL dimension is the ACL's VisibilityConfig metric NAME (not the ACL
-        # name), and Region appears only on the regional alarm — CloudFront WAF
-        # metrics carry no Region dimension (AWS WAF metrics reference).
+        # The WebACL dimension is the ACL's NAME (not its VisibilityConfig metric
+        # name — live-verified against a deployed environment, see
+        # BackendApp._attach_waf_alarms), and Region appears only on the
+        # regional alarm — CloudFront WAF metrics carry no Region dimension
+        # (AWS WAF metrics reference).
         dim_sets = [{d["Name"]: d["Value"] for d in p["Dimensions"]} for p in blocked]
-        assert {"Region": "us-east-1", "Rule": "ALL", "WebACL": "TestBackendStackApiRegionalWebACL"} in dim_sets
-        assert {"Rule": "ALL", "WebACL": "TestWafStackWebACL"} in dim_sets
+        assert {"Region": "us-east-1", "Rule": "ALL", "WebACL": "TestBackendStack-api"} in dim_sets
+        assert {"Rule": "ALL", "WebACL": "TestWafStack-cf"} in dim_sets
         assert len(blocked) == 2
 
     def test_appinsights_dashboard_cleanup_targets_real_dashboard_name(self, backend_template: Template) -> None:

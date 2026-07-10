@@ -264,11 +264,13 @@ class AppStage(cdk.Stage):
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
             # By-name metric addressing, same no-cross-stack-ref technique as
-            # the WAF log locations below — the CloudFront WebACL's
-            # VisibilityConfig.MetricName is a deterministic string (see
-            # WafStack), so it can be passed as a plain string rather than a
+            # the WAF log locations below — the CloudWatch WebACL dimension is
+            # the ACL's NAME (live-verified against a deployed environment;
+            # see BackendApp._attach_waf_alarms), a deterministic string (the
+            # same explicit name= WafStack sets on the CloudFront CfnWebACL),
+            # so it can be passed as a plain string rather than a
             # cross-stack/cross-region construct reference.
-            cf_web_acl_metric_name=f"{waf_stack_name}WebACL",
+            cf_web_acl_name=f"{waf_stack_name}-cf",
             env=target_env,
             tags=stack_tags,
         )

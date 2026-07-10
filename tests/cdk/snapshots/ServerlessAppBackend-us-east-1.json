@@ -2978,7 +2978,7 @@
           },
           {
             "Name": "WebACL",
-            "Value": "ServerlessAppWaf-us-east-1WebACL"
+            "Value": "ServerlessAppWaf-us-east-1-cf"
           }
         ],
         "EvaluationPeriods": 1,
@@ -4872,7 +4872,7 @@
           },
           {
             "Name": "WebACL",
-            "Value": "ServerlessAppBackend-us-east-1ApiRegionalWebACL"
+            "Value": "ServerlessAppBackend-us-east-1-api"
           }
         ],
         "EvaluationPeriods": 1,

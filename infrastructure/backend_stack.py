@@ -39,7 +39,7 @@ class BackendStack(Stack):
         is_production_env: bool = True,
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
-        cf_web_acl_metric_name: str | None = None,
+        cf_web_acl_name: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Compose the application construct into a deployable stack.
@@ -64,11 +64,12 @@ class BackendStack(Stack):
                 for the greeting SSM parameter's name. Defaults to None, which
                 keeps CDK's auto-generated name. Set before first deploy;
                 changing it afterwards replaces the parameter.
-            cf_web_acl_metric_name: Forwarded to :class:`BackendApp` — the
-                CloudFront WebACL's metric name, used to address its
-                BlockedRequests metric by name for the spike alarm. Defaults
-                to None, which skips that alarm (e.g. in tests that don't
-                build a WAF stack).
+            cf_web_acl_name: Forwarded to :class:`BackendApp` — the CloudFront
+                WebACL's **name** (not its ``VisibilityConfig.MetricName`` —
+                see ``BackendApp._attach_waf_alarms`` for the live-verified
+                dimension finding), used to address its BlockedRequests
+                metric by name for the spike alarm. Defaults to None, which
+                skips that alarm (e.g. in tests that don't build a WAF stack).
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
@@ -82,7 +83,7 @@ class BackendStack(Stack):
             is_production_env=is_production_env,
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
-            cf_web_acl_metric_name=cf_web_acl_metric_name,
+            cf_web_acl_name=cf_web_acl_name,
         )
 
         # Expose API URL + ID for consumption by the frontend stack (api_id lets the
