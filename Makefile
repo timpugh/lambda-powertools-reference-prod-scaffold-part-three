@@ -426,26 +426,42 @@ _delete-snapshotted-log-groups:
 # it during teardown — leaving DeleteBucket with a 409 "bucket not empty" and the
 # stack in DELETE_FAILED. This target empties the frontend log buckets first to
 # shrink that window, then destroys; if a straggler log still lands while the
-# CloudFront distribution is deleting (which takes minutes), it empties once more
-# and retries. After destroy, straggler CloudWatch log groups (re-created by
-# late async log delivery — see _delete-straggler-log-groups) are swept.
-# Re-running the whole target is always safe — every step is idempotent.
-# The retry block invokes make via the shell's $$MAKE (exported by make into
+# CloudFront distribution is deleting (which takes minutes), it retries in a
+# BOUNDED LOOP: up to 3 retries (4 destroy attempts total), each preceded by a
+# 60s sleep — so the re-empty pass isn't immediately raced by a log written in
+# the same second — and a fresh _empty-frontend-buckets pass. A single retry is
+# NOT enough: CloudFront standard log delivery can lag up to ~an hour after the
+# last request, so on a short-lived environment two stragglers in a row beat one
+# retry (live-proven 2026-07-10 — `make destroy-clean ENV=verify2` still hit
+# DELETE_FAILED on FrontendAccessLogBucket after the single-retry fallback, on a
+# log delivered at 22:55:25, after the one empty-and-retry pass had already run).
+# After destroy succeeds (or all attempts are exhausted), straggler CloudWatch
+# log groups (re-created by late async log delivery — see
+# _delete-straggler-log-groups) are swept. Re-running the whole target is always
+# safe — every step, and the loop itself, is idempotent.
+# The retry loop invokes make via the shell's $$MAKE (exported by make into
 # every recipe environment), NOT the literal $(MAKE) variable reference. The
 # distinction is load-bearing: make executes any recipe line containing
 # $(MAKE)/$ {MAKE} even under -n, so with the literal form a "dry-run"
 # `make -n destroy-clean` would have REALLY run `cdk destroy` against the
 # live stacks (observed; the recipe line is one shell command, so the destroy
 # rides along with the recursive call). $$MAKE escapes make's recursive-line
-# scan, making -n print this line instead of executing it.
-destroy-clean: ## Empty async-log buckets, destroy all stacks, sweep straggler log groups. REGION=us-east-1 default.
+# scan, making -n print this line instead of executing it — this holds for
+# every $$MAKE call inside the retry loop below, not just a single fallback.
+destroy-clean: ## Empty async-log buckets, destroy all stacks (retrying up to 3x on log stragglers), sweep straggler log groups. REGION=us-east-1 default.
 	@$(MAKE) _snapshot-log-groups REGION=$(REGION) ENV=$(ENV)
 	@$(MAKE) _empty-frontend-buckets REGION=$(REGION) ENV=$(ENV)
-	$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION) || { \
-		echo "destroy hit a late-arriving log straggler — emptying again and retrying once..."; \
-		"$$MAKE" _empty-frontend-buckets REGION=$(REGION) ENV=$(ENV); \
-		$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION); \
-	}
+	$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION); status=$$?; \
+	if [ $$status -ne 0 ]; then \
+		for i in 1 2 3; do \
+			echo "destroy hit a late-arriving log straggler — retry $$i/3: sleeping 60s, emptying again, and retrying..."; \
+			sleep 60; \
+			"$$MAKE" _empty-frontend-buckets REGION=$(REGION) ENV=$(ENV); \
+			$(CDK) destroy '**' $(CDK_ENV_ARG) --force -c region=$(REGION); status=$$?; \
+			[ $$status -eq 0 ] && break; \
+		done; \
+	fi; \
+	exit $$status
 	@$(MAKE) _delete-straggler-log-groups REGION=$(REGION) ENV=$(ENV)
 	@$(MAKE) _delete-snapshotted-log-groups REGION=$(REGION) ENV=$(ENV)
 
