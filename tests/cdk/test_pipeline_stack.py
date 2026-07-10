@@ -102,3 +102,58 @@ class TestPipelineCore:
             logical_id for logical_id, role in roles.items() if "PermissionsBoundary" not in role.get("Properties", {})
         ]
         assert not unbounded, f"roles without the permissions boundary: {unbounded}"
+
+
+def _pipeline_stages(template: Template) -> list[dict]:
+    pipelines_found = template.find_resources("AWS::CodePipeline::Pipeline")
+    assert len(pipelines_found) == 1
+    return next(iter(pipelines_found.values()))["Properties"]["Stages"]
+
+
+class TestStageLadder:
+    def test_dev_deploys_before_prod(self, pipeline_template: Template) -> None:
+        names = [s["Name"] for s in _pipeline_stages(pipeline_template)]
+        assert "Dev" in names
+        assert "Prod" in names
+        assert names.index("Dev") < names.index("Prod")
+
+    def test_prod_gates_on_manual_approval(self, pipeline_template: Template) -> None:
+        prod = next(s for s in _pipeline_stages(pipeline_template) if s["Name"] == "Prod")
+        approvals = [a for a in prod["Actions"] if a["ActionTypeId"]["Category"] == "Approval"]
+        assert len(approvals) == 1
+        assert approvals[0]["Name"] == "PromoteToProd"
+        # RunOrder 1 = the approval blocks every deploy action in the stage.
+        assert approvals[0]["RunOrder"] == 1
+
+    def test_dev_stage_runs_the_integration_gate(self, pipeline_template: Template) -> None:
+        dev = next(s for s in _pipeline_stages(pipeline_template) if s["Name"] == "Dev")
+        action_names = [a["Name"] for a in dev["Actions"]]
+        assert "IntegrationTest" in action_names
+
+    def test_integration_gate_can_read_only_the_dev_stacks(self, pipeline_template: Template) -> None:
+        # The test step's role may DescribeStacks on the two dev stacks and
+        # nothing broader — the prod stacks are deliberately out of reach.
+        pipeline_template.has_resource_properties(
+            "AWS::IAM::Policy",
+            Match.object_like(
+                {
+                    "PolicyDocument": Match.object_like(
+                        {
+                            "Statement": Match.array_with(
+                                [
+                                    Match.object_like(
+                                        {
+                                            "Action": "cloudformation:DescribeStacks",
+                                            "Resource": [
+                                                Match.object_like({}),
+                                                Match.object_like({}),
+                                            ],
+                                        }
+                                    )
+                                ]
+                            )
+                        }
+                    )
+                }
+            ),
+        )

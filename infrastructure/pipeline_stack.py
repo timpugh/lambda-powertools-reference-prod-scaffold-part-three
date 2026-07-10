@@ -23,13 +23,14 @@ from typing import Any
 import aws_cdk as cdk
 from aws_cdk import aws_codebuild as codebuild
 from aws_cdk import aws_codepipeline as codepipeline
+from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
 from aws_cdk import pipelines
 from constructs import Construct
 
-from infrastructure.app_stage import BOUNDARY_POLICY_NAME
+from infrastructure.app_stage import BOUNDARY_POLICY_NAME, AppStage
 from infrastructure.nag_utils import (
     apply_compliance_aspects,
     create_auto_delete_objects_log_group,
@@ -177,8 +178,72 @@ class PipelineStack(cdk.Stack):
         appconfig_monitor: bool,
         ssm_param_path: str | None,
     ) -> None:
-        # Filled in by Task 5.
-        pass
+        env = cdk.Environment(account=self.account, region=self.region)
+
+        # Persistent dev environment, updated in place each run. retain_data
+        # is pinned False (dev data is regenerable by definition) and
+        # ssm_param_path is NOT forwarded — a fixed parameter name would
+        # collide with prod's in the shared account. appconfig_monitor IS
+        # forwarded: once flipped in cdk.json (after both cold deploys —
+        # README runbook), dev exercises the same rollout machinery prod uses.
+        dev = AppStage(
+            self,
+            "Dev",
+            region=self.region,
+            env_name=DEV_ENV_NAME,
+            retain_data=False,
+            appconfig_monitor=appconfig_monitor,
+            ssm_param_path=None,
+            env=env,
+        )
+
+        integration_test = pipelines.CodeBuildStep(
+            "IntegrationTest",
+            install_commands=["pip install uv"],
+            commands=[
+                "make install-lambda",
+                "make test-integration",
+            ],
+            env={
+                # pytest-env's D:-prefixed defaults yield to these (the
+                # exported-stack-name override fix — see pyproject.toml).
+                "AWS_BACKEND_STACK_NAME": f"ServerlessAppBackend-{DEV_ENV_NAME}-{self.region}",
+                "AWS_FRONTEND_STACK_NAME": f"ServerlessAppFrontend-{DEV_ENV_NAME}-{self.region}",
+            },
+            role_policy_statements=[
+                iam.PolicyStatement(
+                    actions=["cloudformation:DescribeStacks"],
+                    resources=[
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"ServerlessAppBackend-{DEV_ENV_NAME}-{self.region}/*",
+                        ),
+                        self.format_arn(
+                            service="cloudformation",
+                            resource="stack",
+                            resource_name=f"ServerlessAppFrontend-{DEV_ENV_NAME}-{self.region}/*",
+                        ),
+                    ],
+                )
+            ],
+        )
+        self.pipeline.add_stage(dev, post=[integration_test])
+
+        # Prod reuses the legacy stack names (env_name="prod" is AppStage's
+        # default naming), so the pipeline updates the existing prod stacks
+        # in place. The manual approval is the only gate between a green
+        # integration run and prod.
+        prod = AppStage(
+            self,
+            "Prod",
+            region=self.region,
+            retain_data=retain_data,
+            appconfig_monitor=appconfig_monitor,
+            ssm_param_path=ssm_param_path,
+            env=env,
+        )
+        self.pipeline.add_stage(prod, pre=[pipelines.ManualApprovalStep("PromoteToProd")])
 
     def _acknowledge_pipeline_findings(self) -> None:
         # Filled in by Task 6 from the actual gate output.
