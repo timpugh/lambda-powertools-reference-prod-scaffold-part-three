@@ -270,8 +270,13 @@ env = [
     # region without setting one per-invocation. Unit tests mock all AWS calls,
     # so the value is never used against a real endpoint.
     "AWS_DEFAULT_REGION=us-east-1",
-    "AWS_BACKEND_STACK_NAME=ServerlessAppBackend-us-east-1",
-    "AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1",
+    # D: prefix = default-only: an exported shell value WINS, so the
+    # integration suite can be pointed at an ephemeral env exactly as the
+    # test module's docstring documents (AWS_BACKEND_STACK_NAME=... make
+    # test-integration). Without D:, pytest-env silently clobbers the
+    # override back to the prod stack names (found live, 2026-07-09).
+    "D:AWS_BACKEND_STACK_NAME=ServerlessAppBackend-us-east-1",
+    "D:AWS_FRONTEND_STACK_NAME=ServerlessAppFrontend-us-east-1",
     "POWERTOOLS_IDEMPOTENCY_DISABLED=true",
     "POWERTOOLS_SERVICE_NAME=serverless-app",
     "POWERTOOLS_METRICS_NAMESPACE=ServerlessApp",
