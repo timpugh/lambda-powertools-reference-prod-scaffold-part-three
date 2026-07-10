@@ -6,6 +6,7 @@ from aws_cdk import (
     Fn,
     RemovalPolicy,
     Stack,
+    Token,
 )
 from aws_cdk import (
     aws_athena as athena,
@@ -758,6 +759,31 @@ class FrontendStack(Stack):
             "bucket and read/write/delete on the destination bucket; not configurable by the caller"
         )
         bucket_logical_id = self.get_logical_id(cast(s3.CfnBucket, bucket.node.default_child))
+        # Both partition renderings — see the RUM cleanup note: the CLI synth
+        # resolves arn:aws: literals, the flag-less test synth renders
+        # <AWS::Partition>. Both account renderings too: the <AWS::AccountId>
+        # placeholder is what cdk-nag reports when this stack's account is
+        # left unresolved (every shipped deployment shape today), but a stack
+        # synthesized with a concrete env.account (e.g. this stack nested
+        # inside PipelineStack's Dev/Prod AppStages, which CDK Pipelines
+        # requires) renders the literal account digits instead. Guarded by
+        # Token.is_unresolved rather than unconditionally interpolating
+        # self.account: an unresolved account is a CDK Token, and cdk-nag's
+        # acknowledge() requires its finding id to resolve to a plain string
+        # immediately (embedding the token raises "KeyMustResolveToString" —
+        # verified live), so the literal-account variant is only added when
+        # self.account is actually a concrete string.
+        asset_bucket_findings = [
+            f"Resource::arn:aws:s3:::cdk-hnb659fds-assets-<AWS::AccountId>-{self.region}/*",
+            f"Resource::arn:<AWS::Partition>:s3:::cdk-hnb659fds-assets-<AWS::AccountId>-{self.region}/*",
+        ]
+        if not Token.is_unresolved(self.account):
+            asset_bucket_findings.extend(
+                [
+                    f"Resource::arn:aws:s3:::cdk-hnb659fds-assets-{self.account}-{self.region}/*",
+                    f"Resource::arn:<AWS::Partition>:s3:::cdk-hnb659fds-assets-{self.account}-{self.region}/*",
+                ]
+            )
         acknowledge_rules(
             bucket_deployment_provider,
             [
@@ -770,11 +796,7 @@ class FrontendStack(Stack):
                         "Action::s3:List*",
                         "Action::s3:DeleteObject*",
                         "Action::s3:Abort*",
-                        # Both partition renderings — see the RUM cleanup note:
-                        # the CLI synth resolves arn:aws: literals, the
-                        # flag-less test synth renders <AWS::Partition>.
-                        f"Resource::arn:aws:s3:::cdk-hnb659fds-assets-<AWS::AccountId>-{self.region}/*",
-                        f"Resource::arn:<AWS::Partition>:s3:::cdk-hnb659fds-assets-<AWS::AccountId>-{self.region}/*",
+                        *asset_bucket_findings,
                         f"Resource::<{bucket_logical_id}.Arn>/*",
                     ],
                 },
@@ -1108,11 +1130,26 @@ class FrontendStack(Stack):
         # <AWS::Partition> placeholder — and cdk-nag v3's raw IAM5 resource
         # finding ids reproduce whichever form the template carries (unlike
         # IAM4, which normalizes the partition). Acknowledge both so the CLI
-        # gate and the test gate stay in lockstep.
+        # gate and the test gate stay in lockstep. Same story for the account
+        # segment: <AWS::AccountId> is what cdk-nag reports when this stack's
+        # account is unresolved (every shipped deployment shape today), but a
+        # concrete env.account (this stack nested inside PipelineStack's
+        # Dev/Prod AppStages, which CDK Pipelines requires) resolves to the
+        # literal account digits instead. Guarded by Token.is_unresolved
+        # rather than unconditionally interpolating self.account: an
+        # unresolved account is a CDK Token, and cdk-nag's acknowledge()
+        # requires its finding id to resolve to a plain string immediately
+        # (embedding the token raises "KeyMustResolveToString" — verified
+        # live), so the literal-account variant is only added when
+        # self.account is actually a concrete string.
+        account_ids = ["<AWS::AccountId>"]
+        if not Token.is_unresolved(self.account):
+            account_ids.append(self.account)
         rum_log_group_findings = [
-            f"Resource::arn:{partition}:logs:{self.region}:<AWS::AccountId>:"
+            f"Resource::arn:{partition}:logs:{self.region}:{account_id}:"
             f"log-group:/aws/vendedlogs/RUMService_{rum_monitor_name}*:*"
             for partition in ("aws", "<AWS::Partition>")
+            for account_id in account_ids
         ]
         acknowledge_rules(
             cleanup,

@@ -13,7 +13,9 @@ aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipp
 import aws_cdk as cdk
 from aws_cdk.assertions import Match, Template
 
+from infrastructure.nag_utils import attach_nag_packs
 from infrastructure.pipeline_stack import PipelineStack
+from tests.cdk.test_stage import _unacknowledged_findings
 
 # Same key tests/cdk/test_stage.py uses to skip Docker bundling.
 _NO_BUNDLING = {"aws:cdk:bundling-stacks": []}
@@ -171,3 +173,31 @@ class TestStageLadder:
         flattened = [_flatten_fn_join(resource) for resource in resources]
         assert any(arn.endswith("stack/ServerlessAppBackend-dev-us-east-1/*") for arn in flattened)
         assert any(arn.endswith("stack/ServerlessAppFrontend-dev-us-east-1/*") for arn in flattened)
+
+
+def _nag_pipeline_stack() -> PipelineStack:
+    app = cdk.App(context=_NO_BUNDLING)
+    attach_nag_packs(app)
+    return PipelineStack(
+        app,
+        "ServerlessAppPipeline",
+        code_connection_arn=CONNECTION_ARN,
+        env=cdk.Environment(account=ACCOUNT, region=REGION),
+    )
+
+
+class TestPipelineNagCompliance:
+    def test_pipeline_shape_has_no_unacknowledged_findings(self) -> None:
+        stack = _nag_pipeline_stack()
+        findings = _unacknowledged_findings(stack.node.root)
+        details = "\n".join(f"  {f}" for f in findings)
+        assert not findings, (
+            f"unacknowledged cdk-nag findings in the pipeline shape — fix the resource or "
+            f"add a scoped acknowledgment with a reason (see CLAUDE.md):\n{details}"
+        )
+
+    def test_convention_checks_have_no_error_annotations(self) -> None:
+        from aws_cdk.assertions import Annotations
+
+        stack = _nag_pipeline_stack()
+        Annotations.from_stack(stack).has_no_error("*", Match.any_value())

@@ -599,8 +599,12 @@ def create_auto_delete_objects_log_group(scope: Stack, encryption_key: kms.Key) 
 
 # Nag rules every SSE-S3 log-sink bucket suppresses: it can't self-log (circular),
 # can't use a KMS-CMK default (delivery services don't support it), and doesn't
-# need versioning/replication for an append-only log sink.
-_LOG_SINK_SUPPRESSION_RULES = (
+# need versioning/replication for an append-only log sink. Public (no leading
+# underscore) because PipelineStack's artifact bucket reuses the
+# logging/versioning/replication subset directly — it's KMS- rather than
+# SSE-S3-encrypted (create_sse_s3_log_bucket doesn't apply), so it filters out
+# the S3DefaultEncryptionKMS entries rather than needing them.
+LOG_SINK_SUPPRESSION_RULES = (
     "AwsSolutions-S1",
     "NIST.800.53.R5-S3BucketLoggingEnabled",
     "HIPAA.Security-S3BucketLoggingEnabled",
@@ -694,7 +698,7 @@ def create_sse_s3_log_bucket(
         auto_delete_objects=auto_delete,
     )
     # Versioning suppressions only apply while the bucket is actually unversioned.
-    rules = [r for r in _LOG_SINK_SUPPRESSION_RULES if not (versioned and "Versioning" in r)]
+    rules = [r for r in LOG_SINK_SUPPRESSION_RULES if not (versioned and "Versioning" in r)]
     acknowledge_rules(bucket, [{"id": rule, "reason": suppression_reason} for rule in rules])
     return bucket
 

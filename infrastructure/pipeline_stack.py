@@ -18,7 +18,7 @@ auto-creates never-expire log groups outside CloudFormation (the
 dangling-resource problem this repo's cleanup patterns exist for).
 """
 
-from typing import Any
+from typing import Any, cast
 
 import aws_cdk as cdk
 from aws_cdk import aws_codebuild as codebuild
@@ -32,6 +32,8 @@ from constructs import Construct
 
 from infrastructure.app_stage import BOUNDARY_POLICY_NAME, AppStage
 from infrastructure.nag_utils import (
+    LOG_SINK_SUPPRESSION_RULES,
+    acknowledge_rules,
     apply_compliance_aspects,
     create_auto_delete_objects_log_group,
     grant_logs_service_to_key,
@@ -246,5 +248,124 @@ class PipelineStack(cdk.Stack):
         self.pipeline.add_stage(prod, pre=[pipelines.ManualApprovalStep("PromoteToProd")])
 
     def _acknowledge_pipeline_findings(self) -> None:
-        # Filled in by Task 6 from the actual gate output.
-        pass
+        """Acknowledge cdk-nag findings inherent to CDK Pipelines' generated shape.
+
+        Every ``applies_to`` id below was read verbatim from a real gate run
+        (``tests/cdk/test_pipeline_stack.py::TestPipelineNagCompliance`` — cdk-nag
+        v3 matches IAM4/IAM5 findings by their exact granular ``Rule[Finding]``
+        id, so a bare rule-id acknowledgment matches nothing; see CLAUDE.md).
+        Region/account are interpolated from this stack's own ``self.region`` /
+        ``self.account`` rather than hardcoded: CDK Pipelines requires a
+        concrete environment (see the ``PipelineStack`` construction site), so
+        these are never unresolved tokens here, and the acknowledgment stays
+        correct once a real account replaces the test fixture's dummy one. The
+        CDK-generated logical-id hash suffixes embedded in a few CodeBuild
+        log-group/report-group ARNs (e.g. ``<CdBuildSynthCdkBuildProjectEB9D3AEF>``)
+        are pasted as printed — they're derived from the construct tree, not
+        from account/region, so they're stable as long as this method's
+        surrounding construct tree doesn't change shape.
+        """
+        region = self.region
+        account = self.account
+        artifact_bucket_logical_id = self.get_logical_id(cast(s3.CfnBucket, self.artifact_bucket.node.default_child))
+
+        # CDK Pipelines generates its own least-possible roles for every stage
+        # of the self-mutating pipeline: the underlying CodePipeline's own
+        # role, the CodeConnections source action role, the synth /
+        # self-mutate / integration-test CodeBuild projects, and the
+        # cdk-assets file-publishing role. Every wildcard below is that
+        # construct's documented shape, not hand-written policy: S3
+        # object/bucket actions plus the artifact-bucket ARN (every pipeline
+        # action reads/writes the shared artifact bucket), CodeBuild's own
+        # report-group/log-group ARNs (provisioned per project), the two
+        # dev-stack CloudFormation ARNs the integration-test step's
+        # DescribeStacks grant is scoped to, and the self-mutation step's
+        # broad iam:PassRole / "any resource" wildcards (it must be able to
+        # redeploy a future, not-yet-known pipeline definition — the
+        # self-mutating capability CDK Pipelines documents as inherently
+        # broad).
+        iam5_reason = (
+            "CDK Pipelines-generated roles: artifact-bucket object access, CodeBuild report "
+            "groups and log groups, the dev-stack DescribeStacks scope, and the self-mutation "
+            "step's redeploy-anything wildcards are the construct's documented shape, not "
+            "hand-written policy."
+        )
+        inline_policy_reason = (
+            "CDK Pipelines attaches a tightly-scoped inline DefaultPolicy to every generated "
+            "role — its only policy-attachment mechanism; there is no managed-policy "
+            "alternative to swap in."
+        )
+        source_repo_url_reason = (
+            "Every CodeBuild project here (synth, integration test, self-mutation, and the "
+            "FileAsset publishers) sources from CODEPIPELINE, not a directly configured "
+            "GitHub/BitBucket URL — the real GitHub auth is the CodeConnections connection "
+            "wired into the pipeline's Source stage, which IS the OAuth-based mechanism this "
+            "rule requires; it just isn't visible at the CodeBuild-project level the rule checks."
+        )
+        acknowledge_rules(
+            self,
+            [
+                {
+                    "id": "AwsSolutions-IAM5",
+                    "reason": iam5_reason,
+                    "applies_to": [
+                        "Action::s3:GetObject*",
+                        "Action::s3:GetBucket*",
+                        "Action::s3:List*",
+                        "Action::s3:DeleteObject*",
+                        "Action::s3:Abort*",
+                        f"Resource::<{artifact_bucket_logical_id}.Arn>/*",
+                        "Action::kms:ReEncrypt*",
+                        "Action::kms:GenerateDataKey*",
+                        f"Resource::arn:<AWS::Partition>:logs:{region}:{account}:"
+                        "log-group:/aws/codebuild/<CdBuildSynthCdkBuildProjectEB9D3AEF>:*",
+                        f"Resource::arn:<AWS::Partition>:codebuild:{region}:{account}:"
+                        "report-group/<CdBuildSynthCdkBuildProjectEB9D3AEF>-*",
+                        f"Resource::arn:<AWS::Partition>:logs:{region}:{account}:"
+                        "log-group:/aws/codebuild/<CdDevIntegrationTestE94219AC>:*",
+                        f"Resource::arn:<AWS::Partition>:codebuild:{region}:{account}:"
+                        "report-group/<CdDevIntegrationTestE94219AC>-*",
+                        f"Resource::arn:<AWS::Partition>:cloudformation:{region}:{account}:"
+                        f"stack/ServerlessAppBackend-{DEV_ENV_NAME}-{region}/*",
+                        f"Resource::arn:<AWS::Partition>:cloudformation:{region}:{account}:"
+                        f"stack/ServerlessAppFrontend-{DEV_ENV_NAME}-{region}/*",
+                        f"Resource::arn:<AWS::Partition>:logs:{region}:{account}:"
+                        "log-group:/aws/codebuild/<PipelineUpdatePipelineSelfMutationDAA41400>:*",
+                        f"Resource::arn:<AWS::Partition>:codebuild:{region}:{account}:"
+                        "report-group/<PipelineUpdatePipelineSelfMutationDAA41400>-*",
+                        f"Resource::arn:*:iam::{account}:role/*",
+                        "Resource::*",
+                        f"Resource::arn:<AWS::Partition>:logs:{region}:{account}:log-group:/aws/codebuild/*",
+                        f"Resource::arn:<AWS::Partition>:codebuild:{region}:{account}:report-group/*",
+                    ],
+                },
+                {"id": "NIST.800.53.R5-IAMNoInlinePolicy", "reason": inline_policy_reason},
+                {"id": "HIPAA.Security-IAMNoInlinePolicy", "reason": inline_policy_reason},
+                {"id": "PCI.DSS.321-IAMNoInlinePolicy", "reason": inline_policy_reason},
+                {"id": "HIPAA.Security-CodeBuildProjectSourceRepoUrl", "reason": source_repo_url_reason},
+                {"id": "PCI.DSS.321-CodeBuildProjectSourceRepoUrl", "reason": source_repo_url_reason},
+            ],
+        )
+
+        # The artifact bucket holds transient CD build output (CodeBuild
+        # synth/build artifacts, cdk.out) with a 90-day expiry — access
+        # logging, versioning, and replication add no compliance value for
+        # redeployable build output. Same rationale as the SSE-S3 log-sink
+        # buckets elsewhere in this project, so the rule-name list is shared
+        # (nag_utils.LOG_SINK_SUPPRESSION_RULES) rather than re-typed; the
+        # S3DefaultEncryptionKMS entries are filtered out because this bucket
+        # is KMS- not SSE-S3-encrypted (create_sse_s3_log_bucket doesn't
+        # apply here) and never triggers them.
+        artifact_bucket_reason = (
+            "Transient CD pipeline build artifacts (CodeBuild synth/build output) with a "
+            "90-day expiry — access logging, versioning, and replication add no compliance "
+            "value for redeployable build output."
+        )
+        acknowledge_rules(
+            self.artifact_bucket,
+            [
+                {"id": rule, "reason": artifact_bucket_reason}
+                for rule in LOG_SINK_SUPPRESSION_RULES
+                if "DefaultEncryptionKMS" not in rule
+            ],
+        )
