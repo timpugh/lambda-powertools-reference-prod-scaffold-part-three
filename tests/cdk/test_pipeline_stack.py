@@ -57,7 +57,7 @@ class TestPipelineCore:
                                                 "Configuration": Match.object_like(
                                                     {
                                                         "ConnectionArn": CONNECTION_ARN,
-                                                        "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-one",
+                                                        "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-two",
                                                         "BranchName": "main",
                                                     }
                                                 )

@@ -8,7 +8,7 @@
 
 [remote.github]
 owner = "timpugh"
-repo = "lambda-powertools-reference-prod-scaffold-part-one"
+repo = "lambda-powertools-reference-prod-scaffold-part-two"
 
 [changelog]
 # A Tera template to be rendered as the changelog's header.

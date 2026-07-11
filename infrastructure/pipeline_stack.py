@@ -39,7 +39,7 @@ from infrastructure.nag_utils import (
     grant_logs_service_to_key,
 )
 
-GITHUB_REPO = "timpugh/lambda-powertools-reference-prod-scaffold-part-one"
+GITHUB_REPO = "timpugh/lambda-powertools-reference-prod-scaffold-part-two"
 GITHUB_BRANCH = "main"
 
 # The pipeline owns this env name end to end (deploys it, tests against it,

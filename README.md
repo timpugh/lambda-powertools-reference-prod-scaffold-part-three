@@ -1,14 +1,14 @@
 # Lambda Powertools Reference
 
-[![CI](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one/actions/workflows/ci.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one/badge)](https://securityscorecards.dev/viewer/?uri=github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one)
-[![CodeQL](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one/actions/workflows/codeql.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one/actions/workflows/codeql.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-one/coverage-badge.json)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-one/)
+[![CI](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/ci.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/badge)](https://securityscorecards.dev/viewer/?uri=github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two)
+[![CodeQL](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/codeql.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/codeql.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/coverage-badge.json)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-one/)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-one/
+**Docs:** https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/
 
 > **Lineage:** this is the production-hardening scaffold spawned with full git history from [timpugh/lambda-powertools-reference](https://github.com/timpugh/lambda-powertools-reference) at its `feat/production-readiness-batch` branch (2026-07-10). That branch stays frozen upstream as an evolution checkpoint; this repo is where the hardening work continues (see this repo's `CLAUDE.md` for the phase breakdown).
 
@@ -69,8 +69,8 @@ This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, 
 Just want to explore the code and run tests without deploying anything to AWS?
 
 ```bash
-git clone https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-one.git
-cd lambda-powertools-reference-prod-scaffold-part-one
+git clone https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two.git
+cd lambda-powertools-reference-prod-scaffold-part-two
 python3 -m venv .venv && source .venv/bin/activate
 make install
 make test
@@ -968,7 +968,7 @@ Four steps, in order, before the pipeline can exist:
 make bootstrap-boundary                                                    # 1. deploy/update the cdk-scaffold-boundary IAM policy
 npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary   # 2. re-bootstrap with the boundary attached
 # 3. Console: Developer Tools → Connections → Create connection → GitHub →
-#    authorize the GitHub App on timpugh/lambda-powertools-reference-prod-scaffold-part-one.
+#    authorize the GitHub App on timpugh/lambda-powertools-reference-prod-scaffold-part-two.
 #    Paste the resulting connection ARN into cdk.json as "code_connection_arn"
 #    (an ARN, not a secret — safe to commit; cdk.json already documents the key).
 make deploy-pipeline                                                        # 4. birth the pipeline (CONN=<arn> only overrides this workstation-side deploy)
