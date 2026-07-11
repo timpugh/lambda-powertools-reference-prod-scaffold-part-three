@@ -56,7 +56,9 @@ from infrastructure.waf_stack import WafStack
 DEFAULT_ENV_NAME = "prod"
 
 # The IAM permissions boundary every app-created role carries (and the CDK
-# bootstrap roles carry via `cdk bootstrap --custom-permissions-boundary`).
+# bootstrap `CloudFormationExecutionRole` carries via
+# `cdk bootstrap --custom-permissions-boundary`; the other bootstrap roles
+# stay unbounded, same as stock `cdk bootstrap`).
 # The policy itself is the standalone CFN template in
 # infrastructure/bootstrap/cdk-scaffold-boundary.json — deploy it with
 # `make bootstrap-boundary` BEFORE any deploy of this app; a role that
