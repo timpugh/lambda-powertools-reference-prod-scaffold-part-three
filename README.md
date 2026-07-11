@@ -777,9 +777,12 @@ First-time deploy:
 ```bash
 make install                                              # both venvs + node tooling + pre-commit hooks
 finch vm start && export CDK_DOCKER=finch                 # or: ensure Docker is running
-npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1         # always required (WAF lives here)
+make bootstrap-boundary                                   # deploy the cdk-scaffold-boundary IAM policy — mandatory before bootstrap/deploy
+npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary   # always required (WAF lives here)
 npx cdk deploy --all
 ```
+
+See [CI/CD pipeline](#cicd-pipeline) for why the permissions boundary is mandatory for every deploy, not just the pipeline's.
 
 CDK uses the container runtime pointed to by `CDK_DOCKER` and falls back to Docker when unset ([context](https://github.com/aws/aws-cdk/issues/23680#issuecomment-1741643237)). The first synth pulls the AWS Lambda Python build image (distributed via the SAM project — that's the "SAM build image" label in logs) and builds the deployment package from `lambda/requirements.txt`.
 
@@ -790,12 +793,13 @@ Each step catches a different class of failure cheaply, before AWS sees anything
 ```bash
 make cdk-synth                                            # 1. synth + cdk-nag (5-pack: AwsSolutions, Serverless, NIST 800-53 R5, HIPAA, PCI DSS 3.2.1)
 make test-cdk                                             # 2. CDK assertion tests (resource counts, properties, suppression coverage, in-process nag gate)
-npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1         # 3. one-time per account+region; idempotent if already done
-npx cdk deploy --all --require-approval never             # 4. --require-approval never since cdk-nag already gated IAM diffs in step 1
-                                                          # 5. CfnOutputs (CloudFrontDomainName, ApiUrlOutput, RumAppMonitorId, CloudWatchDashboardUrl) print at the end
+make bootstrap-boundary                                   # 3. deploy/update the cdk-scaffold-boundary IAM policy — mandatory for every deploy (see "CI/CD pipeline")
+npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary   # 4. one-time per account+region; idempotent if already done
+npx cdk deploy --all --require-approval never             # 5. --require-approval never since cdk-nag already gated IAM diffs in step 1
+                                                          # 6. CfnOutputs (CloudFrontDomainName, ApiUrlOutput, RumAppMonitorId, CloudWatchDashboardUrl) print at the end
 ```
 
-Skip a step only when you don't need that gate: skip 1 if just synthesized in another shell, skip 2 if iterating on a resource the assertion tests don't cover, skip 3 once the region is bootstrapped. Steps 4 and 5 are not optional.
+Skip a step only when you don't need that gate: skip 1 if just synthesized in another shell, skip 2 if iterating on a resource the assertion tests don't cover, skip 3 once the boundary policy is already deployed and up to date, skip 4 once the region is bootstrapped. Steps 5 and 6 are not optional.
 
 After deployment, each stack exposes these CfnOutputs:
 
@@ -855,8 +859,9 @@ Env names are validated at synth time (1–39 chars of `[A-Za-z0-9-]` — saniti
 Each target region must be bootstrapped before its first deploy. Bootstrap is a one-time step per region per account.
 
 ```bash
-# Bootstrap the target region (in addition to us-east-1 which is always needed)
-npx cdk bootstrap aws://YOUR_ACCOUNT_ID/ap-southeast-1
+# Bootstrap the target region (in addition to us-east-1 which is always needed) — attach the
+# same permissions boundary here too (see "CI/CD pipeline" for why it's mandatory)
+npx cdk bootstrap aws://YOUR_ACCOUNT_ID/ap-southeast-1 --custom-permissions-boundary cdk-scaffold-boundary
 
 # Deploy all stacks — WAF stays in us-east-1, backend and frontend go to ap-southeast-1
 npx cdk deploy --all -c region=ap-southeast-1

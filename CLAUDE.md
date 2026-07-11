@@ -130,7 +130,7 @@ Full runbook (one-time setup, cold-deploy-×2 `appconfig_monitor` sequencing, ex
 When a fork is spawned from this template via GitHub's "Use this template":
 
 1. **Edit this CLAUDE.md's "Project" section** to describe the fork's workload, and add a workload-specific guidance section near the bottom (see [nba-data-api/CLAUDE.md](https://github.com/timpugh/nba-data-api/blob/main/CLAUDE.md) for an example).
-2. **Run the post-template setup steps**: enable GitHub Pages (`gh api repos/<owner>/<repo>/pages -X POST -f build_type=workflow` — requires the repo to be public on the free plan), bootstrap CDK in the target account+region (`cdk bootstrap aws://<account>/us-east-1`), and walk through the Production readiness checklist in `TODO.md` before customer traffic.
+2. **Run the post-template setup steps**: enable GitHub Pages (`gh api repos/<owner>/<repo>/pages -X POST -f build_type=workflow` — requires the repo to be public on the free plan), deploy the permissions boundary and bootstrap CDK in the target account+region (`make bootstrap-boundary` then `cdk bootstrap aws://<account>/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary` — see README "CI/CD pipeline" for why the boundary is mandatory), and walk through the Production readiness checklist in `TODO.md` before customer traffic.
 3. **Don't drift from this template silently.** If you fix something here that other forks would benefit from, push it back upstream. If you change something that diverges intentionally (different encryption posture, different observability stack), document the *why* in your fork's CLAUDE.md so future contributors don't try to reconcile.
 
 ## This fork's divergences

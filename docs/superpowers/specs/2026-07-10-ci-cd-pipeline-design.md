@@ -29,7 +29,7 @@ permissions boundary **before** any CI system gets deploy-capable credentials.
 
 One CDK app, two synth shapes:
 
-```
+```text
                           ┌─ default (unchanged) ───────────────────────────┐
   app.py ─ attach_nag_packs┤  AppStage(env_name from -c env) → make deploy   │
                           └─ -c pipeline=true ────────────────────────────┐ │

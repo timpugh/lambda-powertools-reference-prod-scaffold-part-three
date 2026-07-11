@@ -27,11 +27,13 @@
 ### Task 1: Permissions-boundary CFN template + `make bootstrap-boundary`
 
 **Files:**
+
 - Create: `infrastructure/bootstrap/cdk-scaffold-boundary.json`
 - Modify: `Makefile` (new target after `deploy-appconfig-monitor`)
 - Test: `tests/cdk/test_bootstrap_boundary.py`
 
 **Interfaces:**
+
 - Consumes: nothing (standalone artifact).
 - Produces: managed policy name `cdk-scaffold-boundary` (referenced by Task 2's `BOUNDARY_POLICY_NAME` and the re-bootstrap command); Make target `bootstrap-boundary`.
 
@@ -232,6 +234,7 @@ Expected: 4 passed.
 
 In `Makefile`, directly after the `deploy-appconfig-monitor` recipe (uses the existing `REGION ?= us-east-1` variable defined near `_empty-frontend-buckets`; move nothing):
 
+<!-- markdownlint-disable MD010 -- Makefile recipe lines require literal leading tabs; this block is copied verbatim into the Makefile. -->
 ```makefile
 bootstrap-boundary: ## Deploy/update the cdk-scaffold-boundary IAM policy (run BEFORE re-bootstrapping or deploying)
 	# The permissions boundary must exist in the account before (a) `cdk
@@ -245,6 +248,7 @@ bootstrap-boundary: ## Deploy/update the cdk-scaffold-boundary IAM policy (run B
 		--capabilities CAPABILITY_NAMED_IAM \
 		--region $(REGION)
 ```
+<!-- markdownlint-enable MD010 -->
 
 Note: `REGION ?= us-east-1` is defined lower in the Makefile than this target — that's fine, Make expands variables at recipe-run time, not parse time.
 
@@ -265,11 +269,13 @@ git commit -m "feat: add the cdk-scaffold-boundary permissions-boundary policy a
 ### Task 2: Apply the boundary to every app-created role
 
 **Files:**
+
 - Modify: `infrastructure/app_stage.py` (constant + `AppStage.__init__` super call)
 - Test: `tests/cdk/test_stage.py` (new `TestPermissionsBoundary` class)
 - Regenerate: `tests/cdk/snapshots/*` (every role gains a `PermissionsBoundary` property)
 
 **Interfaces:**
+
 - Consumes: policy name `cdk-scaffold-boundary` from Task 1.
 - Produces: `BOUNDARY_POLICY_NAME: str = "cdk-scaffold-boundary"` module constant in `infrastructure/app_stage.py` (Task 4's `PipelineStack` imports it).
 
@@ -356,10 +362,12 @@ git commit -m "feat: carry the cdk-scaffold-boundary permissions boundary on eve
 ### Task 3: `code_connection_arn` validator
 
 **Files:**
+
 - Modify: `infrastructure/app_stage.py` (new validator next to `validate_ssm_param_path`)
 - Test: `tests/cdk/test_stage.py` (new `TestCodeConnectionArnValidation` class)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `validate_code_connection_arn(raw: str | None) -> str` in `infrastructure/app_stage.py` — raises `ValueError` on `None` or malformed input, returns the ARN otherwise (Task 7's `app.py` calls it; note it is *required*, unlike `validate_ssm_param_path`).
 
@@ -458,10 +466,12 @@ git commit -m "feat: validate the code_connection_arn context key fail-loud at s
 ### Task 4: PipelineStack core (source, synth, CMK, log group, artifact bucket)
 
 **Files:**
+
 - Create: `infrastructure/pipeline_stack.py`
 - Test: `tests/cdk/test_pipeline_stack.py`
 
 **Interfaces:**
+
 - Consumes: `BOUNDARY_POLICY_NAME`, `AppStage`, `validate_code_connection_arn` (Tasks 2–3); `apply_compliance_aspects`, `acknowledge_rules`, `grant_logs_service_to_key`, `create_auto_delete_objects_log_group` from `infrastructure/nag_utils.py`.
 - Produces: `PipelineStack(scope, construct_id, *, code_connection_arn: str, retain_data: bool = False, appconfig_monitor: bool = False, ssm_param_path: str | None = None, **kwargs)` in `infrastructure/pipeline_stack.py`, exposing `self.pipeline` (`pipelines.CodePipeline`). Tasks 5–6 extend this same file; Task 7's `app.py` instantiates it.
 
@@ -804,10 +814,12 @@ git commit -m "feat: add the PipelineStack core (CodeConnections source, gated s
 ### Task 5: Stage ladder — dev, integration gate, approval, prod
 
 **Files:**
+
 - Modify: `infrastructure/pipeline_stack.py` (`_add_stages` body)
 - Test: `tests/cdk/test_pipeline_stack.py` (new `TestStageLadder` class)
 
 **Interfaces:**
+
 - Consumes: `AppStage` (env-name namespacing, `retain_data`/`appconfig_monitor`/`ssm_param_path` params — exact signature in `infrastructure/app_stage.py`); `PipelineStack` internals from Task 4.
 - Produces: the deployed ladder Dev → (IntegrationTest post-step) → Prod (ManualApproval pre-step). No new public symbols.
 
@@ -974,10 +986,12 @@ git commit -m "feat: add the dev-integration-approval-prod stage ladder to the p
 ### Task 6: Nag-gate the pipeline shape and acknowledge its findings
 
 **Files:**
+
 - Modify: `infrastructure/pipeline_stack.py` (`_acknowledge_pipeline_findings` body)
 - Test: `tests/cdk/test_pipeline_stack.py` (new `TestPipelineNagCompliance` class)
 
 **Interfaces:**
+
 - Consumes: `attach_nag_packs`, `acknowledge_rules` (exact shapes in `infrastructure/nag_utils.py`); the `_unacknowledged_findings` gate pattern from `tests/cdk/test_stage.py`.
 - Produces: a nag-clean pipeline shape — the compliance gate every later change to the pipeline stack runs against.
 
@@ -1078,10 +1092,12 @@ git commit -m "test: nag-gate the pipeline shape and acknowledge its construct-g
 ### Task 7: Mode-switch app.py
 
 **Files:**
+
 - Modify: `app.py`
 - Test: manual synth verification (app.py is the entry script; its collaborators are unit-tested in Tasks 3–6)
 
 **Interfaces:**
+
 - Consumes: `PipelineStack` (Task 4), `validate_code_connection_arn` (Task 3), existing `parse_context_flag`.
 - Produces: `-c pipeline=true` synthesizes `ServerlessAppPipeline`; default shape byte-identical to today.
 
@@ -1171,10 +1187,12 @@ git commit -m "feat: mode-switch app.py — -c pipeline=true synthesizes the CD 
 ### Task 8: Pipeline snapshot, Makefile target, cdk.json documentation
 
 **Files:**
+
 - Modify: `tests/cdk/test_snapshots.py`, `Makefile`, `cdk.json`
 - Create (generated): `tests/cdk/snapshots/pipeline.json` (or the module's naming scheme — match it)
 
 **Interfaces:**
+
 - Consumes: `_normalize` and the snapshot-file naming convention in `tests/cdk/test_snapshots.py` (read the module first; reuse, don't reimplement); `PipelineStack` fixture pattern from `tests/cdk/test_pipeline_stack.py`.
 - Produces: `make deploy-pipeline` (the one-time pipeline birth); a committed pipeline snapshot.
 
@@ -1213,6 +1231,7 @@ Expected: snapshot file created on the first run; second run green — twice in 
 
 In `Makefile`, after `bootstrap-boundary`:
 
+<!-- markdownlint-disable MD010 -- Makefile recipe lines require literal leading tabs; this block is copied verbatim into the Makefile. -->
 ```makefile
 deploy-pipeline: ## One-time deploy of the CD pipeline (self-mutates afterwards). CONN=<connection-arn> unless set in cdk.json
 	# Prerequisites (in order): `make bootstrap-boundary`, then
@@ -1223,6 +1242,7 @@ deploy-pipeline: ## One-time deploy of the CD pipeline (self-mutates afterwards)
 	$(CDK) deploy ServerlessAppPipeline -c pipeline=true \
 		$(if $(CONN),-c code_connection_arn=$(CONN)) --require-approval never
 ```
+<!-- markdownlint-enable MD010 -->
 
 - [ ] **Step 4: Document the keys in cdk.json**
 
@@ -1245,9 +1265,11 @@ git commit -m "test: snapshot the pipeline shape; build: add deploy-pipeline and
 ### Task 9: Documentation, TODO check-offs, full gate
 
 **Files:**
+
 - Modify: `README.md`, `CLAUDE.md`, `TODO.md`
 
 **Interfaces:**
+
 - Consumes: everything shipped in Tasks 1–8.
 - Produces: the operator runbook; updated project memory for future sessions.
 
@@ -1299,6 +1321,7 @@ git commit -m "docs: document the CI/CD pipeline runbook and check off the deliv
 **Files:** none (operational task; record outcomes in the PR description).
 
 **Interfaces:**
+
 - Consumes: the full runbook from Task 9.
 - Produces: a live-verified pipeline — the spec's acceptance criterion.
 
