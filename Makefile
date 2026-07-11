@@ -47,7 +47,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	lint lint-docs format typecheck security check-lock pr \
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy deploy-appconfig-monitor bootstrap-boundary destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
+	deploy deploy-appconfig-monitor bootstrap-boundary deploy-pipeline destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
 	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
@@ -319,6 +319,15 @@ bootstrap-boundary: ## Deploy/update the cdk-scaffold-boundary IAM policy (run B
 		--stack-name CdkScaffoldBoundary \
 		--capabilities CAPABILITY_NAMED_IAM \
 		--region $(REGION)
+
+deploy-pipeline: ## One-time deploy of the CD pipeline (self-mutates afterwards). CONN=<connection-arn> unless set in cdk.json
+	# Prerequisites (in order): `make bootstrap-boundary`, then
+	# `npx cdk bootstrap --custom-permissions-boundary cdk-scaffold-boundary`,
+	# then the CodeConnections console handshake (README "CI/CD pipeline").
+	# After this one deploy the pipeline updates ITSELF from GitHub main —
+	# rerunning this target is only needed if the pipeline stack was deleted.
+	$(CDK) deploy ServerlessAppPipeline -c pipeline=true \
+		$(if $(CONN),-c code_connection_arn=$(CONN)) --require-approval never
 
 # --force skips the interactive "are you sure?" prompt, mirroring how
 # the deploy target uses --require-approval never. Without --force, the
