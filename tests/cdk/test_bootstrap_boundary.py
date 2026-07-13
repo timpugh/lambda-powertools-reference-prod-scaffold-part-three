@@ -36,6 +36,13 @@ def test_allow_list_covers_core_services() -> None:
         "codepipeline:*",
         "codebuild:*",
         "codeconnections:*",
+        # application-autoscaling is delete-path-only for the DynamoDB
+        # idempotency table: CfnGlobalTable teardown calls
+        # DeregisterScalableTarget, so a boundary without it leaves the Data
+        # stack DELETE_FAILED (proven on a live boundary-check teardown,
+        # 2026-07-12). Create succeeds without it, so only `cdk destroy`
+        # surfaces the gap.
+        "application-autoscaling:*",
     ):
         assert prefix in allow["Action"], f"{prefix} missing from boundary allow-list"
 

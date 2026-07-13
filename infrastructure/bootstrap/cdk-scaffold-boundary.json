@@ -16,6 +16,7 @@
               "Action": [
                 "apigateway:*",
                 "appconfig:*",
+                "application-autoscaling:*",
                 "applicationinsights:*",
                 "athena:*",
                 "backup:*",
