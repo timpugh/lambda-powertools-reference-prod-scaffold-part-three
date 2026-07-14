@@ -1,14 +1,14 @@
 # Lambda Powertools Reference
 
-[![CI](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/ci.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/badge)](https://securityscorecards.dev/viewer/?uri=github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two)
-[![CodeQL](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/codeql.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two/actions/workflows/codeql.yml)
-[![coverage](https://img.shields.io/endpoint?url=https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/coverage-badge.json)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/)
+[![CI](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/actions/workflows/ci.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/badge)](https://securityscorecards.dev/viewer/?uri=github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three)
+[![CodeQL](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/actions/workflows/codeql.yml/badge.svg)](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/actions/workflows/codeql.yml)
+[![coverage](https://img.shields.io/endpoint?url=https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-three/coverage-badge.json)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-three/)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-three/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**Docs:** https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-two/
+**Docs:** https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-three/
 
 > **Lineage:** this is the production-hardening scaffold spawned with full git history from [timpugh/lambda-powertools-reference](https://github.com/timpugh/lambda-powertools-reference) at its `feat/production-readiness-batch` branch (2026-07-10). That branch stays frozen upstream as an evolution checkpoint; this repo is where the hardening work continues (see this repo's `CLAUDE.md` for the phase breakdown).
 
@@ -69,8 +69,8 @@ This application provisions Lambda, API Gateway, DynamoDB, SSM Parameter Store, 
 Just want to explore the code and run tests without deploying anything to AWS?
 
 ```bash
-git clone https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-two.git
-cd lambda-powertools-reference-prod-scaffold-part-two
+git clone https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three.git
+cd lambda-powertools-reference-prod-scaffold-part-three
 python3 -m venv .venv && source .venv/bin/activate
 make install
 make test
@@ -980,7 +980,7 @@ Four steps, in order, before the pipeline can exist:
 make bootstrap-boundary                                                    # 1. deploy/update the cdk-scaffold-boundary IAM policy
 npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary   # 2. re-bootstrap with the boundary attached
 # 3. Console: Developer Tools → Connections → Create connection → GitHub →
-#    authorize the GitHub App on timpugh/lambda-powertools-reference-prod-scaffold-part-two.
+#    authorize the GitHub App on timpugh/lambda-powertools-reference-prod-scaffold-part-three.
 #    Nothing to copy anywhere: the ARN is deliberately never committed.
 make deploy-pipeline                                                        # 4. birth the pipeline (auto-discovers the connection; CONN=<arn> or ./.env override)
 ```
@@ -993,7 +993,7 @@ The one step that cannot be scripted: it OAuths your AWS account to GitHub throu
 
 1. Open the AWS console in the deploying account, region **us-east-1**, and go to the Developer Tools console (any of CodePipeline/CodeBuild lands there) → **Settings → Connections** → **Create connection**.
 2. Provider: **GitHub**. Give the connection a name (e.g. `github-part-two`) → **Connect to GitHub**.
-3. In the GitHub authorization popup, install (or select) the **AWS Connector for GitHub** app. Under *Repository access*, grant it **`timpugh/lambda-powertools-reference-prod-scaffold-part-two`** — least-privilege beats all-repos, and a connection authorized for the wrong repo is this flow's classic failure (the pipeline's Source stage later fails with a repository-access error; the fix is editing the GitHub App installation's repository list, not creating a new connection).
+3. In the GitHub authorization popup, install (or select) the **AWS Connector for GitHub** app. Under *Repository access*, grant it **`timpugh/lambda-powertools-reference-prod-scaffold-part-three`** — least-privilege beats all-repos, and a connection authorized for the wrong repo is this flow's classic failure (the pipeline's Source stage later fails with a repository-access error; the fix is editing the GitHub App installation's repository list, not creating a new connection).
 4. Back in the wizard the GitHub App installation is now selected → **Connect**.
 5. The connection's status flips from *Pending* to **Available**. Done — copy nothing: `make deploy-pipeline` auto-discovers it, or put the ARN in a gitignored `./.env` (next section) if you want a project-scoped copy.
 6. **Verify the app is INSTALLED, not just authorized** — this is the step the wizard will happily skip for you. On github.com → Settings → Applications, the **AWS Connector for GitHub** must appear under **Installed GitHub Apps** (with this repo granted), not only under **Authorized GitHub Apps**. If it's authorized-only, install it from <https://github.com/apps/aws-connector-for-github> and grant this repo. Skipping this leaves a fully working *read* path on a public repo and **zero push-event delivery** — the pipeline deploys by hand but never starts itself (see "Push-to-deploy requires the explicit V2 trigger" below for the full trap).

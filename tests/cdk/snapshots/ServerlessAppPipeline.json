@@ -380,17 +380,17 @@
                   "BranchName": "main",
                   "ConnectionArn": "arn:aws:codeconnections:us-east-1:111111111111:connection/12345678-abcd-4ef0-9876-0123456789ab",
                   "DetectChanges": false,
-                  "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-two"
+                  "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-three"
                 },
-                "Name": "timpugh_lambda-powertools-reference-prod-scaffold-part-two",
+                "Name": "timpugh_lambda-powertools-reference-prod-scaffold-part-three",
                 "OutputArtifacts": [
                   {
-                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_two_Source"
+                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_three_Source"
                   }
                 ],
                 "RoleArn": {
                   "Fn::GetAtt": [
-                    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRole25E1AA11",
+                    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleA9B7F5AE",
                     "Arn"
                   ]
                 },
@@ -416,7 +416,7 @@
                 },
                 "InputArtifacts": [
                   {
-                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_two_Source"
+                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_three_Source"
                   }
                 ],
                 "Name": "Synth",
@@ -1067,7 +1067,7 @@
                 },
                 "InputArtifacts": [
                   {
-                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_two_Source"
+                    "Name": "timpugh_lambda_powertools_reference_prod_scaffold_part_three_Source"
                   }
                 ],
                 "Name": "IntegrationTest",
@@ -1486,7 +1486,7 @@
                   }
                 }
               ],
-              "SourceActionName": "timpugh_lambda-powertools-reference-prod-scaffold-part-two"
+              "SourceActionName": "timpugh_lambda-powertools-reference-prod-scaffold-part-three"
             },
             "ProviderType": "CodeStarSourceConnection"
           }
@@ -3444,7 +3444,7 @@
               "Effect": "Allow",
               "Resource": {
                 "Fn::GetAtt": [
-                  "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRole25E1AA11",
+                  "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleA9B7F5AE",
                   "Arn"
                 ]
               }
@@ -3497,7 +3497,7 @@
       },
       "Type": "AWS::IAM::Policy"
     },
-    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRole25E1AA11": {
+    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleA9B7F5AE": {
       "Metadata": {
         "cdk_nag": {
           "rules_to_suppress": [
@@ -3677,7 +3677,7 @@
       },
       "Type": "AWS::IAM::Role"
     },
-    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRoleDefaultPolicy7C998883": {
+    "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleDefaultPolicy343DD30B": {
       "Metadata": {
         "cdk_nag": {
           "rules_to_suppress": [
@@ -3909,10 +3909,10 @@
           ],
           "Version": "2012-10-17"
         },
-        "PolicyName": "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRoleDefaultPolicy7C998883",
+        "PolicyName": "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleDefaultPolicy343DD30B",
         "Roles": [
           {
-            "Ref": "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldparttwoCodePipelineActionRole25E1AA11"
+            "Ref": "CdSourcetimpughlambdapowertoolsreferenceprodscaffoldpartthreeCodePipelineActionRoleA9B7F5AE"
           }
         ]
       },

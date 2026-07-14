@@ -57,7 +57,7 @@ class TestPipelineCore:
                                                 "Configuration": Match.object_like(
                                                     {
                                                         "ConnectionArn": CONNECTION_ARN,
-                                                        "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-two",
+                                                        "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-three",
                                                         "BranchName": "main",
                                                         # Must stay false while the explicit V2 git
                                                         # trigger exists — legacy change detection
@@ -93,7 +93,7 @@ class TestPipelineCore:
                                 "ProviderType": "CodeStarSourceConnection",
                                 "GitConfiguration": Match.object_like(
                                     {
-                                        "SourceActionName": "timpugh_lambda-powertools-reference-prod-scaffold-part-two",
+                                        "SourceActionName": "timpugh_lambda-powertools-reference-prod-scaffold-part-three",
                                         "Push": [{"Branches": {"Includes": ["main"]}}],
                                     }
                                 ),
