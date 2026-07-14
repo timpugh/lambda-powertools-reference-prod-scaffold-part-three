@@ -975,6 +975,16 @@ make deploy-pipeline                                                        # 4.
 
 Step 1 deploys [`infrastructure/bootstrap/cdk-scaffold-boundary.json`](infrastructure/bootstrap/cdk-scaffold-boundary.json) — a standalone CloudFormation template, not part of the CDK app — as the `cdk-scaffold-boundary` managed policy. **The connection ARN never lands in the repo** (it embeds the account id, and this repo is public) or in your shell profile: `make deploy-pipeline` resolves it at deploy time — `CONN=<arn>` argument, else `CODE_CONNECTION_ARN` in a gitignored `./.env` (the project-scoped home if you want one), else auto-discovery of the account's single AVAILABLE GitHub connection (fail-loud if zero or several) — and passes it to this one workstation-side `cdk deploy`. From then on the pipeline is self-sufficient: the ARN rides in its own Synth step's CodeBuild environment (`CODE_CONNECTION_ARN`, see `pipeline_stack.py`), which `app.py` falls back to when the context key is absent, so every self-mutation synth re-embeds it without the repo ever carrying it. Rotating the connection = rerun `make deploy-pipeline` with the new one resolvable. Step 4 is otherwise a one-time `cdk deploy ServerlessAppPipeline -c pipeline=true`; after it, the pipeline self-mutates from GitHub `main` on every push, so rerunning the target is only needed if the pipeline stack is ever deleted or the connection rotated.
 
+### The CodeConnections handshake (step 3), click by click
+
+The one step that cannot be scripted: it OAuths your AWS account to GitHub through the console. Connections are regional — create it in **us-east-1** (the pipeline's region), in the same account the pipeline deploys to.
+
+1. Open the AWS console in the deploying account, region **us-east-1**, and go to the Developer Tools console (any of CodePipeline/CodeBuild lands there) → **Settings → Connections** → **Create connection**.
+2. Provider: **GitHub**. Give the connection a name (e.g. `github-part-two`) → **Connect to GitHub**.
+3. In the GitHub authorization popup, install (or select) the **AWS Connector for GitHub** app. Under *Repository access*, grant it **`timpugh/lambda-powertools-reference-prod-scaffold-part-two`** — least-privilege beats all-repos, and a connection authorized for the wrong repo is this flow's classic failure (the pipeline's Source stage later fails with a repository-access error; the fix is editing the GitHub App installation's repository list, not creating a new connection).
+4. Back in the wizard the GitHub App installation is now selected → **Connect**.
+5. The connection's status flips from *Pending* to **Available**. Done — copy nothing: `make deploy-pipeline` auto-discovers it, or put the ARN in a gitignored `./.env` (next section) if you want a project-scoped copy.
+
 ### Where the connection ARN lives
 
 Three homes, none of them tracked by git or touching your shell profile:
