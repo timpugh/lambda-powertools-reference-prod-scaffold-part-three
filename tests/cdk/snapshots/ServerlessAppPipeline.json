@@ -379,6 +379,7 @@
                 "Configuration": {
                   "BranchName": "main",
                   "ConnectionArn": "arn:aws:codeconnections:us-east-1:111111111111:connection/12345678-abcd-4ef0-9876-0123456789ab",
+                  "DetectChanges": false,
                   "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-two"
                 },
                 "Name": "timpugh_lambda-powertools-reference-prod-scaffold-part-two",

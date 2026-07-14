@@ -139,6 +139,17 @@ class PipelineStack(cdk.Stack):
                 GITHUB_REPO,
                 GITHUB_BRANCH,
                 connection_arn=code_connection_arn,
+                # False = DetectChanges:false on the source action. Legacy
+                # connection-based change detection and the explicit V2 git
+                # trigger (_declare_push_trigger) are mutually exclusive
+                # routing modes: with DetectChanges left true, WebhookV2
+                # routing never registered and pushes started NOTHING —
+                # live-proven via CloudTrail (every execution was
+                # CloudFormation's restart_execution_on_update; a push-timing
+                # race made one look webhook-triggered). The console's V2
+                # trigger flow sets exactly this combination: DetectChanges
+                # false + a Triggers block.
+                trigger_on_push=False,
             ),
             install_commands=[
                 "npm ci",

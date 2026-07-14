@@ -59,6 +59,11 @@ class TestPipelineCore:
                                                         "ConnectionArn": CONNECTION_ARN,
                                                         "FullRepositoryId": "timpugh/lambda-powertools-reference-prod-scaffold-part-two",
                                                         "BranchName": "main",
+                                                        # Must stay false while the explicit V2 git
+                                                        # trigger exists — legacy change detection
+                                                        # left true suppressed WebhookV2 routing
+                                                        # entirely (pushes started nothing).
+                                                        "DetectChanges": False,
                                                     }
                                                 )
                                             }
