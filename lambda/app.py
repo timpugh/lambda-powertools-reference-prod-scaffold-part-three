@@ -45,7 +45,7 @@ from models import (
 )
 from service import GreetingUnavailableError, build_greeting
 
-# Module-level so a bad deployment fails the cold start, not the Nth request.
+# Module-level so a bad deployment fails the cold start, not the Nth  request.
 # Extra keys in os.environ are ignored by pydantic's default model config.
 _ENV = EnvVars.model_validate(dict(os.environ))
 
