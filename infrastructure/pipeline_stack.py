@@ -174,7 +174,16 @@ class PipelineStack(cdk.Stack):
             docker_enabled_for_synth=True,
             code_build_defaults=pipelines.CodeBuildOptions(
                 build_environment=codebuild.BuildEnvironment(
-                    build_image=codebuild.LinuxBuildImage.STANDARD_7_0,
+                    # ARM (Graviton) fleet, matching the app's ARM64 Lambdas:
+                    # PythonFunction bundling runs `docker build --platform
+                    # linux/arm64` from public.ecr.aws/sam/build-python*, and
+                    # an x86 CodeBuild host cannot execute the arm64 image —
+                    # `exec /bin/sh: exec format error`, live-proven on the
+                    # pipeline's first Synth (2026-07-14). CodeBuild has no
+                    # QEMU binfmt, so native ARM is the fix (and it worked
+                    # locally all along only because dev machines are ARM
+                    # Macs). Graviton is also the cheaper fleet.
+                    build_image=codebuild.LinuxArmBuildImage.AMAZON_LINUX_2023_STANDARD_3_0,
                 ),
                 logging=codebuild.LoggingOptions(
                     cloud_watch=codebuild.CloudWatchLoggingOptions(

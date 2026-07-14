@@ -1646,10 +1646,10 @@
               "Value": "arn:aws:codeconnections:us-east-1:111111111111:connection/12345678-abcd-4ef0-9876-0123456789ab"
             }
           ],
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": true,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -2332,10 +2332,10 @@
               "Value": "ServerlessAppFrontend-dev-us-east-1"
             }
           ],
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -5277,10 +5277,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -5466,10 +5466,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -5655,10 +5655,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -5844,10 +5844,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -6033,10 +6033,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -6222,10 +6222,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -6411,10 +6411,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -6600,10 +6600,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {
@@ -8127,10 +8127,10 @@
         },
         "Environment": {
           "ComputeType": "BUILD_GENERAL1_SMALL",
-          "Image": "aws/codebuild/standard:7.0",
+          "Image": "aws/codebuild/amazonlinux-aarch64-standard:3.0",
           "ImagePullCredentialsType": "CODEBUILD",
           "PrivilegedMode": false,
-          "Type": "LINUX_CONTAINER"
+          "Type": "ARM_CONTAINER"
         },
         "LogsConfig": {
           "CloudWatchLogs": {

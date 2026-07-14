@@ -78,6 +78,20 @@ class TestPipelineCore:
             Match.object_like({"Environment": Match.object_like({"PrivilegedMode": True})}),
         )
 
+    def test_every_codebuild_project_runs_on_arm(self, pipeline_template: Template) -> None:
+        # The app's Lambdas are ARM64, so PythonFunction bundling docker-builds
+        # arm64 images — which an x86 CodeBuild host cannot execute (exec
+        # format error, live-proven on the pipeline's first Synth). Every
+        # generated project must stay on the Graviton fleet.
+        projects = pipeline_template.find_resources("AWS::CodeBuild::Project")
+        assert projects, "pipeline should generate CodeBuild projects"
+        non_arm = [
+            logical_id
+            for logical_id, project in projects.items()
+            if project["Properties"]["Environment"]["Type"] != "ARM_CONTAINER"
+        ]
+        assert not non_arm, f"CodeBuild projects not on the ARM fleet: {non_arm}"
+
     def test_synth_carries_the_connection_arn_env_var(self, pipeline_template: Template) -> None:
         # The ARN is deliberately never committed (public repo, embeds the
         # account id) — the pipeline's own definition is its home. app.py
