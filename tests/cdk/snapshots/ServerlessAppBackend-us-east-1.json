@@ -92,14 +92,6 @@
         "Ref": "AppRestApiB4885DCD"
       }
     },
-    "ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF": {
-      "Export": {
-        "Name": "ServerlessAppBackend-us-east-1:ExportsOutputRefAppRestApiDeploymentStageProd5639941688C372BF"
-      },
-      "Value": {
-        "Ref": "AppRestApiDeploymentStageProd56399416"
-      }
-    },
     "FunctionArnOutput": {
       "Description": "ARN of the Lambda function backing the greeting API",
       "Value": {

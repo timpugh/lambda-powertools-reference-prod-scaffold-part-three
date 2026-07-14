@@ -92,18 +92,6 @@ class BackendStack(Stack):
         self.api_id = self.app.api.rest_api_id
         self.origin_verify_secret = self.app.origin_verify_secret
 
-        # TEMPORARY export retention — remove after every existing environment has
-        # deployed this release once. The frontend no longer consumes api_url (it
-        # builds the /api/* origin from api_id and hardcodes the /Prod origin path),
-        # so CDK stopped emitting the auto-export of the deployment-stage ref that
-        # ALREADY-DEPLOYED frontend stacks still import. CloudFormation refuses to
-        # delete an in-use export, and `cdk deploy '**'` updates this stack before
-        # the frontend — so without this line the first post-release deploy of an
-        # existing environment fails. export_value() reproduces the same export
-        # name; once the deployed frontends no longer import it, delete this line
-        # (CDK's documented "removing automatic cross-stack references" recipe).
-        self.export_value(self.app.api.deployment_stage.stage_name)
-
         CfnOutput(
             self,
             "ApiUrlOutput",

@@ -634,9 +634,10 @@ class BackendApp(Construct):
         # Lambda would have to mutate the CFN-managed CloudFront origin header and WAF
         # rule out-of-band (drift). Rotation = ADD a new Secret construct, in two
         # deploys — NOT a rename. Renaming the construct id (-> OriginVerifySecretV2)
-        # replaces the secret and hits the same in-use-export trap already documented
-        # for the api_url export (see backend_stack.py's TEMPORARY export retention
-        # comment / TODO.md): the old secret's export can't be deleted while the
+        # replaces the secret and hits CloudFormation's in-use-export trap (the same
+        # one the api_url export needed a temporary retention for during the
+        # same-origin migration — since removed; see TODO.md's Infrastructure
+        # history): the old secret's export can't be deleted while the
         # not-yet-deployed frontend still imports it, and the backend stack deploys
         # first, so `cdk deploy '**'` fails on first use. Deploy 1: add
         # OriginVerifySecretV2 alongside this construct, re-point both consumers (WAF
