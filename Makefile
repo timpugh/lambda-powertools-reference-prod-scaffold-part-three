@@ -47,7 +47,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	lint lint-docs format typecheck security check-lock pr \
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy deploy-appconfig-monitor bootstrap-boundary deploy-pipeline destroy-pipeline destroy destroy-clean _empty-frontend-buckets _delete-straggler-log-groups \
+	deploy deploy-appconfig-monitor bootstrap-boundary deploy-pipeline destroy-pipeline destroy destroy-clean audit-account _empty-frontend-buckets _delete-straggler-log-groups \
 	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
@@ -576,6 +576,16 @@ destroy-clean: ## Empty async-log buckets, destroy all stacks (retrying up to 3x
 	exit $$status
 	@$(MAKE) _delete-straggler-log-groups REGION=$(REGION) ENV=$(ENV)
 	@$(MAKE) _delete-snapshotted-log-groups REGION=$(REGION) ENV=$(ENV)
+
+audit-account: ## Read-only: sweep every region for leftover app resources + a Cost Explorer check (run after teardown to prove clean)
+	# Deletes nothing. Enumerates this scaffold's footprint (stacks, buckets, log
+	# groups, CodeDeploy apps, Cognito pools) across ALL enabled regions — the
+	# "hidden in another region" trap bills silently — reports the resources no
+	# teardown reaches (Route 53 hosted zones, the registered-domain vampire, ACM
+	# certs) for your eyeball, and prints Cost Explorer month-to-date by service
+	# as the ground truth. Exits non-zero if any app-owned resource remains, so it
+	# doubles as a post-`destroy-clean` gate. See README "Proving it's gone".
+	@bash scripts/audit_account.sh
 
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files

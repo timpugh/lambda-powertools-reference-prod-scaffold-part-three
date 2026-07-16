@@ -764,6 +764,23 @@ make destroy-clean           # prod (legacy names; five stacks + sweeps)
 
 What deliberately survives: the `cdk-scaffold-boundary` policy, the `CDKToolkit` bootstrap stack, and the CodeConnections connection — account-level, one-time prerequisites, reused by the next deployment (or the next fork in the same account). `make destroy-pipeline` works even if the connection is already gone: destroy only *synthesizes* the ARN, so a dummy fallback suffices. The target's post-destroy sweep exists for a live-caught trap: stack deletion removes the CFN-owned provider log group first, then the artifact bucket's auto-delete-objects Lambda runs and *re-creates* its `/aws/lambda/ServerlessAppPipeline-*` log group by logging — at never-expire retention — the same re-appearance class `destroy-clean` already sweeps for the app stacks.
 
+### Proving it's gone (and the one true vampire cost)
+
+First, the misconception that actually bites: **deleting an IAM user deletes zero infrastructure.** A user is an *identity* — a login, keys, permissions. Every resource that identity created belongs to the **account**, not the user; delete the user and the CloudFront distribution, buckets, and hosted zones keep running and keep billing, you've just lost the clean way to manage them. "New user, delete user" is the *opposite* of a teardown. Resources are owned by the account, so only two things actually guarantee they're gone:
+
+- **The nuclear guarantee — close a dedicated AWS account.** Everything in an account is owned by it, so closing it terminates everything by construction (AWS suspends immediately, holds a 90-day reopen window, then permanently deletes). It's the zero-doubt option, but heavyweight, and it *fights a registered domain*: you don't want your domain trapped in an account you're about to close, so account-closure and custom domains pull against each other.
+- **The surgical guarantee — `cdk destroy` + sweeps + audit.** Everything here is CloudFormation-managed, so the `destroy-*` targets above remove the stacks and their resources, and `make audit-account` proves it. This is the right tool for this scaffold, and it's been validated through full deploy→teardown cycles that audited clean.
+
+**`make audit-account`** is a read-only sweep — it deletes nothing. It enumerates this scaffold's footprint (stacks, buckets, log groups, CodeDeploy apps, Cognito pools) across **every enabled region** (a resource in a region you didn't check bills silently — the trap gets real in a multi-region fork), lists the resources no teardown reaches for your eyeball, and prints **Cost Explorer month-to-date by service**. It exits non-zero if any app-owned resource remains, so it doubles as a post-`destroy-clean` gate:
+
+```bash
+make destroy-pipeline && make destroy-clean ENV=dev && make destroy-clean && make audit-account
+```
+
+**The one true vampire — the registered domain.** When you add a custom domain (part-three's arc), `cdk destroy` reaches the hosted zone ($0.50/mo, CDK-managed) and the ACM certs (free), but it will **never** reach the **domain registration itself**: that's an annual, auto-renewing charge living in Route 53 Domains *outside CloudFormation*, owned by no stack. It survives every teardown by design — and you usually *want* it to (you paid for a year; don't re-register per experiment). Manage it as a conscious decision: disable auto-renew when you're truly done, otherwise leave it and know it's the single line item that outlives `make audit-account`'s "CLEAN". `audit-account` always prints registered domains with their auto-renew status for exactly this reason.
+
+**Trust the money over any list.** Resource enumeration can miss things; the bill cannot. Back the audit with a **$1 total-account budget** (the Budgets machinery is already here) and **Cost Anomaly Detection** (free) — if either fires after teardown, something survived. Note that account-*baseline* services you may have on (GuardDuty, DevOps Guru, Config) bill regardless of this app and will show in the cost section as expected, non-app charges.
+
 ### Cost overview
 
 Most of the architecture is pay-per-use and costs effectively **nothing at idle** — Lambda, API Gateway, DynamoDB (on-demand), S3, CloudTrail data events, Athena, RUM, SNS, and CloudWatch all bill per request/event/GB, so a no-traffic stack's bill is dominated by a handful of *fixed* monthly charges. The detailed rationale for each line lives in its own section; this table consolidates the picture for a fork doing cost planning. Figures are list price, us-east-1, per deployed region + environment.
