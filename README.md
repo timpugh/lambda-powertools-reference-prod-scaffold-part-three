@@ -989,6 +989,23 @@ GitHub main ──(CodeConnections)──▶ Synth (CodeBuild, Docker-privileged
 
 **`dev` is pipeline-reserved.** `DEV_ENV_NAME = "dev"` in `infrastructure/pipeline_stack.py` names a persistent environment the pipeline deploys and integration-tests against on every run, never tearing it down. A manual `make deploy ENV=dev` would fight the pipeline over the same five stacks — pick any other env name for an ephemeral copy.
 
+### Fresh AWS account setup (start here in a new account)
+
+Everything below the One-time setup assumes working credentials in the target account. If this template is landing in a **brand-new or different AWS account**, do this first — none of the prerequisites carry over from any other account.
+
+**Identity: a logged-in IAM user, never root.** The root user is only for the handful of tasks that literally require it (closing the account, changing the root email, certain billing toggles). Secure it once — strong password, MFA, and **never create root access keys**; root should not appear in `~/.aws/credentials` at all — then put it away. For day-to-day work, create an IAM user with `AdministratorAccess` + MFA (IAM Identity Center is the more ceremonious modern alternative), create an access key for CLI use, and add it to `~/.aws/credentials` as a named profile.
+
+**Be deliberate about which profile is active.** This repo's tooling (`make`, the CDK CLI, the audit script) uses *ambient* credentials — nothing passes `--profile` — so either make the target account your `default` profile or `export AWS_PROFILE=<name>` in the shell you work from. Half-switched credentials are how deploys land in the wrong account; verify with `aws sts get-caller-identity` before the first deploy, and after every switch.
+
+**Per-account prerequisites (nothing follows you between accounts):**
+
+1. `make bootstrap-boundary`, then `npx cdk bootstrap aws://YOUR_ACCOUNT_ID/us-east-1 --custom-permissions-boundary cdk-scaffold-boundary` — the boundary policy and the bootstrapped toolkit are account-scoped.
+2. The CodeConnections handshake (next sections) — connections are per-account *and* effectively per-repo, and the AWS Connector for GitHub app must be **installed** with this repo granted, not merely authorized (step 6 of the handshake; skipping it silently breaks push-to-deploy while everything else looks healthy).
+3. **Enable Cost Explorer early** — it takes ~24 hours after first enablement before cost data flows, and `make audit-account`'s ground-truth cost section is blind until then. Turn it on the day you open the account, not the day you need the audit.
+4. Recreate the guardrails this doc assumes: the $1 total-account budget and Cost Anomaly Detection (see "Proving it's gone"), and re-subscribe the alarm topic per deployment (subscriptions are deliberately out of CDK).
+
+**Two fresh-account quirks worth knowing:** AWS sometimes holds domain registrations and other billable actions in very new accounts pending payment-method verification, and if you plan a custom domain, **register it in the account you intend to keep long-term** — registrations are painful to move between accounts, and a domain trapped in a disposable experiment account is the exact vampire-cost scenario "Proving it's gone" warns about.
+
 ### One-time setup
 
 Four steps, in order, before the pipeline can exist:
@@ -1068,6 +1085,23 @@ The `ManualApprovalStep` between the integration-tested `dev` deploy and prod is
 ### Cost
 
 CodePipeline (~$1/month active pipeline), CodeBuild minutes per run, one additional KMS key (~$1/month) — modest on top of the existing stack. The persistent `dev` environment is the dominant cost, though: it's a full five-stack copy of the app, not a lightweight per-request add-on, so it carries the same ~$25/month idle cost documented in [Cost overview](#cost-overview) (two WAF WebACLs + five CMKs), on top of which per-request charges accrue from live traffic and the post-deploy integration test run.
+
+## Custom domain (part-three arc — decisions locked, implementation pending)
+
+> **Status:** this section records the *decided design* for the custom-domain work — the contract the implementation will follow — not shipped behavior. Until it lands, the stack deploys certless on the default `*.cloudfront.net` / `*.execute-api.amazonaws.com` endpoints exactly as documented elsewhere; [TODO.md](TODO.md) tracks the open gates (TLS floor, `AwsSolutions-CFR4`, HSTS `preload`).
+
+**What the arc delivers, in order:** domain registration → hosted zone → per-environment ACM certificates (DNS-validated, `us-east-1`) → CloudFront aliases + a *real* `TLS_V1_2_2021`+ floor (today AWS silently ignores it on the default certificate — the cdk-nag `CFR4` suppression retires with this) + HSTS `preload` → an API Gateway regional custom domain with a modern `securityPolicy` **and the default `execute-api` endpoint disabled** (a custom domain *alongside* the default endpoint leaves the TLS 1.0 door standing; CloudFront's origin repoints at the custom domain, origin-verify header unchanged) → Route 53 alias records → the RUM monitor's domain config.
+
+**The decisions, with their why:**
+
+1. **Route 53 is the registrar.** One API surface, registration auto-creates the hosted zone, and the purchase itself is scriptable (`aws route53domains register-domain`) — the maximum-automation path. External registrars are sometimes cheaper but reintroduce a manual NS-pointing step.
+2. **Registration + hosted zone are account-level prerequisites, never CDK-managed.** The registration (which lives outside CloudFormation, permanently) points at the zone's name servers, and every newly created zone gets a *fresh, random* NS set — so a CDK-managed zone would force an out-of-band registration update on every teardown/redeploy cycle: a custom resource mutating a non-IaC resource, the exact drift-prone pattern this repo refuses everywhere else. Instead the zone survives teardown (like the boundary and `CDKToolkit`, ~$0.50/month), and CDK owns only what lives *inside* it — alias records and certificate-validation CNAMEs, which create and destroy cleanly with their stacks. This is also AWS's own recommended split.
+3. **The domain is optional in the template.** Same fail-loud context pattern as `retain_data`: with no domain configured, the template keeps today's certless behavior — forks without domains still cold-start cleanly, and the `CFR4` suppression retires *conditionally*. Configuring one value without its pair (domain without zone id, or vice versa) fails synth loudly.
+4. **Per-environment certificates, not a wildcard.** `prod` gets the apex, `dev` gets `dev.<domain>`; ephemeral `ENV=` deploys stay domainless (fast, free, collision-proof). A wildcard certificate is a blast-radius trade — one credential covering every subdomain, present and future — and the classic renewal-toil argument for it is void here: ACM certificates are free and auto-renew as long as their validation CNAME sits in the zone, which CDK manages. Narrow scoping also matches this repo's per-stack-CMK ethos.
+5. **`DOMAIN_NAME` and `HOSTED_ZONE_ID` live in the gitignored `./.env`, exactly like `CODE_CONNECTION_ARN`.** Neither is a secret (both are public in DNS), but keeping them out of the repo keeps the template generic for forks. They follow the established resolution chain: `make deploy-pipeline` reads them from `.env` for the workstation birth deploy, bakes them into the pipeline's own Synth-step environment, and `app.py` falls back to those env vars when the context keys are absent — so every self-mutation synth stays self-sufficient without the repo ever carrying the values.
+6. **Registration is a documented one-time step, not a stack resource.** There is no CloudFormation resource type for registrations (AWS deliberately keeps purchases out of IaC), the call carries registrant contact details (ICANN-mandated PII — keep the contact file local and gitignored), and the charge is immediate and effectively non-refundable (price varies by TLD; `.com` ≈ $15/yr). Leave **auto-renew on** while the project lives — accidental expiry is the worse failure — and rely on `make audit-account`, which prints every registered domain with its auto-renew flag; flip it off the day you're truly done. Expect a possible one-time ICANN registrant-verification email (click within 15 days).
+
+**What stays human, in total:** the purchase decision itself, and possibly that one ICANN email click. Everything downstream — certificates, validation, edges, records, teardown of everything except the zone and registration — rides the pipeline.
 
 ## Working in the codebase
 
