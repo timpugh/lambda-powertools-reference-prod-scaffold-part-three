@@ -47,7 +47,7 @@ CDK_ENV_ARG := $(if $(ENV),-c env=$(ENV))
 	lint lint-docs format typecheck security check-lock pr \
 	cdk-synth cdk-notices cdk-deprecations \
 	cdk-ls cdk-diff cdk-drift cdk-revert-drift cdk-diagnose cdk-gc cdk-rollback \
-	deploy deploy-appconfig-monitor bootstrap-boundary deploy-pipeline destroy-pipeline destroy destroy-clean audit-account _empty-frontend-buckets _delete-straggler-log-groups \
+	deploy deploy-appconfig-monitor bootstrap-boundary deploy-pipeline destroy-pipeline destroy destroy-clean audit-account hibernate-dns wake-dns _empty-frontend-buckets _delete-straggler-log-groups \
 	docs docs-open docs-serve openapi compare-openapi coverage coverage-badge lock upgrade deps-merge clean clean-venvs
 
 help: ## Show this help message
@@ -586,6 +586,20 @@ audit-account: ## Read-only: sweep every region for leftover app resources + a C
 	# as the ground truth. Exits non-zero if any app-owned resource remains, so it
 	# doubles as a post-`destroy-clean` gate. See README "Proving it's gone".
 	@bash scripts/audit_account.sh
+
+hibernate-dns: ## Park the project at $0.00/mo recurring: delete the hosted zone (stacks must be torn down first)
+	# The zero-idle-cost half of the domain design (README "Custom domain"):
+	# a hosted zone bills $0.50/month deployed-or-not, so long parks delete it.
+	# Refuses while ServerlessApp* stacks are up (their records + ACM
+	# validation CNAMEs live in the zone). Only the annual registration
+	# remains afterwards — that charge IS the domain. Resume: make wake-dns.
+	@bash scripts/dns_lifecycle.sh hibernate
+
+wake-dns: ## Resume from DNS hibernation: recreate the zone, re-point the registration NS, rewrite .env
+	# Idempotent (adopts an existing zone). Registry NS propagation takes
+	# minutes to hours — deploy only after it settles, or ACM DNS validation
+	# sits pending. Rewrites HOSTED_ZONE_ID in ./.env with the new zone id.
+	@bash scripts/dns_lifecycle.sh wake
 
 lint: ## Run all pre-commit hooks (ruff, mypy, pylint, bandit, xenon, pip-audit)
 	uv run pre-commit run --all-files
