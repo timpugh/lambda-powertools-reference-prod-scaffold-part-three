@@ -94,6 +94,21 @@ for r in $regions; do
 done
 [ "$found" -eq 0 ] && echo "  none"
 
+# The app itself creates an identity pool (RumIdentityPool, named
+# "<FrontendStackName>-rum", for the browser RUM client's guest credentials) —
+# the user-pool scan above can't see it, so this is the check that actually
+# covers the scaffold's Cognito footprint. The user-pool scan stays for forks
+# that add authentication.
+echo "Cognito identity pools:"
+found=0
+for r in $regions; do
+  for p in $(aws cognito-identity list-identity-pools --max-results 60 --region "$r" \
+      --query 'IdentityPools[].IdentityPoolName' --output text 2>/dev/null); do
+    if printf '%s' "$p" | grep -qiE "$APP_RE"; then flag "$r: $p"; found=1; fi
+  done
+done
+[ "$found" -eq 0 ] && echo "  none"
+
 echo
 echo "--- eyeball these (never auto-deleted; not counted as dirty) ---"
 
