@@ -1,9 +1,12 @@
 """BackendApp construct — the domain-level application.
 
 Encapsulates all resources that make up the backend serverless application:
-KMS key, DynamoDB idempotency table, SSM greeting parameter, AppConfig feature
-flags, Lambda function, API Gateway, Application Insights monitoring, dashboard,
-Logs Insights saved queries, and per-resource cdk-nag suppressions.
+KMS key, SSM greeting parameter, AppConfig feature flags, Lambda function, API
+Gateway, Application Insights monitoring, dashboard, Logs Insights saved
+queries, and per-resource cdk-nag suppressions. The DynamoDB idempotency table
+is NOT created here — it lives in ``DataStack`` (with its own CMK) and is passed
+in via ``idempotency_table=``; this construct only wires its env var, scoped
+grant, and monitoring.
 
 Following the CDK best practice "model with constructs, deploy with stacks":
 the Stack only composes this construct, applies stack-wide Aspects, and wires
@@ -17,6 +20,7 @@ from pathlib import Path
 from typing import cast
 
 from aws_cdk import (
+    Annotations,
     Duration,
     RemovalPolicy,
     Stack,
@@ -85,6 +89,7 @@ from cdk_monitoring_constructs import (
 )
 from constructs import Construct
 
+from infrastructure.appconfig_extension import resolve_extension_layer_arn
 from infrastructure.nag_utils import (
     WAF_LOG_DROP_ALLOW_FILTER,
     acknowledge_rules,
@@ -97,17 +102,6 @@ from infrastructure.nag_utils import (
     route_operational_alarm,
     waf_log_redacted_fields,
 )
-
-# AWS-published AppConfig Lambda extension layer (ARM64), per region. The ARN is
-# region- and version-pinned by AWS (account 027255383542) — take new entries
-# verbatim from "Using AWS AppConfig Agent with AWS Lambda" in the AppConfig
-# user guide. Fail-loud mapping: an unmapped region must break synth, not
-# silently deploy a Lambda whose flag store points at a dead localhost port.
-# us-east-1 entry: layer version 2.0.18836, published 06/22/2026 (AppConfig
-# user guide, "Lambda extension versions" table).
-_APPCONFIG_EXTENSION_ARM64_LAYER_ARNS: dict[str, str] = {
-    "us-east-1": "arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension-Arm64:261",
-}
 
 
 class BackendApp(Construct):
@@ -127,6 +121,7 @@ class BackendApp(Construct):
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
         cf_web_acl_name: str | None = None,
+        appconfig_extension_layer_arn: str | None = None,
     ) -> None:
         """Build the application construct.
 
@@ -169,6 +164,15 @@ class BackendApp(Construct):
                 by the Stage for the by-name BlockedRequests alarm; None skips
                 it. See ``_attach_waf_alarms`` for the live-verified dimension
                 finding this rests on.
+            appconfig_extension_layer_arn: Optional override for the AppConfig
+                Agent Lambda extension layer ARN (``-c
+                appconfig_extension_layer_arn=<arn>`` or the
+                ``APPCONFIG_EXTENSION_LAYER_ARN`` env var, resolved in app.py).
+                Defaults to None, which uses the pinned per-region
+                ``APPCONFIG_EXTENSION_ARM64_LAYER_ARNS`` entry. Use it for a
+                region the map lacks, or to trial a newer layer before bumping
+                the pin. Its region segment must equal the stack's region
+                (layers are regional) — synth fails otherwise.
         """
         super().__init__(scope, construct_id)
 
@@ -484,7 +488,7 @@ class BackendApp(Construct):
             },
         )
 
-        self._attach_appconfig_extension_layer(stack)
+        self._attach_appconfig_extension_layer(stack, appconfig_extension_layer_arn)
 
         # Recursive-loop detection. Default is Terminate, but the L2 PythonFunction
         # construct doesn't surface this property — set it explicitly on the
@@ -1081,25 +1085,30 @@ class BackendApp(Construct):
             ],
         )
 
-    def _attach_appconfig_extension_layer(self, stack: Stack) -> None:
+    def _attach_appconfig_extension_layer(self, stack: Stack, override_arn: str | None) -> None:
         """Attach the AWS-published AppConfig Lambda extension layer.
 
         The extension polls AppConfig in the background and serves cached flag
         data over ``http://localhost:2772`` (consumed by
         ``lambda/extension_store.py``'s ``AppConfigExtensionStore``), so
         handler invocations never call the AppConfig data plane directly.
-        Region lookup fails loudly (see ``_APPCONFIG_EXTENSION_ARM64_LAYER_ARNS``)
-        rather than silently deploying a function whose flag store has nothing
-        listening on that port. The existing AppConfig IAM grant
+        Region lookup fails loudly (see ``infrastructure.appconfig_extension`` — an override wins over
+        the pinned map) rather than silently deploying a function whose flag
+        store has nothing listening on that port. The existing AppConfig IAM grant
         (``StartConfigurationSession`` / ``GetLatestConfiguration`` on the
         profile ARN) already covers the extension — it calls AppConfig using
         the function's own role.
         """
-        extension_layer_arn = _APPCONFIG_EXTENSION_ARM64_LAYER_ARNS.get(stack.region)
-        if extension_layer_arn is None:
-            raise ValueError(
-                f"No AppConfig extension layer ARN mapped for region {stack.region!r} — "
-                "add it to _APPCONFIG_EXTENSION_ARM64_LAYER_ARNS from the AppConfig Lambda extension docs."
+        extension_layer_arn = resolve_extension_layer_arn(stack.region, override_arn)
+        if override_arn is not None:
+            # Make an active override visible at every synth: one exported in an
+            # operator's shell is otherwise silent, and (in pipeline mode) gets
+            # baked into the Synth step env, masking future pinned-map bumps.
+            # A warning, not an error — the override is a supported path.
+            Annotations.of(stack).add_warning(
+                f"AppConfig extension layer override active: {extension_layer_arn} overrides the pinned "
+                f"APPCONFIG_EXTENSION_ARM64_LAYER_ARNS entry for {stack.region} (from -c "
+                "appconfig_extension_layer_arn or $APPCONFIG_EXTENSION_LAYER_ARN). Unset it to return to the pin."
             )
         self.function.add_layers(
             _lambda.LayerVersion.from_layer_version_arn(self, "AppConfigExtensionLayer", extension_layer_arn)

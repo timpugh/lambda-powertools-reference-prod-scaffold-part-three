@@ -40,6 +40,7 @@ class BackendStack(Stack):
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
         cf_web_acl_name: str | None = None,
+        appconfig_extension_layer_arn: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Compose the application construct into a deployable stack.
@@ -70,6 +71,10 @@ class BackendStack(Stack):
                 dimension finding), used to address its BlockedRequests
                 metric by name for the spike alarm. Defaults to None, which
                 skips that alarm (e.g. in tests that don't build a WAF stack).
+            appconfig_extension_layer_arn: Forwarded to :class:`BackendApp` —
+                optional override for the AppConfig extension layer ARN.
+                Defaults to None, which uses the pinned per-region map; must be
+                in this stack's region.
             **kwargs: Additional keyword arguments passed to the parent Stack.
         """
         super().__init__(scope, construct_id, **kwargs)
@@ -84,10 +89,12 @@ class BackendStack(Stack):
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
             cf_web_acl_name=cf_web_acl_name,
+            appconfig_extension_layer_arn=appconfig_extension_layer_arn,
         )
 
-        # Expose API URL + ID for consumption by the frontend stack (api_id lets the
-        # frontend CSP pin the exact execute-api host instead of a region wildcard).
+        # Expose API URL + ID for consumption by the frontend stack (api_id builds
+        # the execute-api domain of the frontend's same-origin /api/* CloudFront
+        # origin; the CSP itself is just connect-src 'self').
         self.api_url = self.app.api_url
         self.api_id = self.app.api.rest_api_id
         self.origin_verify_secret = self.app.origin_verify_secret

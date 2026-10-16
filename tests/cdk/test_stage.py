@@ -32,13 +32,24 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk.assertions import Annotations, Match, Template
 
 from infrastructure.app_stage import (
+    APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR,
     DEFAULT_ENV_NAME,
     AppStage,
     parse_context_flag,
+    resolve_appconfig_extension_layer_arn,
+    validate_appconfig_extension_layer_arn,
     validate_code_connection_arn,
     validate_env_name,
     validate_ssm_param_path,
 )
+from infrastructure.appconfig_extension import (
+    APPCONFIG_EXTENSION_ARM64_LAYER_ARNS,
+    APPCONFIG_EXTENSION_DOCS_URL,
+    partition_for_region,
+    resolve_extension_layer_arn,
+)
+from infrastructure.backend_stack import BackendStack
+from infrastructure.data_stack import DataStack
 from infrastructure.nag_utils import attach_nag_packs
 from infrastructure.validation_aspects import TemplateConventionChecks
 
@@ -273,6 +284,230 @@ class TestSsmParamPathPlumbing:
 
     def test_none_passes_through(self) -> None:
         assert validate_ssm_param_path(None) is None
+
+
+def _function_layers(stage: AppStage) -> list[object]:
+    """Every Lambda Layers entry in the backend stack, flattened."""
+    functions = Template.from_stack(stage.backend).find_resources("AWS::Lambda::Function")
+    return [layer for fn in functions.values() for layer in fn["Properties"].get("Layers", [])]
+
+
+# Test-fixture override ARNs: well-formed but deliberately NOT real AWS layers
+# (fake account), so they can never be mistaken for a pinned production value.
+_FAKE_CONTEXT_ARN = "arn:aws:lambda:us-east-1:123456789012:layer:AppConfig-Extension-Context:7"
+_FAKE_ENV_ARN = "arn:aws:lambda:us-east-1:123456789012:layer:AppConfig-Extension-Env:8"
+
+
+class TestAppConfigExtensionLayerRegion:
+    """The AppConfig extension layer resolves per deploy region.
+
+    Resolution order: CDK context ``appconfig_extension_layer_arn`` → the
+    ``APPCONFIG_EXTENSION_LAYER_ARN`` env var → the pinned
+    ``APPCONFIG_EXTENSION_ARM64_LAYER_ARNS`` map (appconfig_extension.py) → a
+    ``ValueError``. An unmapped region must break synth with an actionable error
+    rather than deploy a Lambda whose flag store points at a dead localhost port.
+    """
+
+    def test_us_east_1_uses_pinned_2_0_22365_layer(self, prod_stage: AppStage) -> None:
+        assert APPCONFIG_EXTENSION_ARM64_LAYER_ARNS["us-east-1"] in _function_layers(prod_stage)
+
+    def test_mapped_non_us_east_1_region_uses_its_own_layer(self) -> None:
+        app = cdk.App(context=_NO_BUNDLING)
+        stage = AppStage(app, "ServerlessApp-ap-southeast-2-stage", region="ap-southeast-2")
+        layers = _function_layers(stage)
+        assert APPCONFIG_EXTENSION_ARM64_LAYER_ARNS["ap-southeast-2"] in layers
+        assert APPCONFIG_EXTENSION_ARM64_LAYER_ARNS["us-east-1"] not in layers
+
+    def test_every_mapped_arn_is_well_formed_and_in_its_own_region(self) -> None:
+        # Guards copy/paste errors in the 39-entry table: each ARN must pass the
+        # same validator an override does, carry its key's region, and sit in
+        # that region's partition (the same helper the override check uses).
+        for region, arn in APPCONFIG_EXTENSION_ARM64_LAYER_ARNS.items():
+            assert validate_appconfig_extension_layer_arn(arn) == arn
+            assert arn.split(":")[3] == region, (region, arn)
+            assert arn.split(":")[1] == partition_for_region(region), (region, arn)
+
+    @pytest.mark.parametrize(
+        ("region", "partition"),
+        [
+            ("us-east-1", "aws"),
+            ("cn-north-1", "aws-cn"),
+            ("us-gov-west-1", "aws-us-gov"),
+            ("eusc-de-east-1", "aws-eusc"),
+        ],
+    )
+    def test_partition_for_region(self, region: str, partition: str) -> None:
+        assert partition_for_region(region) == partition
+
+    def test_override_partition_mismatch_raises(self) -> None:
+        # Well-formed and region-matched, but cn-north-1 lives in aws-cn.
+        bad = "arn:aws:lambda:cn-north-1:123456789012:layer:AppConfig-Extension-Context:7"
+        with pytest.raises(ValueError, match=r"uses partition 'aws', but region 'cn-north-1' is in partition 'aws-cn'"):
+            resolve_extension_layer_arn("cn-north-1", bad)
+
+    def test_override_warns_on_backend_stack(self) -> None:
+        stage = AppStage(
+            cdk.App(context=_NO_BUNDLING),
+            "ServerlessApp-us-east-1-stage",
+            region="us-east-1",
+            appconfig_extension_layer_arn=_FAKE_CONTEXT_ARN,
+        )
+        Annotations.from_stack(stage.backend).has_warning(
+            "*", Match.string_like_regexp(f".*override active: {_FAKE_CONTEXT_ARN} overrides the pinned.*")
+        )
+
+    def test_no_override_no_warning(self, prod_stage: AppStage) -> None:
+        Annotations.from_stack(prod_stage.backend).has_no_warning(
+            "*", Match.string_like_regexp(".*AppConfig extension layer override.*")
+        )
+
+    @pytest.mark.parametrize("bad", ["arn:aws:lambda", "not-an-arn"])
+    def test_malformed_override_bypassing_appstage_gets_friendly_error(self, bad: str) -> None:
+        # Direct BackendStack use skips AppStage's validator; the resolver must
+        # still give the friendly ValueError, not an IndexError from split().
+        app = cdk.App(context=_NO_BUNDLING)
+        env = cdk.Environment(region="us-east-1")
+        data = DataStack(app, "BypassData", env=env)
+        with pytest.raises(ValueError, match="appconfig_extension_layer_arn"):
+            BackendStack(
+                app,
+                "BypassBackend",
+                idempotency_table=data.idempotency_table,
+                appconfig_extension_layer_arn=bad,
+                env=env,
+            )
+
+    def test_unmapped_region_raises_clear_error(self) -> None:
+        # us-iso-east-1 is a real region (aws-iso partition) that AWS does not
+        # list in the extension's arm64 table, so it is genuinely unmapped. It is
+        # exercised at the resolver, not via AppStage: a full Stage synth for it
+        # fails earlier, in the Lambda Insights layer lookup (no Insights layer
+        # published there), which would mask this error.
+        assert "us-iso-east-1" not in APPCONFIG_EXTENSION_ARM64_LAYER_ARNS
+        with pytest.raises(ValueError, match="us-iso-east-1") as excinfo:
+            resolve_extension_layer_arn("us-iso-east-1", None)
+        message = str(excinfo.value)
+        assert "No AppConfig extension layer ARN mapped for region 'us-iso-east-1'" in message
+        assert "-c appconfig_extension_layer_arn=" in message
+        assert APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR in message
+        assert APPCONFIG_EXTENSION_DOCS_URL in message
+
+    def test_unmapped_region_fails_stage_synth(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # End-to-end through AppStage: drop a mapped region from the map so the
+        # whole synth path (Stage -> BackendStack -> BackendApp) hits the error.
+        monkeypatch.delitem(APPCONFIG_EXTENSION_ARM64_LAYER_ARNS, "ap-southeast-1")
+        app = cdk.App(context=_NO_BUNDLING)
+        with pytest.raises(ValueError, match=r"No AppConfig extension layer ARN mapped for region 'ap-southeast-1'"):
+            AppStage(app, "ServerlessApp-ap-southeast-1-stage", region="ap-southeast-1")
+
+    def test_override_rescues_unmapped_region(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delitem(APPCONFIG_EXTENSION_ARM64_LAYER_ARNS, "ap-southeast-1")
+        override = "arn:aws:lambda:ap-southeast-1:123456789012:layer:AppConfig-Extension-Context:7"
+        app = cdk.App(context=_NO_BUNDLING)
+        stage = AppStage(
+            app, "ServerlessApp-ap-southeast-1-stage", region="ap-southeast-1", appconfig_extension_layer_arn=override
+        )
+        assert override in _function_layers(stage)
+
+    def test_override_attaches_instead_of_map(self) -> None:
+        app = cdk.App(context=_NO_BUNDLING)
+        stage = AppStage(
+            app, "ServerlessApp-us-east-1-stage", region="us-east-1", appconfig_extension_layer_arn=_FAKE_CONTEXT_ARN
+        )
+        layers = _function_layers(stage)
+        assert _FAKE_CONTEXT_ARN in layers
+        assert APPCONFIG_EXTENSION_ARM64_LAYER_ARNS["us-east-1"] not in layers
+
+    def test_override_region_mismatch_raises(self) -> None:
+        app = cdk.App(context=_NO_BUNDLING)
+        with pytest.raises(ValueError, match=r"in region 'us-east-1', but the backend stack deploys to 'eu-west-1'"):
+            AppStage(
+                app,
+                "ServerlessApp-eu-west-1-stage",
+                region="eu-west-1",
+                appconfig_extension_layer_arn=_FAKE_CONTEXT_ARN,
+            )
+
+    def test_unresolved_region_raises(self) -> None:
+        with pytest.raises(ValueError, match="unresolved"):
+            resolve_extension_layer_arn(cdk.Aws.REGION, None)
+
+
+class TestAppConfigExtensionLayerOverrideResolution:
+    """app.py's override resolution: context wins over env var; env var over the map."""
+
+    def test_context_wins_over_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, _FAKE_ENV_ARN)
+        assert resolve_appconfig_extension_layer_arn(_FAKE_CONTEXT_ARN) == _FAKE_CONTEXT_ARN
+
+    def test_env_var_used_when_context_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, _FAKE_ENV_ARN)
+        resolved = resolve_appconfig_extension_layer_arn(None)
+        assert resolved == _FAKE_ENV_ARN
+        # ...and the env-var override then wins over the pinned map in the synth.
+        stage = AppStage(
+            cdk.App(context=_NO_BUNDLING),
+            "ServerlessApp-us-east-1-stage",
+            region="us-east-1",
+            appconfig_extension_layer_arn=resolved,
+        )
+        layers = _function_layers(stage)
+        assert _FAKE_ENV_ARN in layers
+        assert APPCONFIG_EXTENSION_ARM64_LAYER_ARNS["us-east-1"] not in layers
+
+    def test_neither_set_falls_through_to_map(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, raising=False)
+        assert resolve_appconfig_extension_layer_arn(None) is None
+
+    def test_empty_env_var_treated_as_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, "")
+        assert resolve_appconfig_extension_layer_arn(None) is None
+
+    def test_malformed_env_var_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, "not-an-arn")
+        with pytest.raises(ValueError, match="appconfig_extension_layer_arn"):
+            resolve_appconfig_extension_layer_arn(None)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "not-an-arn",
+            # missing the mandatory :<version>
+            "arn:aws:lambda:us-east-1:027255383542:layer:AWS-AppConfig-Extension-Arm64",
+            # unsupported partition
+            "arn:aws-iso:lambda:us-iso-east-1:123456789012:layer:AppConfig:1",
+            # not a layer ARN
+            "arn:aws:lambda:us-east-1:123456789012:function:my-fn",
+            # account not 12 digits
+            "arn:aws:lambda:us-east-1:12345:layer:AppConfig:1",
+            "",
+        ],
+    )
+    def test_validator_rejects_malformed_arns(self, bad: str) -> None:
+        with pytest.raises(ValueError, match="appconfig_extension_layer_arn"):
+            validate_appconfig_extension_layer_arn(bad)
+
+    @pytest.mark.parametrize(
+        "good",
+        [
+            "arn:aws-cn:lambda:cn-north-1:615057806174:layer:AWS-AppConfig-Extension-Arm64:171",
+            "arn:aws-us-gov:lambda:us-gov-west-1:946746059096:layer:AWS-AppConfig-Extension-Arm64:172",
+            "arn:aws-eusc:lambda:eusc-de-east-1:426221636601:layer:AWS-AppConfig-Extension-Arm64:48",
+        ],
+    )
+    def test_validator_accepts_every_supported_partition(self, good: str) -> None:
+        assert validate_appconfig_extension_layer_arn(good) == good
+
+    def test_validator_none_passes_through(self) -> None:
+        assert validate_appconfig_extension_layer_arn(None) is None
+
+    @pytest.mark.parametrize("bad", [True, False, 0, 265, ["arn"]])
+    def test_non_string_context_value_gets_friendly_error(self, bad: object, monkeypatch: pytest.MonkeyPatch) -> None:
+        # cdk.json can hand over a native bool/number; it must not raise a
+        # TypeError, nor (when falsy) silently fall through to the env var.
+        monkeypatch.setenv(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR, _FAKE_ENV_ARN)
+        with pytest.raises(ValueError, match="appconfig_extension_layer_arn"):
+            resolve_appconfig_extension_layer_arn(bad)
 
 
 class TestDeploymentAggressivenessByEnv:

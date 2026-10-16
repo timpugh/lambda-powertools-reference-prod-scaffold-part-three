@@ -91,6 +91,10 @@ docs = [
 # uv configuration
 # =============================================================================
 [tool.uv]
+# Floor, not an exact pin, so a newer local uv still works. CI and the pipeline
+# pin the exact version (setup-uv `version:` / UV_VERSION in
+# infrastructure/pipeline_stack.py) — move all three together.
+required-version = ">=0.12.24"
 # The `lambda` and `cdk` groups resolve `attrs` to incompatible versions.
 # Declaring them as conflicts lets uv produce one uv.lock that contains both
 # resolutions, installable independently via `uv sync --only-group lambda`
@@ -262,10 +266,16 @@ addopts = [
 log_cli = true          # stream log output in real time during the test run
 log_cli_level = "WARNING"  # only show WARNING and above (suppress DEBUG/INFO noise)
 env = [
-    # Required because importing lambda/app.py constructs boto3 clients
-    # (SSM / AppConfig / DynamoDB) at module load, and a boto3 client needs a
-    # region. Declaring it here keeps the unit suite hermetic — no ambient AWS
-    # config required — so every path that runs it (make test, make coverage,
+    # Required because importing lambda/app.py constructs boto3-backed clients
+    # (SSM provider / DynamoDB idempotency layer) at module load, and a boto3
+    # client needs a region. AppConfig is NOT one of them: feature flags are
+    # read over HTTP from the local AppConfig Lambda extension via
+    # AppConfigExtensionStore (lambda/extension_store.py), so no AppConfig SDK
+    # client exists — the APPCONFIG_* vars below are still required because
+    # the EnvVars model validates them and they name the extension's
+    # application/environment/profile. Declaring the region here keeps the
+    # unit suite hermetic — no ambient AWS config required — so every path
+    # that runs it (make test, make coverage,
     # make coverage-badge, and CI, including the docs job's badge step) gets a
     # region without setting one per-invocation. Unit tests mock all AWS calls,
     # so the value is never used against a real endpoint.

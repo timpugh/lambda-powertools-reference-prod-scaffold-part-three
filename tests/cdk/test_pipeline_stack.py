@@ -6,13 +6,16 @@ needs an explicit account+region (CDK Pipelines deploys concrete
 environments), so fixtures pin a dummy account.
 """
 
+from typing import cast
+
 import pytest
 
 aws_cdk = pytest.importorskip("aws_cdk", reason="aws_cdk not installed — skipping CDK pipeline tests")
 
 import aws_cdk as cdk
-from aws_cdk.assertions import Match, Template
+from aws_cdk.assertions import Annotations, Match, Template
 
+from infrastructure.app_stage import AppStage
 from infrastructure.nag_utils import attach_nag_packs
 from infrastructure.pipeline_stack import PipelineStack
 from tests.cdk.test_stage import _unacknowledged_findings
@@ -272,7 +275,81 @@ class TestPipelineNagCompliance:
         )
 
     def test_convention_checks_have_no_error_annotations(self) -> None:
-        from aws_cdk.assertions import Annotations
-
         stack = _nag_pipeline_stack()
         Annotations.from_stack(stack).has_no_error("*", Match.any_value())
+
+
+# Test-fixture override: well-formed, in the pipeline's region, fake account —
+# never mistakable for a pinned production layer.
+_FAKE_LAYER_OVERRIDE = f"arn:aws:lambda:{REGION}:123456789012:layer:AppConfig-Extension-Override:9"
+_LAYER_ENV_VAR = "APPCONFIG_EXTENSION_LAYER_ARN"
+
+
+def _projects_by_role(template: Template) -> dict[str, list[dict]]:
+    """Split CodeBuild projects into Synth / IntegrationTest / other by buildspec content."""
+    roles: dict[str, list[dict]] = {"synth": [], "integration": [], "other": []}
+    for project in template.find_resources("AWS::CodeBuild::Project").values():
+        spec = str(project["Properties"]["Source"].get("BuildSpec", ""))
+        if "npx cdk synth" in spec:
+            roles["synth"].append(project)
+        elif "make test-integration" in spec:
+            roles["integration"].append(project)
+        else:
+            roles["other"].append(project)
+    return roles
+
+
+def _env_var_names(project: dict) -> set[str]:
+    return {v["Name"] for v in project["Properties"]["Environment"].get("EnvironmentVariables", [])}
+
+
+def _backend_layers(pipeline: PipelineStack, stage_id: str) -> list[object]:
+    stage = cast(AppStage, pipeline.node.find_child(stage_id))
+    functions = Template.from_stack(stage.backend).find_resources("AWS::Lambda::Function")
+    return [layer for fn in functions.values() for layer in fn["Properties"].get("Layers", [])]
+
+
+class TestPipelineLayerOverride:
+    """The AppConfig extension layer override in pipeline mode: forwarded + baked into Synth only."""
+
+    @staticmethod
+    def _override_stack() -> PipelineStack:
+        return PipelineStack(
+            cdk.App(context=_NO_BUNDLING),
+            "ServerlessAppPipeline",
+            code_connection_arn=CONNECTION_ARN,
+            appconfig_extension_layer_arn=_FAKE_LAYER_OVERRIDE,
+            env=cdk.Environment(account=ACCOUNT, region=REGION),
+        )
+
+    def test_override_is_baked_into_synth_only(self) -> None:
+        roles = _projects_by_role(Template.from_stack(self._override_stack()))
+        assert len(roles["synth"]) == 1
+        synth_vars = {
+            v["Name"]: v["Value"] for v in roles["synth"][0]["Properties"]["Environment"]["EnvironmentVariables"]
+        }
+        assert synth_vars[_LAYER_ENV_VAR] == _FAKE_LAYER_OVERRIDE
+        assert roles["integration"], "expected the IntegrationTest CodeBuild project"
+        for project in roles["integration"] + roles["other"]:
+            assert _LAYER_ENV_VAR not in _env_var_names(project)
+
+    def test_override_reaches_dev_and_prod_backends(self) -> None:
+        stack = self._override_stack()
+        for stage_id in ("Dev", "Prod"):
+            assert _FAKE_LAYER_OVERRIDE in _backend_layers(stack, stage_id), stage_id
+
+    def test_override_emits_sticky_warning_on_pipeline_stack(self) -> None:
+        Annotations.from_stack(self._override_stack()).has_warning(
+            "*", Match.string_like_regexp(f".*{_FAKE_LAYER_OVERRIDE}.*make deploy-pipeline.*")
+        )
+
+    def test_no_override_means_no_env_var_and_no_warning(self, pipeline_template: Template) -> None:
+        for projects in _projects_by_role(pipeline_template).values():
+            for project in projects:
+                assert _LAYER_ENV_VAR not in _env_var_names(project)
+        stack = _pipeline_stack()
+        Annotations.from_stack(stack).has_no_warning(
+            "*", Match.string_like_regexp(".*AppConfig extension layer override.*")
+        )
+        for stage_id in ("Dev", "Prod"):
+            assert _FAKE_LAYER_OVERRIDE not in _backend_layers(stack, stage_id)

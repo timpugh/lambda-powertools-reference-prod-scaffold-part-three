@@ -20,7 +20,22 @@ Key facts for agents working in this repo:
   after touching routes or models.
 - `make pr` runs every CI gate locally. `make help` lists all targets.
 - Deployment environments: default `prod` keeps legacy stack names;
-  `make deploy ENV=<name>` creates a namespaced ephemeral copy.
+  `make deploy ENV=<name>` creates a namespaced ephemeral copy. `dev` is
+  pipeline-reserved — never `make deploy ENV=dev`.
+- Pipeline mode: `-c pipeline=true` synthesizes a self-mutating CDK Pipeline
+  (`PipelineStack`, CodeConnections-sourced from GitHub `main`: dev →
+  integration tests → PromoteToProd approval → prod) instead of the
+  directly-deployable Stage; `make deploy-pipeline` is the one-time birth deploy.
+- The `cdk-scaffold-boundary` permissions boundary is mandatory for every
+  deploy: run `make bootstrap-boundary`, then
+  `cdk bootstrap --custom-permissions-boundary cdk-scaffold-boundary`.
+- The API is same-origin: CloudFront `/api/*` proxies to a REGIONAL API
+  Gateway, and a regional WAF rule rejects any request lacking the
+  CloudFront-injected `x-origin-verify` secret header (fail-closed 403).
+- Any region in appconfig_extension.py's pinned AppConfig extension layer map (all
+  regions AWS publishes the arm64 extension to) synthesizes; for an unmapped
+  region pass `-c appconfig_extension_layer_arn=<arn>` (or the
+  `APPCONFIG_EXTENSION_LAYER_ARN` env var) — otherwise synth fails loudly.
 
 ## Documentation
 
@@ -39,12 +54,31 @@ Key facts for agents working in this repo:
 
 - [lambda/app.py](lambda/app.py): the Lambda handler — Powertools logger,
   tracer, metrics, idempotency, feature flags, validated env vars, OpenAPI
+- [lambda/extension_store.py](lambda/extension_store.py): feature-flag store
+  reading the AppConfig Lambda extension's local endpoint
 - [infrastructure/backend_app.py](infrastructure/backend_app.py): the main
-  application construct (KMS, DynamoDB, SSM, AppConfig, Lambda, API Gateway,
-  regional WAF, monitoring + alarms)
+  application construct (KMS, SSM, AppConfig, Lambda, API Gateway, regional
+  WAF + origin-verify lockdown, canary deployment, monitoring + alarms);
+  consumes the idempotency table from the data stack
+- [infrastructure/data_stack.py](infrastructure/data_stack.py): DataStack —
+  the DynamoDB idempotency table + its dedicated CMK, `retain_data`-gated
+- [infrastructure/audit_stack.py](infrastructure/audit_stack.py): AuditStack —
+  CloudTrail data-event trail + its log bucket + dedicated CMK
+- [infrastructure/pipeline_stack.py](infrastructure/pipeline_stack.py): the
+  self-mutating CD pipeline, synthesized only with `-c pipeline=true`
+- [infrastructure/bootstrap/cdk-scaffold-boundary.json](infrastructure/bootstrap/cdk-scaffold-boundary.json):
+  the mandatory permissions-boundary policy (`make bootstrap-boundary`)
 - [infrastructure/app_stage.py](infrastructure/app_stage.py): the
   Stage grouping all five stacks; environment naming lives here
-- [infrastructure/nag_utils.py](infrastructure/nag_utils.py): shared cdk-nag aspects
-  and confused-deputy-guarded KMS service grants
+- [infrastructure/nag_utils.py](infrastructure/nag_utils.py): cdk-nag v3
+  policy-validation-plugin wiring (`attach_nag_packs`), the `acknowledge_rules`
+  acknowledgment adapter, and shared helpers (confused-deputy-guarded KMS
+  service grants, log buckets, log groups)
+- [infrastructure/validation_aspects.py](infrastructure/validation_aspects.py):
+  project-convention Aspect (explicit log retention + removal policies)
+- [scripts/audit_account.sh](scripts/audit_account.sh): read-only post-teardown
+  account audit (`make audit-account`)
+- [scripts/dns_lifecycle.sh](scripts/dns_lifecycle.sh): hosted-zone
+  hibernate/wake lifecycle (`make hibernate-dns` / `make wake-dns`)
 - [tests/](tests/): unit (100% coverage gate), CDK assertions + in-process
   cdk-nag gate, live integration tests

@@ -24,7 +24,16 @@ as a single unit:
                                 retain_data).
 
 The target region is controlled by the ``region`` CDK context key.
-Defaults to us-east-1 if not specified.
+Defaults to us-east-1 if not specified. Any region in the pinned
+``APPCONFIG_EXTENSION_ARM64_LAYER_ARNS`` map (``infrastructure/appconfig_extension.py``
+— every region AWS publishes the arm64 AppConfig Agent Lambda extension to)
+synthesizes. For a region the map lacks — or to trial a newer layer before
+bumping the pin — override the layer ARN with the
+``appconfig_extension_layer_arn`` CDK context key
+(``-c appconfig_extension_layer_arn=<arn>``), falling back to the
+``APPCONFIG_EXTENSION_LAYER_ARN`` environment variable; the override must be in
+the target region (layers are regional). With neither, an unmapped region fails
+synth with a ``ValueError`` naming both mechanisms.
 
 The stateful stacks' retention posture is controlled by the ``retain_data`` CDK
 context key (``-c retain_data=true``). It defaults to ``false`` so the template
@@ -72,12 +81,15 @@ would silently do nothing.
 
 Usage:
     cdk deploy --all                            # prod stage in us-east-1 (default)
-    cdk deploy --all -c region=ap-southeast-1   # separate Singapore Stage
+    cdk deploy --all -c region=ap-southeast-1   # separate Singapore Stage (mapped)
+    cdk deploy --all -c region=<unmapped> \
+        -c appconfig_extension_layer_arn=<arn>  # region the pinned map lacks
     cdk deploy --all -c env=alice-feature-x     # ephemeral developer stage
     make deploy ENV=alice-feature-x             # same, via the Makefile
 
 Each Stage is fully independent — destroying one does not affect any other.
-All five stacks for a given region+environment are destroyed together:
+All five stacks for a given region+environment are destroyed together
+(the region example below is a mapped region):
 
     cdk destroy --all -c region=ap-southeast-1
     cdk destroy --all -c env=alice-feature-x
@@ -91,6 +103,7 @@ from infrastructure.app_stage import (
     DEFAULT_ENV_NAME,
     AppStage,
     parse_context_flag,
+    resolve_appconfig_extension_layer_arn,
     stage_id,
     validate_code_connection_arn,
     validate_ssm_param_path,
@@ -138,6 +151,15 @@ appconfig_monitor: bool = parse_context_flag(app.node.try_get_context("appconfig
 # Default None keeps CDK's auto-generated name; validated at synth (fail-loud like retain_data).
 ssm_param_path: str | None = validate_ssm_param_path(app.node.try_get_context("ssm_param_path"))
 
+# Optional AppConfig Agent Lambda extension layer override. Context key wins
+# (`-c appconfig_extension_layer_arn=<arn>`), then the APPCONFIG_EXTENSION_LAYER_ARN
+# env var; None falls through to the pinned per-region map in appconfig_extension.py.
+# Shape-validated here (fail-loud like ssm_param_path); BackendApp additionally
+# rejects an override whose region differs from the stack's (layers are regional).
+appconfig_extension_layer_arn: str | None = resolve_appconfig_extension_layer_arn(
+    app.node.try_get_context("appconfig_extension_layer_arn")
+)
+
 # Pipeline mode (`-c pipeline=true`): synthesize the self-mutating CD
 # pipeline instead of a directly-deployable stage. The pipeline embeds
 # AppStage twice (dev + prod) — see infrastructure/pipeline_stack.py and
@@ -178,6 +200,7 @@ if pipeline_mode:
         retain_data=retain_data,
         appconfig_monitor=appconfig_monitor,
         ssm_param_path=ssm_param_path,
+        appconfig_extension_layer_arn=appconfig_extension_layer_arn,
         env=cdk.Environment(account=account, region=target_region),
     )
 else:
@@ -192,6 +215,7 @@ else:
         retain_data=retain_data,
         appconfig_monitor=appconfig_monitor,
         ssm_param_path=ssm_param_path,
+        appconfig_extension_layer_arn=appconfig_extension_layer_arn,
     )
 
 app.synth()

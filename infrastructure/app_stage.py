@@ -36,12 +36,21 @@ topic; ephemeral stacks keep dashboards and alarms but page nobody.
 """
 
 import getpass
+import os
 import re
+from collections.abc import Mapping
 from typing import Any
 
 import aws_cdk as cdk
 from constructs import Construct
 
+# The override's shape validator and env-var name live with the map in
+# appconfig_extension (BackendApp reuses the validator; importing app_stage
+# from there would be circular). Re-exported here as the context-plumbing home.
+from infrastructure.appconfig_extension import (
+    APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR,
+    validate_appconfig_extension_layer_arn,
+)
 from infrastructure.audit_stack import AuditStack
 from infrastructure.backend_stack import BackendStack
 from infrastructure.data_stack import DataStack
@@ -145,6 +154,28 @@ def validate_ssm_param_path(raw: str | None) -> str | None:
     return raw
 
 
+def resolve_appconfig_extension_layer_arn(
+    context_value: object, environ: Mapping[str, str] | None = None
+) -> str | None:
+    """Resolve the layer override: CDK context wins, then the env var, then None.
+
+    Context-first matches the repo's other context/env pairs (``env`` /
+    ``ENVIRONMENT``, ``code_connection_arn`` / ``CODE_CONNECTION_ARN``):
+    explicit per-invocation intent beats ambient environment. An empty string
+    (context or env var) is treated as unset so ``APPCONFIG_EXTENSION_LAYER_ARN=``
+    can't sneak an empty string past the validator's ``None`` short-circuit. Any
+    other context value — including a non-string from cdk.json (``true``,
+    ``0``) — goes to the validator, which rejects it with a friendly error
+    instead of letting it fall through to the env var or raise a TypeError.
+    """
+    # Read os.environ at call time (not as a default arg) so monkeypatched or
+    # late-exported values are seen; ``environ`` is an injection seam for tests.
+    env = os.environ if environ is None else environ
+    if context_value is not None and context_value != "":
+        return validate_appconfig_extension_layer_arn(context_value)
+    return validate_appconfig_extension_layer_arn(env.get(APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR) or None)
+
+
 # CodeConnections connection ARNs (the service was renamed from
 # codestar-connections in 2024; pre-rename connections keep the old service
 # segment, so both are accepted). Region/account left loose — IAM validates
@@ -240,6 +271,13 @@ class AppStage(cdk.Stage):
     via ``-c ssm_param_path=/org/app/greeting`` before the first deploy:
     changing it afterwards replaces the parameter (the value resets to
     ``"hello world"``).
+
+    ``appconfig_extension_layer_arn`` optionally overrides the AppConfig Agent
+    Lambda extension layer ARN that would otherwise come from the pinned
+    per-region map in ``infrastructure/appconfig_extension.py`` — for a region the map lacks, or to
+    trial a newer layer. ``None`` (the default) uses the map. Resolved in
+    app.py from ``-c appconfig_extension_layer_arn=<arn>``, falling back to the
+    ``APPCONFIG_EXTENSION_LAYER_ARN`` env var; must be in ``region``.
     """
 
     def __init__(
@@ -252,12 +290,14 @@ class AppStage(cdk.Stage):
         retain_data: bool = False,
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
+        appconfig_extension_layer_arn: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(scope, construct_id, permissions_boundary=SCAFFOLD_PERMISSIONS_BOUNDARY, **kwargs)
 
         validate_env_name(env_name)
         validate_ssm_param_path(ssm_param_path)
+        validate_appconfig_extension_layer_arn(appconfig_extension_layer_arn)
         is_production_env = env_name == DEFAULT_ENV_NAME
 
         # prod keeps the legacy names (no env segment) so the long-lived
@@ -313,6 +353,7 @@ class AppStage(cdk.Stage):
             is_production_env=is_production_env,
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
+            appconfig_extension_layer_arn=appconfig_extension_layer_arn,
             # By-name metric addressing, same no-cross-stack-ref technique as
             # the WAF log locations below — the CloudWatch WebACL dimension is
             # the ACL's NAME (live-verified against a deployed environment;

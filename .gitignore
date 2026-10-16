@@ -265,3 +265,7 @@ report.html
 
 # Node tooling (CDK CLI + markdownlint via package.json)
 node_modules/
+
+# Agent scratch output (research notes, handoff files); the committed
+# knowledge base lives in .agents/summary/
+.agents/scratchpad/

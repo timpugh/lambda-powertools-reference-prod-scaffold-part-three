@@ -1684,7 +1684,7 @@
           ]
         },
         "Source": {
-          "BuildSpec": "{\n  \"version\": \"0.2\",\n  \"phases\": {\n    \"install\": {\n      \"commands\": [\n        \"npm ci\",\n        \"pip install uv\"\n      ]\n    },\n    \"build\": {\n      \"commands\": [\n        \"npx cdk synth -c pipeline=true '**'\",\n        \"uv run python scripts/check_validation_report.py cdk.out\"\n      ]\n    }\n  },\n  \"artifacts\": {\n    \"base-directory\": \"cdk.out\",\n    \"files\": \"**/*\"\n  }\n}",
+          "BuildSpec": "{\n  \"version\": \"0.2\",\n  \"phases\": {\n    \"install\": {\n      \"commands\": [\n        \"npm ci\",\n        \"pip install uv==0.12.24\"\n      ]\n    },\n    \"build\": {\n      \"commands\": [\n        \"npx cdk synth -c pipeline=true '**'\",\n        \"uv run python scripts/check_validation_report.py cdk.out\"\n      ]\n    }\n  },\n  \"artifacts\": {\n    \"base-directory\": \"cdk.out\",\n    \"files\": \"**/*\"\n  }\n}",
           "Type": "CODEPIPELINE"
         }
       },
@@ -2370,7 +2370,7 @@
           ]
         },
         "Source": {
-          "BuildSpec": "{\n  \"version\": \"0.2\",\n  \"phases\": {\n    \"install\": {\n      \"commands\": [\n        \"pip install uv\"\n      ]\n    },\n    \"build\": {\n      \"commands\": [\n        \"make install-lambda\",\n        \"make test-integration\"\n      ]\n    }\n  }\n}",
+          "BuildSpec": "{\n  \"version\": \"0.2\",\n  \"phases\": {\n    \"install\": {\n      \"commands\": [\n        \"pip install uv==0.12.24\"\n      ]\n    },\n    \"build\": {\n      \"commands\": [\n        \"make install-lambda\",\n        \"make test-integration\"\n      ]\n    }\n  }\n}",
           "Type": "CODEPIPELINE"
         }
       },

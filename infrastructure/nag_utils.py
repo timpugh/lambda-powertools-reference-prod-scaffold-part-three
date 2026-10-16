@@ -329,17 +329,17 @@ def build_managed_threat_rules(metric_prefix: str) -> list[wafv2.CfnWebACL.RuleP
     a managed rule group that's added to one ACL but forgotten on the other is
     exactly the kind of asymmetry this consolidation prevents.
 
-    No rate-based rule is part of this shared set because edge and origin need
-    different aggregation, so each ACL carries its own. The CLOUDFRONT ACL
-    aggregates by plain ``IP``: it inspects the *viewer* request, so the source
-    IP it sees is already the real client's. On the regional ACL guarding the
-    origin, *funnelled* traffic arrives from CloudFront edge IPs (plain-IP
-    aggregation would pool many users behind a few shared edge IPs) — but
-    *direct* ``execute-api`` callers, the bypass path the regional ACL exists
-    to cover, arrive from their own IPs without the ``X-Forwarded-For`` header
-    CloudFront appends toward the origin. The regional ACL therefore carries an
-    IP-aggregated rate rule scoped down to XFF-less requests only — see
-    ``BackendApp._attach_regional_waf``.
+    No rate-based or origin-lockdown rule is part of this shared set because
+    edge and origin need different extra rules, so each ACL carries its own.
+    The CLOUDFRONT ACL adds an IP-aggregated rate rule: it inspects the
+    *viewer* request, so the source IP it sees is already the real client's.
+    The regional ACL guarding the API Gateway origin instead adds a
+    ``RejectNonCloudFront`` rule that byte-matches the ``x-origin-verify``
+    header CloudFront injects from the ``OriginVerifySecret`` and blocks
+    (``403``, fail-closed) every request that lacks or mismatches it — which
+    closes the direct ``execute-api`` bypass outright rather than rate-limiting
+    it (this superseded the earlier XFF-scoped ``RateLimitDirectCallers`` rule).
+    See ``BackendApp._attach_regional_waf``.
 
     Args:
         metric_prefix: Prefix for each rule's CloudWatch metric name (the caller
@@ -347,7 +347,8 @@ def build_managed_threat_rules(metric_prefix: str) -> list[wafv2.CfnWebACL.RuleP
 
     Returns:
         The four managed-rule-group ``RuleProperty`` objects at priorities 0-3.
-        Callers that add a rate rule place it at priority 4.
+        Callers place their ACL-specific rule (rate limit or origin-verify
+        lockdown) at priority 4.
     """
 
     def _managed_group(name: str, priority: int, metric_suffix: str) -> wafv2.CfnWebACL.RuleProperty:
