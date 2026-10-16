@@ -6,8 +6,8 @@
 
 Report privately through GitHub's built-in private vulnerability reporting:
 
-- Open the repository's [**Security** tab](https://github.com/timpugh/lambda-powertools-reference/security), then choose **Report a vulnerability** — or use the direct link:
-  [https://github.com/timpugh/lambda-powertools-reference/security/advisories/new](https://github.com/timpugh/lambda-powertools-reference/security/advisories/new)
+- Open the repository's [**Security** tab](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/security), then choose **Report a vulnerability** — or use the direct link:
+  [https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/security/advisories/new](https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three/security/advisories/new)
 
 This routes the report to the maintainers through a private GitHub Security Advisory. Reporting this way (rather than by email) keeps the disclosure confidential until a fix is ready and avoids exchanging any personal contact details. See GitHub's documentation on
 [privately reporting a security vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)

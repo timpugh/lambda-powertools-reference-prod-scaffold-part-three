@@ -9,10 +9,12 @@
 
 [project]
 
-site_name = "Lambda Powertools Reference"
+site_name = "Lambda Powertools Reference — Production Scaffold, Part Three"
 site_description = "Reference serverless API built on AWS Lambda Powertools, CDK, and API Gateway"
 site_author = "timpugh"
-site_url = "https://timpugh.github.io/lambda-powertools-reference/"
+site_url = "https://timpugh.github.io/lambda-powertools-reference-prod-scaffold-part-three/"
+repo_url = "https://github.com/timpugh/lambda-powertools-reference-prod-scaffold-part-three"
+repo_name = "timpugh/lambda-powertools-reference-prod-scaffold-part-three"
 
 copyright = "Copyright &copy; 2026 Tim Pugh"
 
@@ -22,11 +24,20 @@ nav = [
     { "Overview" = "index.md" },
     { "Code reference" = [
         { "Lambda handler" = "lambda_handler.md" },
+        { "Data models" = "models.md" },
+        { "Service layer" = "service.md" },
+        { "AppConfig extension store" = "extension_store.md" },
+        { "App stage" = "app_stage.md" },
+        { "Data stack" = "data_stack.md" },
         { "Backend application construct" = "backend_app.md" },
+        { "AppConfig extension layer" = "appconfig_extension.md" },
         { "Backend stack" = "backend_stack.md" },
         { "WAF stack" = "waf_stack.md" },
         { "Frontend stack" = "frontend_stack.md" },
+        { "Audit stack" = "audit_stack.md" },
+        { "Pipeline stack" = "pipeline_stack.md" },
         { "NAG utilities" = "nag_utils.md" },
+        { "Validation aspects" = "validation_aspects.md" },
     ] },
     { "HTTP API reference" = "api.html" },
 ]
