@@ -21,16 +21,20 @@ dangling-resource problem this repo's cleanup patterns exist for).
 from typing import Any, cast
 
 import aws_cdk as cdk
+from aws_cdk import Annotations, pipelines
 from aws_cdk import aws_codebuild as codebuild
 from aws_cdk import aws_codepipeline as codepipeline
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_kms as kms
 from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
-from aws_cdk import pipelines
 from constructs import Construct
 
-from infrastructure.app_stage import SCAFFOLD_PERMISSIONS_BOUNDARY, AppStage
+from infrastructure.app_stage import (
+    APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR,
+    SCAFFOLD_PERMISSIONS_BOUNDARY,
+    AppStage,
+)
 from infrastructure.nag_utils import (
     LOG_SINK_SUPPRESSION_RULES,
     acknowledge_rules,
@@ -46,6 +50,13 @@ GITHUB_BRANCH = "main"
 # never tears it down). Manual `make deploy ENV=dev` would fight the pipeline
 # over the same stacks — documented as reserved in the README.
 DEV_ENV_NAME = "dev"
+
+# uv version pinned in every CodeBuild step that installs it (synth +
+# integration tests), so a new uv release can't silently change resolution or
+# CLI behaviour mid-pipeline. Must move together with the `version:` on every
+# astral-sh/setup-uv step in .github/workflows/*.yml and the
+# `required-version` floor in pyproject.toml's [tool.uv].
+UV_VERSION = "0.12.24"
 
 
 def _with_literal_partition(finding_id: str) -> list[str]:
@@ -78,6 +89,7 @@ class PipelineStack(cdk.Stack):
         retain_data: bool = False,
         appconfig_monitor: bool = False,
         ssm_param_path: str | None = None,
+        appconfig_extension_layer_arn: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(scope, construct_id, permissions_boundary=SCAFFOLD_PERMISSIONS_BOUNDARY, **kwargs)
@@ -153,7 +165,7 @@ class PipelineStack(cdk.Stack):
             ),
             install_commands=[
                 "npm ci",
-                "pip install uv",
+                f"pip install uv=={UV_VERSION}",
             ],
             commands=[
                 # Same pair as `make cdk-synth` / the CI cdk-check job, plus
@@ -172,7 +184,20 @@ class PipelineStack(cdk.Stack):
             # once (make deploy-pipeline auto-discovers it from the account),
             # and every pipeline synth re-embeds what its own environment
             # carries. Rotation = rerun make deploy-pipeline.
-            env={"CODE_CONNECTION_ARN": code_connection_arn},
+            env={
+                "CODE_CONNECTION_ARN": code_connection_arn,
+                # Same self-consistent loop for the optional AppConfig extension
+                # layer override: if the birth deploy got it from -c or the
+                # APPCONFIG_EXTENSION_LAYER_ARN env var (not cdk.json), the
+                # self-mutation synth would otherwise lose it — and in a region
+                # the pinned map lacks, fail synth. Baked only when set, so the
+                # default pipeline definition is unchanged.
+                **(
+                    {APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR: appconfig_extension_layer_arn}
+                    if appconfig_extension_layer_arn
+                    else {}
+                ),
+            },
             primary_output_directory="cdk.out",
         )
 
@@ -204,10 +229,23 @@ class PipelineStack(cdk.Stack):
             ),
         )
 
+        if appconfig_extension_layer_arn:
+            # The override is baked into the Synth step env above, so it sticks
+            # across every self-mutation until the pipeline is redeployed without
+            # it — surface that on each synth (warning, not error: supported path).
+            Annotations.of(self).add_warning(
+                f"AppConfig extension layer override active: {appconfig_extension_layer_arn} overrides the "
+                "pinned APPCONFIG_EXTENSION_ARM64_LAYER_ARNS map for dev and prod and is baked into the Synth "
+                f"step's {APPCONFIG_EXTENSION_LAYER_ARN_ENV_VAR} env var, so it persists across self-mutation "
+                "and masks future map bumps. To clear it: unset the env var / -c key and re-run "
+                "`make deploy-pipeline`."
+            )
+
         self._add_stages(
             retain_data=retain_data,
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
+            appconfig_extension_layer_arn=appconfig_extension_layer_arn,
         )
 
         # Force role/project generation now so the acknowledgments below see
@@ -261,6 +299,7 @@ class PipelineStack(cdk.Stack):
         retain_data: bool,
         appconfig_monitor: bool,
         ssm_param_path: str | None,
+        appconfig_extension_layer_arn: str | None,
     ) -> None:
         env = cdk.Environment(account=self.account, region=self.region)
 
@@ -270,6 +309,10 @@ class PipelineStack(cdk.Stack):
         # collide with prod's in the shared account. appconfig_monitor IS
         # forwarded: once flipped in cdk.json (after both cold deploys —
         # README runbook), dev exercises the same rollout machinery prod uses.
+        # appconfig_extension_layer_arn IS forwarded too: dev and prod share
+        # the pipeline's region, so the same regional layer serves both (no
+        # collision, unlike a fixed SSM name), and dev must run the exact
+        # layer prod will get — it's what the integration tests vet.
         dev = AppStage(
             self,
             "Dev",
@@ -278,12 +321,13 @@ class PipelineStack(cdk.Stack):
             retain_data=False,
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=None,
+            appconfig_extension_layer_arn=appconfig_extension_layer_arn,
             env=env,
         )
 
         integration_test = pipelines.CodeBuildStep(
             "IntegrationTest",
-            install_commands=["pip install uv"],
+            install_commands=[f"pip install uv=={UV_VERSION}"],
             commands=[
                 "make install-lambda",
                 "make test-integration",
@@ -325,6 +369,7 @@ class PipelineStack(cdk.Stack):
             retain_data=retain_data,
             appconfig_monitor=appconfig_monitor,
             ssm_param_path=ssm_param_path,
+            appconfig_extension_layer_arn=appconfig_extension_layer_arn,
             env=env,
         )
         self.pipeline.add_stage(prod, pre=[pipelines.ManualApprovalStep("PromoteToProd")])
